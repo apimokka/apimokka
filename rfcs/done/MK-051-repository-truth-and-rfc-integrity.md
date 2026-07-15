@@ -1,6 +1,6 @@
 # RFC MK-051 — Repository truth and RFC integrity
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M1 — Repository truth.
 **Touches.** RFC metadata and index, changelog/roadmap alignment, maintainer
 documentation, historical-document warnings, a repository-owned RFC checker,

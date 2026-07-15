@@ -9,9 +9,7 @@ record. The lifecycle policy is the MK-000 entry below.
 
 ## Proposed (open for review)
 
-| RFC | Title | Tracks |
-|---|---|---|
-| [MK-051](./proposed/MK-051-repository-truth-and-rfc-integrity.md) | Repository truth and RFC integrity | Stabilization M1 |
+No RFCs are currently proposed.
 
 ---
 
@@ -49,6 +47,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-048](./done/MK-048-workspace-creation-completion.md) | Workspace creation completion | v0.9.17 |
 | [MK-049](./done/MK-049-minor-gap-fixes.md) | Minor gap fixes | v0.9.18 |
 | [MK-050](./done/MK-050-snora-design-migration.md) | Migrate to snora 0.25 Snora Design system | v0.10.0 |
+| [MK-051](./done/MK-051-repository-truth-and-rfc-integrity.md) | Repository truth and RFC integrity | Unreleased |
 
 ---
 

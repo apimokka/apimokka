@@ -47,3 +47,24 @@ are Bash builtins.
 The checker returns 0 for a coherent repository, 1 for deterministic
 repository findings, and 2 for invalid invocation, missing utilities,
 unreadable required paths, or internal operational failures.
+
+## M1 lifecycle-closure candidate — 2026-07-15
+
+After independent acceptance of the Proposed implementation candidate, the
+project owner authorized the lifecycle-closure patch. MK-051 moved to
+`rfcs/done/` with `Implemented (Unreleased)`; its index entry moved to
+Implemented, and the Proposed section became explicitly empty. M1 remains
+`In review` with closure confirmation pending.
+
+| Closure check | Exit | Observed result |
+|---|---:|---|
+| `scripts/check-rfcs-self-test.sh` | 0 | 25 checks passed |
+| `scripts/check-rfcs.sh` | 0 | `RFC integrity: 0 error(s)` |
+| `git diff --check` | 0 | No tracked-file whitespace diagnostics |
+| `git diff --no-index --check /dev/null -- rfcs/done/MK-051-repository-truth-and-rfc-integrity.md` | 1 | Clean moved-file difference with zero diagnostics |
+
+The no-index check covers the move destination before the closure commit; exit
+1 with no diagnostics is the expected clean result. There are no other new
+expected tracked files in the closure patch. Rust, dependency, clippy, audit,
+and MSRV gates were not rerun because the closure patch changes lifecycle
+documentation only; their M1 baseline above remains the observed record.
