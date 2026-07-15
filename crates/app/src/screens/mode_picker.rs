@@ -4,10 +4,10 @@
 //! choose Guided or Expert before anything else is rendered. The choice is
 //! reversible in Settings at any time.
 
-use iced::widget::{button, column, container, row, text, Space};
-use iced::{Element, Length, Padding};
 use apimokka_i18n::Key;
 use apimokka_model::AudienceMode;
+use iced::widget::{Space, button, column, container, row, text};
+use iced::{Element, Length, Padding};
 
 use crate::app::App;
 use crate::message::Message;
@@ -19,7 +19,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
             container(
                 column![
                     text(app.t(title)).size(size::SECTION),
-                    text(app.t(desc)).size(size::BODY)
+                    text(app.t(desc))
+                        .size(size::BODY)
                         .color(theme::muted(&app.theme())),
                 ]
                 .spacing(space::S2),
@@ -37,17 +38,27 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
     let picker = container(
         column![
-            text(app.t(Key::AppName)).size(size::DISPLAY)
+            text(app.t(Key::AppName))
+                .size(size::DISPLAY)
                 .color(theme::muted(&app.theme())),
             Space::new().height(space::S2),
             text(app.t(Key::ModePickerTitle)).size(size::TITLE),
             Space::new().height(space::S3),
-            card(Key::ModeGuidedTitle, Key::ModeGuidedDesc, AudienceMode::Guided),
+            card(
+                Key::ModeGuidedTitle,
+                Key::ModeGuidedDesc,
+                AudienceMode::Guided
+            ),
             Space::new().height(space::S2),
-            card(Key::ModeExpertTitle, Key::ModeExpertDesc, AudienceMode::Expert),
+            card(
+                Key::ModeExpertTitle,
+                Key::ModeExpertDesc,
+                AudienceMode::Expert
+            ),
             Space::new().height(space::S3),
             row![
-                text(app.t(Key::ModePickerHint)).size(size::CAPTION)
+                text(app.t(Key::ModePickerHint))
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
             ],
         ]

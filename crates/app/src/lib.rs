@@ -1,6 +1,6 @@
 // Proof of concept — does the design API compile as documented?
 fn _poc() {
-    use snora::design::{Tokens, Color};
+    use snora::design::{Color, Tokens};
     let t = Tokens::light();
     let _ = Tokens::dark();
     let _ = Tokens::high_contrast_light();

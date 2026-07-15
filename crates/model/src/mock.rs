@@ -20,9 +20,9 @@ use crate::validation::{Diagnostic, NodeValidation, Severity, ValidationIssue};
 /// All settings default to safe values; the user fills in content after creation.
 pub fn blank_workspace(name: &str, host: &str, port: u16, tls: bool) -> WorkspaceSnapshot {
     let mut settings = RootSettings::default();
-    settings.listener_ip   = host.to_string();
+    settings.listener_ip = host.to_string();
     settings.listener_port = port;
-    settings.tls_enabled   = tls;
+    settings.tls_enabled = tls;
 
     WorkspaceSnapshot {
         meta: WorkspaceMeta {
@@ -256,13 +256,11 @@ pub fn shop_api_mock() -> WorkspaceSnapshot {
     ];
 
     // ---- workspace-wide diagnostics --------------------------------
-    let diagnostics = vec![
-        Diagnostic {
-            node_id: None,
-            severity: Severity::Info,
-            message: "No include filter is set. All supported files are visible.".into(),
-        },
-    ];
+    let diagnostics = vec![Diagnostic {
+        node_id: None,
+        severity: Severity::Info,
+        message: "No include filter is set. All supported files are visible.".into(),
+    }];
 
     let mut settings = RootSettings::default();
     settings.strategy = Strategy::WeightedRandom;
@@ -396,10 +394,17 @@ mod tests {
         // Every workspace should have at least one rule set, each with rules.
         assert!(!snap.rule_sets.is_empty(), "mock must have rule sets");
         for rs in &snap.rule_sets {
-            assert!(!rs.rules.is_empty(), "rule set {:?} has no rules", rs.file.path);
+            assert!(
+                !rs.rules.is_empty(),
+                "rule set {:?} has no rules",
+                rs.file.path
+            );
             // Rule summaries are user-facing labels — never empty.
             for r in &rs.rules {
-                assert!(!r.summary().trim().is_empty(), "rule summary must be non-empty");
+                assert!(
+                    !r.summary().trim().is_empty(),
+                    "rule summary must be non-empty"
+                );
             }
         }
     }
@@ -407,7 +412,10 @@ mod tests {
     #[test]
     fn mock_has_fallback_files_with_routes() {
         let snap = shop_api_mock();
-        assert!(!snap.fallback_files.is_empty(), "mock must have fallback files");
+        assert!(
+            !snap.fallback_files.is_empty(),
+            "mock must have fallback files"
+        );
         // Each fallback file should advertise the route it serves.
         assert!(
             snap.fallback_files.iter().any(|f| f.route_hint.is_some()),
@@ -438,7 +446,10 @@ mod tests_blank {
         assert_eq!(ws.root_settings.listener_ip, "0.0.0.0");
         assert_eq!(ws.root_settings.listener_port, 9090);
         assert!(ws.root_settings.tls_enabled);
-        assert!(ws.rule_sets.is_empty(), "blank workspace starts with no rules");
+        assert!(
+            ws.rule_sets.is_empty(),
+            "blank workspace starts with no rules"
+        );
         assert!(ws.fallback_files.is_empty());
         assert!(ws.diagnostics.is_empty());
     }
@@ -447,7 +458,7 @@ mod tests_blank {
 /// MK-048: A minimal workspace — one rule set, one health-check rule.
 /// The idiomatic "first rule" for any new mock service.
 pub fn minimal_workspace(name: &str, host: &str, port: u16, tls: bool) -> WorkspaceSnapshot {
-    let rs_id   = RuleSetId(NodeId::new());
+    let rs_id = RuleSetId(NodeId::new());
     let rule_id = NodeId::new();
 
     let rule = RuleView {
@@ -484,9 +495,9 @@ pub fn minimal_workspace(name: &str, host: &str, port: u16, tls: bool) -> Worksp
     };
 
     let mut settings = RootSettings::default();
-    settings.listener_ip   = host.to_string();
+    settings.listener_ip = host.to_string();
     settings.listener_port = port;
-    settings.tls_enabled   = tls;
+    settings.tls_enabled = tls;
 
     WorkspaceSnapshot {
         meta: WorkspaceMeta {

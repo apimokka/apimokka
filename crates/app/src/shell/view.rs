@@ -10,8 +10,8 @@
 //!   sheet   — bottom drawer (when open)
 //!   dialog  — overlay stack (confirm > palette > test-rule > path-assistant)
 
-use iced::widget::column;
 use iced::Element;
+use iced::widget::column;
 use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize};
 
 use crate::app::App;
@@ -21,13 +21,13 @@ use crate::selection::WorkspaceTab;
 use crate::shell;
 
 pub fn view(app: &App) -> Element<'_, Message> {
-    let header  = shell::top_bar::view(app);
+    let header = shell::top_bar::view(app);
     let tab_bar = shell::tab_bar::view(app);
 
     // Screen content
     let screen: Element<Message> = match app.tab {
-        WorkspaceTab::Routes   => screens::routes::view(app),
-        WorkspaceTab::Trace    => screens::trace::view(app),
+        WorkspaceTab::Routes => screens::routes::view(app),
+        WorkspaceTab::Trace => screens::trace::view(app),
         WorkspaceTab::Settings => screens::settings::view(app),
     };
 
@@ -36,7 +36,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     // without obscuring content.
     let body: Element<Message> = match feedback_banner(app) {
         Some(banner) => column![tab_bar, banner, screen].into(),
-        None          => column![tab_bar, screen].into(),
+        None => column![tab_bar, screen].into(),
     };
 
     let mut layout = AppLayout::new(body)
@@ -65,9 +65,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     //    dismissible: the user must choose before using the app. No
     //    on_close_modals sink, so Esc / backdrop cannot close it.
     if app.audience_mode.is_none() {
-        return snora::render(
-            layout.dialog(Dialog::new(screens::mode_picker::view(app))),
-        );
+        return snora::render(layout.dialog(Dialog::new(screens::mode_picker::view(app))));
     }
     // 1. Confirm dialog
     if app.confirm_dialog.is_some() {
@@ -108,10 +106,10 @@ pub fn view(app: &App) -> Element<'_, Message> {
 /// MK-039 feedback banner. Priority: friendly error > undo > success notice.
 /// Returns None when there is nothing to show.
 fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
-    use iced::widget::{button, container, row, text, Space};
-    use iced::{Alignment, Length, Padding};
-    use apimokka_i18n::Key;
     use crate::theme::{self, size, space};
+    use apimokka_i18n::Key;
+    use iced::widget::{Space, button, container, row, text};
+    use iced::{Alignment, Length, Padding};
 
     // 1. Friendly error (highest priority)
     if let Some(p) = &app.last_problem {
@@ -119,7 +117,8 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
         // inline (Expert, or expanded) or behind a Show/Hide toggle (Guided).
         let mut detail_col = iced::widget::column![
             text(p.title.as_str()).size(size::BODY_STRONG),
-            text(p.detail.as_str()).size(size::CAPTION)
+            text(p.detail.as_str())
+                .size(size::CAPTION)
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S1)
@@ -130,7 +129,8 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             let expanded = app.show_problem_details;
             if expanded {
                 detail_col = detail_col.push(
-                    text(tech.as_str()).size(size::CAPTION)
+                    text(tech.as_str())
+                        .size(size::CAPTION)
                         .font(iced::Font::MONOSPACE)
                         .color(theme::muted(&app.theme())),
                 );
@@ -184,12 +184,14 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             button(
                 row![
                     text(app.t(Key::UndoLabel)).size(size::CAPTION),
-                    text(" ⌘Z").size(size::CAPTION)
+                    text(" ⌘Z")
+                        .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
-                ].spacing(2),
+                ]
+                .spacing(2),
             )
-                .on_press(Message::Undo)
-                .padding(Padding::from([space::S1, space::S3])),
+            .on_press(Message::Undo)
+            .padding(Padding::from([space::S1, space::S3])),
             button(text("✕").size(size::CAPTION))
                 .on_press(Message::DismissNotice)
                 .padding(Padding::from([space::S1, space::S2]))

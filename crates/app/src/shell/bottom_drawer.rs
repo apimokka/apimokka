@@ -4,28 +4,29 @@
 //! - Validation: groups by rule set, click-to-navigate, proper empty state.
 //! - Save diff: shows rule summaries and fallback-file change indicators.
 
-use iced::widget::{button, column, container, row, scrollable, text, Space};
-use iced::{Alignment, Color, Element, Length, Padding};
-use apimokka_i18n::Key;
 use crate::app::App;
 use crate::message::Message;
 use crate::selection::DrawerMode;
 use crate::theme::{self, size, space};
 use crate::widgets;
+use apimokka_i18n::Key;
+use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::{Alignment, Color, Element, Length, Padding};
 
 pub fn view(app: &App) -> Element<'_, Message> {
-    let mode = match app.drawer { Some(m) => m, None => return Space::new().into() };
+    let mode = match app.drawer {
+        Some(m) => m,
+        None => return Space::new().into(),
+    };
     let body: Element<Message> = match mode {
         DrawerMode::Validation => validation_content(app),
-        DrawerMode::SaveDiff   => save_diff_content(app),
+        DrawerMode::SaveDiff => save_diff_content(app),
     };
-    container(
-        column![
-            drawer_header(app, mode),
-            widgets::divider(),
-            scrollable(body).height(Length::Fill),
-        ]
-    )
+    container(column![
+        drawer_header(app, mode),
+        widgets::divider(),
+        scrollable(body).height(Length::Fill),
+    ])
     .width(Length::Fill)
     .height(Length::Fill)
     .style(theme::panel_style)
@@ -35,14 +36,18 @@ pub fn view(app: &App) -> Element<'_, Message> {
 fn drawer_header<'a>(app: &'a App, mode: DrawerMode) -> Element<'a, Message> {
     let title = match mode {
         DrawerMode::Validation => app.t(Key::DrawerValidationTitle),
-        DrawerMode::SaveDiff   => app.t(Key::DrawerSaveDiffTitle),
+        DrawerMode::SaveDiff => app.t(Key::DrawerSaveDiffTitle),
     };
-    container(row![
-        text(title).size(size::SECTION).width(Length::Fill),
-        button(text("✕").size(size::BODY)).on_press(Message::CloseDrawer)
-            .padding(Padding::from([space::S1, space::S2]))
-            .style(iced::widget::button::text),
-    ].align_y(Alignment::Center))
+    container(
+        row![
+            text(title).size(size::SECTION).width(Length::Fill),
+            button(text("✕").size(size::BODY))
+                .on_press(Message::CloseDrawer)
+                .padding(Padding::from([space::S1, space::S2]))
+                .style(iced::widget::button::text),
+        ]
+        .align_y(Alignment::Center),
+    )
     .padding(Padding::from([space::S3, space::S4]))
     .into()
 }
@@ -54,20 +59,19 @@ fn validation_content(app: &App) -> Element<'_, Message> {
         return widgets::empty_state(app.t(Key::DrawerValidationOk));
     };
 
-    let mut col = column![].spacing(space::S2)
+    let mut col = column![]
+        .spacing(space::S2)
         .padding(Padding::from([space::S3, space::S4]));
 
     // ── Workspace-level diagnostics (shown first, at workspace scope) ────
     if !snap.diagnostics.is_empty() {
-        col = col.push(
-            text(app.t(Key::DrawerValidationWorkspace))
-                .size(size::BODY_STRONG),
-        );
+        col = col.push(text(app.t(Key::DrawerValidationWorkspace)).size(size::BODY_STRONG));
         for d in &snap.diagnostics {
             col = col.push(
                 row![
                     text(widgets::severity_glyph(d.severity)).size(size::BODY),
-                    text(d.message.as_str()).size(size::CAPTION)
+                    text(d.message.as_str())
+                        .size(size::CAPTION)
                         .color(theme::muted(&app.theme()))
                         .width(Length::Fill),
                 ]
@@ -83,7 +87,9 @@ fn validation_content(app: &App) -> Element<'_, Message> {
     for rs in &snap.rule_sets {
         let file_name = rs.file.path.rsplit('/').next().unwrap_or(&rs.file.path);
 
-        let rule_issues: Vec<_> = rs.rules.iter()
+        let rule_issues: Vec<_> = rs
+            .rules
+            .iter()
             .flat_map(|r| r.validation.issues.iter().map(move |iss| (r, iss)))
             .collect();
 
@@ -91,11 +97,14 @@ fn validation_content(app: &App) -> Element<'_, Message> {
             // Clean file — positive confirmation in muted text
             col = col.push(
                 row![
-                    text("✓").size(size::CAPTION)
+                    text("✓")
+                        .size(size::CAPTION)
                         .color(Color::from_rgb(0.1, 0.65, 0.1)),
-                    text(app.t(Key::DrawerValidationFileOk)).size(size::CAPTION)
+                    text(app.t(Key::DrawerValidationFileOk))
+                        .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
-                    text(file_name).size(size::CAPTION)
+                    text(file_name)
+                        .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
                 ]
                 .spacing(space::S2)
@@ -104,17 +113,15 @@ fn validation_content(app: &App) -> Element<'_, Message> {
         } else {
             any_issue = true;
             // File heading
-            col = col.push(
-                text(file_name).size(size::BODY_STRONG),
-            );
+            col = col.push(text(file_name).size(size::BODY_STRONG));
             for (rule, iss) in &rule_issues {
-                let rule_id  = rule.id;
-                let summary  = rule.summary();
-                let glyph    = widgets::severity_glyph(iss.severity);
+                let rule_id = rule.id;
+                let summary = rule.summary();
+                let glyph = widgets::severity_glyph(iss.severity);
                 let glyph_color = match iss.severity {
-                    apimokka_model::Severity::Error   => Color::from_rgb(0.85, 0.15, 0.15),
+                    apimokka_model::Severity::Error => Color::from_rgb(0.85, 0.15, 0.15),
                     apimokka_model::Severity::Warning => Color::from_rgb(0.85, 0.45, 0.0),
-                    apimokka_model::Severity::Info    => Color::from_rgb(0.2, 0.5, 0.9),
+                    apimokka_model::Severity::Info => Color::from_rgb(0.2, 0.5, 0.9),
                 };
                 col = col.push(
                     container(
@@ -124,9 +131,11 @@ fn validation_content(app: &App) -> Element<'_, Message> {
                                 row![
                                     text(glyph).size(size::CAPTION).color(glyph_color),
                                     text(summary).size(size::BODY).width(Length::Fill),
-                                    text(app.t(Key::DrawerJumpToRule)).size(size::CAPTION)
+                                    text(app.t(Key::DrawerJumpToRule))
+                                        .size(size::CAPTION)
                                         .color(theme::muted(&app.theme())),
-                                    text("→").size(size::CAPTION)
+                                    text("→")
+                                        .size(size::CAPTION)
                                         .color(theme::muted(&app.theme())),
                                 ]
                                 .spacing(space::S2)
@@ -139,7 +148,8 @@ fn validation_content(app: &App) -> Element<'_, Message> {
                             // Issue message, indented
                             row![
                                 Space::new().width(Length::Fixed(space::S5)),
-                                text(iss.message.as_str()).size(size::CAPTION)
+                                text(iss.message.as_str())
+                                    .size(size::CAPTION)
                                     .color(theme::muted(&app.theme()))
                                     .width(Length::Fill),
                             ],
@@ -158,7 +168,9 @@ fn validation_content(app: &App) -> Element<'_, Message> {
     if !any_issue && snap.diagnostics.is_empty() {
         return container(
             column![
-                text("✓").size(size::TITLE).color(Color::from_rgb(0.1, 0.65, 0.1)),
+                text("✓")
+                    .size(size::TITLE)
+                    .color(Color::from_rgb(0.1, 0.65, 0.1)),
                 text(app.t(Key::DrawerValidationOk)).size(size::BODY),
             ]
             .spacing(space::S2)
@@ -179,12 +191,12 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
         return widgets::empty_state("No workspace open.");
     };
 
-    let dirty_rule_sets: Vec<_> = snap.rule_sets.iter()
-        .filter(|rs| rs.file.dirty)
-        .collect();
+    let dirty_rule_sets: Vec<_> = snap.rule_sets.iter().filter(|rs| rs.file.dirty).collect();
 
     let dirty_fallback_paths: Vec<&str> = {
-        let mut v: Vec<&str> = app.fallback_drafts.keys()
+        let mut v: Vec<&str> = app
+            .fallback_drafts
+            .keys()
             .filter(|p| app.is_fallback_dirty(p))
             .map(|p| p.as_str())
             .collect();
@@ -196,7 +208,9 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
     if total == 0 {
         return container(
             column![
-                text("✓").size(size::TITLE).color(Color::from_rgb(0.1, 0.65, 0.1)),
+                text("✓")
+                    .size(size::TITLE)
+                    .color(Color::from_rgb(0.1, 0.65, 0.1)),
                 text("No unsaved changes.").size(size::BODY),
             ]
             .spacing(space::S2)
@@ -207,8 +221,15 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
         .into();
     }
 
-    let count_text = format!("{} {} unsaved changes", total,
-        if total == 1 { "file with" } else { "files with" });
+    let count_text = format!(
+        "{} {} unsaved changes",
+        total,
+        if total == 1 {
+            "file with"
+        } else {
+            "files with"
+        }
+    );
 
     let mut col = column![
         text(count_text).size(size::BODY_STRONG),
@@ -234,7 +255,8 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
             container(
                 column![
                     row![
-                        text("●").size(size::CAPTION)
+                        text("●")
+                            .size(size::CAPTION)
                             .color(theme::muted(&app.theme())),
                         text(file_name).size(size::BODY).width(Length::Fill),
                     ]
@@ -242,10 +264,15 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                     .align_y(Alignment::Center),
                     row![
                         Space::new().width(Length::Fixed(space::S4)),
-                        text(format!("{} {} {}", rule_count, app.t(Key::DrawerSaveDiffChangedRules), preview))
-                            .size(size::CAPTION)
-                            .color(theme::muted(&app.theme()))
-                            .width(Length::Fill),
+                        text(format!(
+                            "{} {} {}",
+                            rule_count,
+                            app.t(Key::DrawerSaveDiffChangedRules),
+                            preview
+                        ))
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme()))
+                        .width(Length::Fill),
                     ],
                 ]
                 .spacing(space::S1),
@@ -263,7 +290,8 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
             container(
                 column![
                     row![
-                        text("●").size(size::CAPTION)
+                        text("●")
+                            .size(size::CAPTION)
                             .color(theme::muted(&app.theme())),
                         text(name.to_string()).size(size::BODY).width(Length::Fill),
                     ]
@@ -271,7 +299,8 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                     .align_y(Alignment::Center),
                     row![
                         Space::new().width(Length::Fixed(space::S4)),
-                        text(app.t(Key::DrawerSaveDiffFallbackMod)).size(size::CAPTION)
+                        text(app.t(Key::DrawerSaveDiffFallbackMod))
+                            .size(size::CAPTION)
                             .color(theme::muted(&app.theme())),
                     ],
                 ]

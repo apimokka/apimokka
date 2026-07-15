@@ -46,9 +46,13 @@ pub enum TraceTransport {
 }
 
 impl TraceTransport {
-#[allow(dead_code)]
+    #[allow(dead_code)]
     pub fn all() -> [TraceTransport; 3] {
-        [TraceTransport::Uds, TraceTransport::Tcp, TraceTransport::Disabled]
+        [
+            TraceTransport::Uds,
+            TraceTransport::Tcp,
+            TraceTransport::Disabled,
+        ]
     }
     pub fn label(self) -> &'static str {
         match self {
@@ -99,7 +103,9 @@ impl Strategy {
         match self {
             Strategy::FirstMatch => "The first matching rule in list order wins.",
             Strategy::UniformRandom => "A matching rule is selected randomly.",
-            Strategy::WeightedRandom => "Matching rules are selected randomly using per-rule weights.",
+            Strategy::WeightedRandom => {
+                "Matching rules are selected randomly using per-rule weights."
+            }
             Strategy::Priority => "The highest priority matching rule wins.",
             Strategy::RoundRobin => "Matching rules are selected in rotation.",
         }

@@ -1,8 +1,8 @@
 //! Shared widget helpers using MK-022 design tokens.
 
-use iced::{Color, Element, Length, Padding};
-use iced::widget::{button, container, row, text, Space};
 use apimokka_model::Severity;
+use iced::widget::{Space, button, container, row, text};
+use iced::{Color, Element, Length, Padding};
 
 use crate::message::Message;
 use crate::theme::{self, pad, size, space};
@@ -43,9 +43,9 @@ pub fn dirty_dot<'a>() -> Element<'a, Message> {
 
 pub fn severity_glyph(sev: Severity) -> &'static str {
     match sev {
-        Severity::Error   => "✕",
+        Severity::Error => "✕",
         Severity::Warning => "⚠",
-        Severity::Info    => "ℹ",
+        Severity::Info => "ℹ",
     }
 }
 
@@ -106,12 +106,11 @@ pub fn icon_btn<'a>(glyph: &'a str, msg: Message) -> Element<'a, Message> {
 
 // ── Labelled field ─────────────────────────────────────────────────────────────
 
-pub fn field<'a>(
-    label: &'a str,
-    control: Element<'a, Message>,
-) -> Element<'a, Message> {
+pub fn field<'a>(label: &'a str, control: Element<'a, Message>) -> Element<'a, Message> {
     iced::widget::column![
-        text(label).size(size::CAPTION).color(Color::from_rgb(0.52, 0.52, 0.52)),
+        text(label)
+            .size(size::CAPTION)
+            .color(Color::from_rgb(0.52, 0.52, 0.52)),
         control,
     ]
     .spacing(space::S1)
@@ -124,7 +123,7 @@ pub fn field<'a>(
 /// a domain gotcha in technical language; it is opt-in so the default view
 /// stays uncluttered ("less is more").
 pub fn info_hint<'a>(theme: &iced::Theme, hint: &'a str) -> Element<'a, Message> {
-    let marker = text("\u{24D8}")          // ⓘ
+    let marker = text("\u{24D8}") // ⓘ
         .size(size::CAPTION)
         .color(theme::muted(theme));
 
@@ -139,7 +138,11 @@ pub fn info_hint<'a>(theme: &iced::Theme, hint: &'a str) -> Element<'a, Message>
 }
 
 /// A label with a trailing ⓘ hint, for field headings.
-pub fn label_with_hint<'a>(theme: &iced::Theme, label: &'a str, hint: &'a str) -> Element<'a, Message> {
+pub fn label_with_hint<'a>(
+    theme: &iced::Theme,
+    label: &'a str,
+    hint: &'a str,
+) -> Element<'a, Message> {
     row![
         text(label).size(size::BODY_STRONG),
         Space::new().width(Length::Fixed(space::S1)),
@@ -185,7 +188,8 @@ pub fn action_with_reason<'a>(
 /// A compact `label  value` row for the match detail panel.
 pub fn field_row<'a>(label: &'a str, value: &'a str) -> Element<'a, Message> {
     row![
-        text(label).size(size::CAPTION)
+        text(label)
+            .size(size::CAPTION)
             .color(iced::Color::from_rgb(0.55, 0.55, 0.55))
             .width(Length::Fixed(100.0)),
         text(value).size(size::CAPTION).width(Length::Fill),

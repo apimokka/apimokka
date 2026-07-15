@@ -1,11 +1,11 @@
 //! MK-030 — S-13 Settings.
-use iced::widget::{button, checkbox, column, container, pick_list, row, text, text_input, Space};
-use iced::{Alignment, Element, Length, Padding};
-use apimokka_i18n::{Key, Locale};
 use crate::app::App;
 use crate::message::Message;
 use crate::theme::{self, size, space};
 use crate::widgets;
+use apimokka_i18n::{Key, Locale};
+use iced::widget::{Space, button, checkbox, column, container, pick_list, row, text, text_input};
+use iced::{Alignment, Element, Length, Padding};
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let snap = match &app.snapshot {
@@ -23,9 +23,17 @@ pub fn view(app: &App) -> Element<'_, Message> {
             let selected = app.theme_choice == choice;
             row_el = row_el.push(
                 button(text(app.t(choice.label_key())).size(size::CAPTION))
-                    .on_press_maybe(if selected { None } else { Some(Message::SetTheme(choice)) })
+                    .on_press_maybe(if selected {
+                        None
+                    } else {
+                        Some(Message::SetTheme(choice))
+                    })
                     .padding(Padding::from([space::S2, space::S3]))
-                    .style(if selected { theme::seg_active } else { theme::seg_inactive }),
+                    .style(if selected {
+                        theme::seg_active
+                    } else {
+                        theme::seg_inactive
+                    }),
             );
         }
         row_el.wrap().into()
@@ -39,61 +47,90 @@ pub fn view(app: &App) -> Element<'_, Message> {
             button(text(app.t(Key::ModeGuidedTitle)).size(size::BODY))
                 .on_press(Message::ChooseAudienceMode(AudienceMode::Guided))
                 .padding(Padding::from([space::S2, space::S4]))
-                .style(if guided { theme::seg_active } else { theme::seg_inactive }),
+                .style(if guided {
+                    theme::seg_active
+                } else {
+                    theme::seg_inactive
+                }),
             button(text(app.t(Key::ModeExpertTitle)).size(size::BODY))
                 .on_press(Message::ChooseAudienceMode(AudienceMode::Expert))
                 .padding(Padding::from([space::S2, space::S4]))
-                .style(if expert { theme::seg_active } else { theme::seg_inactive }),
+                .style(if expert {
+                    theme::seg_active
+                } else {
+                    theme::seg_inactive
+                }),
         ]
         .spacing(space::S1)
         .into()
     };
 
     // ── Build page column imperatively so mode-aware sections can be pushed ─
-    let mut page: iced::widget::Column<Message> = column![].spacing(space::S4)
+    let mut page: iced::widget::Column<Message> = column![]
+        .spacing(space::S4)
         .padding(Padding::from([space::S5, space::S6]));
 
     page = page.push(text(app.t(Key::SettingsTitle)).size(size::TITLE));
 
     // Always visible: Appearance + Server
-    page = page.push(section(app, Key::SettingsSectionAppearance, Key::SettingsImpactSaveOnly,
+    page = page.push(section(
+        app,
+        Key::SettingsSectionAppearance,
+        Key::SettingsImpactSaveOnly,
         column![
             widgets::field(app.t(Key::SettingsTheme), theme_btns),
             widgets::field(app.t(Key::SettingsAudienceMode), guidance_btns),
-            widgets::field(app.t(Key::NavSettings),
-                pick_list(Locale::all().to_vec(), Some(app.locale), Message::ChangeLocale)
-                    .text_size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fixed(100.0))
-                    .into()),
+            widgets::field(
+                app.t(Key::NavSettings),
+                pick_list(
+                    Locale::all().to_vec(),
+                    Some(app.locale),
+                    Message::ChangeLocale
+                )
+                .text_size(size::BODY)
+                .padding(Padding::from([space::S2, space::S3]))
+                .width(Length::Fixed(100.0))
+                .into()
+            ),
             row![
-                text(app.t(Key::SettingsKeyboardSection)).size(size::BODY)
+                text(app.t(Key::SettingsKeyboardSection))
+                    .size(size::BODY)
                     .width(Length::Fill),
-                text(app.t(Key::SettingsPaletteShortcut)).size(size::CAPTION)
+                text(app.t(Key::SettingsPaletteShortcut))
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
-            ].align_y(Alignment::Center),
+            ]
+            .align_y(Alignment::Center),
         ]
-        .spacing(space::S3).into(),
+        .spacing(space::S3)
+        .into(),
     ));
 
-    page = page.push(section(app, Key::SettingsSectionServer, Key::SettingsImpactRestart,
+    page = page.push(section(
+        app,
+        Key::SettingsSectionServer,
+        Key::SettingsImpactRestart,
         column![
             row![
-                widgets::field(app.t(Key::SettingsHost),
+                widgets::field(
+                    app.t(Key::SettingsHost),
                     text_input("127.0.0.1", &s.listener_ip)
                         .on_input(Message::SettingsSetHost)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fill)
-                        .into()),
+                        .into()
+                ),
                 Space::new().width(space::S3),
-                widgets::field(app.t(Key::SettingsPort),
+                widgets::field(
+                    app.t(Key::SettingsPort),
                     text_input("8080", &s.listener_port.to_string())
                         .on_input(Message::SettingsSetPort)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fixed(100.0))
-                        .into()),
+                        .into()
+                ),
             ]
             .align_y(Alignment::End),
             checkbox(s.tls_enabled)
@@ -101,7 +138,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 .on_toggle(Message::SettingsSetTls)
                 .size(size::BODY),
         ]
-        .spacing(space::S3).into(),
+        .spacing(space::S3)
+        .into(),
     ));
 
     // MK-041: Logs + Trace — always visible in Expert, gated in Guided.
@@ -113,8 +151,12 @@ pub fn view(app: &App) -> Element<'_, Message> {
         };
         let toggle_btn = button(
             row![
-                text(chevron).size(size::CAPTION).color(theme::muted(&app.theme())),
-                text(label).size(size::CAPTION).color(theme::muted(&app.theme())),
+                text(chevron)
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
+                text(label)
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S2)
             .align_y(Alignment::Center),
@@ -136,7 +178,6 @@ pub fn view(app: &App) -> Element<'_, Message> {
     page = page.push(Space::new().height(space::S4));
     iced::widget::scrollable(page).height(Length::Fill).into()
 }
-
 
 fn section<'a>(
     app: &'a App,
@@ -169,35 +210,46 @@ fn push_logs_trace_sections<'a>(
     s: &'a apimokka_model::RootSettings,
     mut page: iced::widget::Column<'a, Message>,
 ) -> iced::widget::Column<'a, Message> {
-    use iced::widget::{checkbox, column, text_input, Space};
-    use iced::{Length, Padding};
-    use apimokka_i18n::Key;
     use crate::theme::{size, space};
     use crate::widgets;
+    use apimokka_i18n::Key;
+    use iced::widget::{Space, checkbox, column, text_input};
+    use iced::{Length, Padding};
 
-    page = page.push(section(app, Key::SettingsSectionLogs, Key::SettingsImpactReload,
-        widgets::field(app.t(Key::SettingsLogFile),
+    page = page.push(section(
+        app,
+        Key::SettingsSectionLogs,
+        Key::SettingsImpactReload,
+        widgets::field(
+            app.t(Key::SettingsLogFile),
             text_input("", &s.log_file)
                 .size(size::BODY)
                 .padding(Padding::from([space::S2, space::S3]))
                 .width(Length::Fill)
-                .into()),
+                .into(),
+        ),
     ));
-    page = page.push(section(app, Key::SettingsSectionTrace, Key::SettingsImpactReload,
+    page = page.push(section(
+        app,
+        Key::SettingsSectionTrace,
+        Key::SettingsImpactReload,
         column![
             checkbox(s.trace_enabled)
                 .label(app.t(Key::SettingsTraceEnable))
                 .on_toggle(crate::message::Message::SettingsSetTraceEnabled)
                 .size(size::BODY),
-            widgets::field(app.t(Key::SettingsTraceQueueSize),
+            widgets::field(
+                app.t(Key::SettingsTraceQueueSize),
                 text_input("1024", &s.trace_queue_size.to_string())
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(120.0))
-                    .into()),
+                    .into()
+            ),
             Space::new().height(0.0),
         ]
-        .spacing(space::S3).into(),
+        .spacing(space::S3)
+        .into(),
     ));
     page
 }

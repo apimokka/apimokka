@@ -1,8 +1,8 @@
 //! All messages (MK-021, MK-035).
 
-use apimokka_model::{BodyOp, HeaderOp, NodeId, RuleSetId, UrlPathOp};
 use apimokka_model::respond::RespondMode;
 use apimokka_model::settings::Strategy;
+use apimokka_model::{BodyOp, HeaderOp, NodeId, RuleSetId, UrlPathOp};
 
 use crate::selection::WorkspaceTab;
 
@@ -69,9 +69,9 @@ pub enum Message {
 
     // ── Wizard ────────────────────────────────────────────────────────────
     WizardSetName(String),
-    WizardSetStarter(crate::app::WizardStarter),  // MK-048
+    WizardSetStarter(crate::app::WizardStarter), // MK-048
     WizardSetFolder(String),
-    WizardToggleSection(usize),   // which section to expand/collapse
+    WizardToggleSection(usize), // which section to expand/collapse
     WizardSetHost(String),
     WizardSetPort(String),
     WizardSetTls(bool),
@@ -84,8 +84,8 @@ pub enum Message {
     SelectRule(NodeId),
     AddRuleSet,
     AddRule(RuleSetId),
-    DeleteRuleSet(RuleSetId),       // goes through confirm
-    DeleteRule(NodeId),             // goes through confirm
+    DeleteRuleSet(RuleSetId), // goes through confirm
+    DeleteRule(NodeId),       // goes through confirm
     DuplicateRule(NodeId),
     MoveRuleUp(NodeId),
     MoveRuleDown(NodeId),
@@ -103,19 +103,37 @@ pub enum Message {
     // ── Rule editor: headers ──────────────────────────────────────────────
     HeaderAdd,
     HeaderRemove(usize),
-    HeaderSetName { index: usize, value: String },
-    HeaderSetOp   { index: usize, op: HeaderOp },
-    HeaderSetValue { index: usize, value: String },
+    HeaderSetName {
+        index: usize,
+        value: String,
+    },
+    HeaderSetOp {
+        index: usize,
+        op: HeaderOp,
+    },
+    HeaderSetValue {
+        index: usize,
+        value: String,
+    },
     HeaderClearAll,
 
     // ── Rule editor: body conditions ──────────────────────────────────────
     BodyAdd,
     BodyRemove(usize),
-    BodySetPath  { index: usize, value: String },
-    BodySetOp    { index: usize, op: BodyOp },
-    BodySetValue { index: usize, value: String },
+    BodySetPath {
+        index: usize,
+        value: String,
+    },
+    BodySetOp {
+        index: usize,
+        op: BodyOp,
+    },
+    BodySetValue {
+        index: usize,
+        value: String,
+    },
     BodyClearAll,
-    BodyOpenPathAssistant(usize),   // open dotted-path assistant for row N
+    BodyOpenPathAssistant(usize), // open dotted-path assistant for row N
 
     // ── Rule editor: respond ──────────────────────────────────────────────
     RespondSetMode(RespondMode),
@@ -158,7 +176,7 @@ pub enum Message {
     TestRuleRun,
 
     // ── Dotted-path assistant ─────────────────────────────────────────────
-    PathAssistantOpen(usize),       // body row index
+    PathAssistantOpen(usize), // body row index
     PathAssistantClose,
     PathAssistantSetJson(String),
     PathAssistantSelectPath(String),

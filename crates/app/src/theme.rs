@@ -32,60 +32,59 @@ pub fn hc_border(t: &Theme) -> Color {
     to_iced_color(tokens.palette.border)
 }
 
-
 // ── Spacing scale ─────────────────────────────────────────────────────────────
 
 pub mod space {
-    pub const S1: f32 =  4.0;   // inline icon/text gap
-    pub const S2: f32 =  8.0;   // compact field grouping
-    pub const S3: f32 = 12.0;   // form row gap
-    pub const S4: f32 = 16.0;   // card internal padding
-    pub const S5: f32 = 20.0;   // section spacing
-    pub const S6: f32 = 24.0;   // major panel padding
+    pub const S1: f32 = 4.0; // inline icon/text gap
+    pub const S2: f32 = 8.0; // compact field grouping
+    pub const S3: f32 = 12.0; // form row gap
+    pub const S4: f32 = 16.0; // card internal padding
+    pub const S5: f32 = 20.0; // section spacing
+    pub const S6: f32 = 24.0; // major panel padding
 }
 
 // ── Typography scale ──────────────────────────────────────────────────────────
 // All f32 for iced 0.14's Pixels. See MK-022 §4.3.
 
 pub mod size {
-    pub const CAPTION:     f32 = 12.0;  // hints, metadata (unchanged)
-    pub const BODY:        f32 = 16.0;  // default UI text (was 14 — comfort, WCAG)
-    pub const BODY_STRONG: f32 = 16.0;  // semibold body (set bold via style)
-    pub const SECTION:     f32 = 18.0;  // card headings (was 17)
-    pub const TITLE:       f32 = 24.0;  // screen titles (was 22)
-    pub const DISPLAY:     f32 = 36.0;  // welcome hero (was 32)
+    pub const CAPTION: f32 = 12.0; // hints, metadata (unchanged)
+    pub const BODY: f32 = 16.0; // default UI text (was 14 — comfort, WCAG)
+    pub const BODY_STRONG: f32 = 16.0; // semibold body (set bold via style)
+    pub const SECTION: f32 = 18.0; // card headings (was 17)
+    pub const TITLE: f32 = 24.0; // screen titles (was 22)
+    pub const DISPLAY: f32 = 36.0; // welcome hero (was 32)
     #[allow(dead_code)]
-    pub const MONO:        f32 = 13.0;  // code, paths, JSON
+    pub const MONO: f32 = 13.0; // code, paths, JSON
 }
 
 // ── Border radius ─────────────────────────────────────────────────────────────
 
 pub mod radius {
     #[allow(dead_code)]
-    pub const SM:   f32 =   6.0;   // inputs, small chips
-    pub const MD:   f32 =  10.0;   // buttons, compact cards
-    pub const LG:   f32 =  14.0;   // primary cards and dialogs
-    pub const XL:   f32 =  18.0;   // welcome hero, major panels
-    pub const PILL: f32 = 999.0;   // status chips
+    pub const SM: f32 = 6.0; // inputs, small chips
+    pub const MD: f32 = 10.0; // buttons, compact cards
+    pub const LG: f32 = 14.0; // primary cards and dialogs
+    pub const XL: f32 = 18.0; // welcome hero, major panels
+    pub const PILL: f32 = 999.0; // status chips
 }
 
 // ── Padding presets [vertical, horizontal] ────────────────────────────────────
 
 pub mod pad {
-    pub const BUTTON:         [f32; 2] = [6.0,  14.0];
+    pub const BUTTON: [f32; 2] = [6.0, 14.0];
     pub const BUTTON_PRIMARY: [f32; 2] = [10.0, 22.0];
-    pub const CARD:           [f32; 2] = [16.0, 18.0];
+    pub const CARD: [f32; 2] = [16.0, 18.0];
     #[allow(dead_code)]
-    pub const CHIP:           [f32; 2] = [ 4.0, 10.0];
+    pub const CHIP: [f32; 2] = [4.0, 10.0];
     #[allow(dead_code)]
-    pub const RAIL_ITEM:      [f32; 2] = [10.0, 16.0];
+    pub const RAIL_ITEM: [f32; 2] = [10.0, 16.0];
 }
 
 /// Minimum interactive target sizes (MK-039). 44 px is the WCAG / platform
 /// floor; 52 px is the comfortable size for primary actions.
 pub mod touch {
     #[allow(dead_code)]
-    pub const MIN:         f32 = 44.0;
+    pub const MIN: f32 = 44.0;
     pub const COMFORTABLE: f32 = 52.0;
 }
 
@@ -98,13 +97,15 @@ pub fn muted(t: &Theme) -> Color {
     // fixed value. The theme name distinguishes the high-contrast customs; the
     // standard Light/Dark are detected by background luminance.
     let tokens = match t {
-        Theme::Custom(_) if t.to_string().contains("hc-dark") =>
-            Tokens::high_contrast_dark(),
-        Theme::Custom(_) if t.to_string().contains("hc-light") =>
-            Tokens::high_contrast_light(),
+        Theme::Custom(_) if t.to_string().contains("hc-dark") => Tokens::high_contrast_dark(),
+        Theme::Custom(_) if t.to_string().contains("hc-light") => Tokens::high_contrast_light(),
         _ => {
             let ep = t.extended_palette();
-            if ep.background.base.color.r < 0.5 { Tokens::dark() } else { Tokens::light() }
+            if ep.background.base.color.r < 0.5 {
+                Tokens::dark()
+            } else {
+                Tokens::light()
+            }
         }
     };
     to_iced_color(tokens.palette.text_muted)
@@ -114,9 +115,9 @@ pub fn muted(t: &Theme) -> Color {
 pub fn severity_color(t: &Theme, sev: apimokka_model::Severity) -> Color {
     let ep = t.extended_palette();
     match sev {
-        apimokka_model::Severity::Error   => ep.danger.base.color,
+        apimokka_model::Severity::Error => ep.danger.base.color,
         apimokka_model::Severity::Warning => ep.warning.base.color,
-        apimokka_model::Severity::Info    => ep.primary.base.color,
+        apimokka_model::Severity::Info => ep.primary.base.color,
     }
 }
 
@@ -130,7 +131,11 @@ pub fn panel_style(t: &Theme) -> container::Style {
         background: Some(Background::Color(ep.background.weak.color)),
         text_color: Some(ep.background.base.text),
         border: if is_high_contrast(t) {
-            Border { width: 1.0, color: hc_border(t), ..Default::default() }
+            Border {
+                width: 1.0,
+                color: hc_border(t),
+                ..Default::default()
+            }
         } else {
             Border::default()
         },
@@ -151,15 +156,22 @@ pub fn card_style(t: &Theme) -> container::Style {
         // dark mode: step up from base
         ep.background.weak.color
     } else {
-        ep.background.base.color   // light mode: white
+        ep.background.base.color // light mode: white
     };
     container::Style {
         background: Some(Background::Color(bg)),
         text_color: Some(ep.background.base.text),
         border: if is_high_contrast(t) {
-            Border { radius: radius::LG.into(), width: 1.5, color: hc_border(t) }
+            Border {
+                radius: radius::LG.into(),
+                width: 1.5,
+                color: hc_border(t),
+            }
         } else {
-            Border { radius: radius::LG.into(), ..Default::default() }
+            Border {
+                radius: radius::LG.into(),
+                ..Default::default()
+            }
         },
         shadow: Shadow {
             color: Color::from_rgba(0.0, 0.0, 0.0, 0.06),
@@ -175,11 +187,23 @@ pub fn card_style(t: &Theme) -> container::Style {
 pub fn card_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let p = ep.primary.base.color;
-    let alpha = if ep.background.base.color.r < 0.5 { 0.18 } else { 0.10 };
+    let alpha = if ep.background.base.color.r < 0.5 {
+        0.18
+    } else {
+        0.10
+    };
     container::Style {
-        background: Some(Background::Color(Color { r: p.r, g: p.g, b: p.b, a: alpha })),
+        background: Some(Background::Color(Color {
+            r: p.r,
+            g: p.g,
+            b: p.b,
+            a: alpha,
+        })),
         text_color: Some(ep.background.base.text),
-        border: Border { radius: radius::LG.into(), ..Default::default() },
+        border: Border {
+            radius: radius::LG.into(),
+            ..Default::default()
+        },
         shadow: Shadow {
             color: Color::from_rgba(p.r, p.g, p.b, 0.22),
             offset: Vector::new(0.0, 2.0),
@@ -195,7 +219,10 @@ pub fn chip_style(t: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(ep.background.strong.color)),
         text_color: Some(ep.background.base.text),
-        border: Border { radius: radius::PILL.into(), ..Default::default() },
+        border: Border {
+            radius: radius::PILL.into(),
+            ..Default::default()
+        },
         shadow: Shadow::default(),
         snap: true,
     }
@@ -207,7 +234,10 @@ pub fn dialog_style(t: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(ep.background.base.color)),
         text_color: Some(ep.background.base.text),
-        border: Border { radius: radius::XL.into(), ..Default::default() },
+        border: Border {
+            radius: radius::XL.into(),
+            ..Default::default()
+        },
         shadow: Shadow {
             color: Color::from_rgba(0.0, 0.0, 0.0, 0.18),
             offset: Vector::new(0.0, 8.0),
@@ -223,7 +253,10 @@ pub fn banner_style(t: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(ep.warning.weak.color)),
         text_color: Some(ep.background.base.text),
-        border: Border { radius: radius::MD.into(), ..Default::default() },
+        border: Border {
+            radius: radius::MD.into(),
+            ..Default::default()
+        },
         shadow: Shadow::default(),
         snap: true,
     }
@@ -265,11 +298,23 @@ pub fn accent_strip_style(t: &Theme) -> container::Style {
 pub fn rail_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let p = ep.primary.base.color;
-    let alpha = if ep.background.base.color.r < 0.5 { 0.20 } else { 0.08 };
+    let alpha = if ep.background.base.color.r < 0.5 {
+        0.20
+    } else {
+        0.08
+    };
     container::Style {
-        background: Some(Background::Color(Color { r: p.r, g: p.g, b: p.b, a: alpha })),
+        background: Some(Background::Color(Color {
+            r: p.r,
+            g: p.g,
+            b: p.b,
+            a: alpha,
+        })),
         text_color: Some(ep.background.base.text),
-        border: Border { radius: radius::MD.into(), ..Default::default() },
+        border: Border {
+            radius: radius::MD.into(),
+            ..Default::default()
+        },
         shadow: Shadow::default(),
         snap: true,
     }
@@ -289,11 +334,23 @@ pub fn seg_active(
 ) -> iced::widget::button::Style {
     let ep = theme.extended_palette();
     let p = ep.primary.base.color;
-    let alpha = if ep.background.base.color.r < 0.5 { 0.20 } else { 0.12 };
+    let alpha = if ep.background.base.color.r < 0.5 {
+        0.20
+    } else {
+        0.12
+    };
     iced::widget::button::Style {
-        background: Some(Background::Color(Color { r: p.r, g: p.g, b: p.b, a: alpha })),
+        background: Some(Background::Color(Color {
+            r: p.r,
+            g: p.g,
+            b: p.b,
+            a: alpha,
+        })),
         text_color: ep.background.base.text,
-        border: Border { radius: radius::MD.into(), ..Default::default() },
+        border: Border {
+            radius: radius::MD.into(),
+            ..Default::default()
+        },
         shadow: Shadow::default(),
         snap: false,
     }
@@ -321,10 +378,7 @@ pub fn seg_inactive(
 // Without this, iced renders the default theme button background and radius
 // outside the container's own radius, creating a double-radius artefact.
 
-pub fn naked(
-    theme: &Theme,
-    _status: iced::widget::button::Status,
-) -> iced::widget::button::Style {
+pub fn naked(theme: &Theme, _status: iced::widget::button::Status) -> iced::widget::button::Style {
     iced::widget::button::Style {
         background: None,
         text_color: theme.extended_palette().background.base.text,
@@ -343,11 +397,23 @@ pub fn naked(
 pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let base = ep.background.strong.color;
-    let alpha = if ep.background.base.color.r < 0.5 { 0.70 } else { 0.55 };
+    let alpha = if ep.background.base.color.r < 0.5 {
+        0.70
+    } else {
+        0.55
+    };
     container::Style {
-        background: Some(Background::Color(Color { r: base.r, g: base.g, b: base.b, a: alpha })),
+        background: Some(Background::Color(Color {
+            r: base.r,
+            g: base.g,
+            b: base.b,
+            a: alpha,
+        })),
         text_color: Some(ep.background.base.text),
-        border: Border { radius: radius::LG.into(), ..Default::default() },
+        border: Border {
+            radius: radius::LG.into(),
+            ..Default::default()
+        },
         shadow: Shadow::default(),
         snap: true,
     }

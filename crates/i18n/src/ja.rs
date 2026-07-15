@@ -49,7 +49,9 @@ pub fn t(key: Key) -> &'static str {
         Key::WelcomeHeroTagline => "HTTP モックをビジュアルに作成",
         Key::WelcomeOpenWorkspace => "ワークスペースを開く",
         Key::WelcomeCreateWorkspace => "新規ワークスペース",
-        Key::WelcomeNoRecents => "ワークスペースを作成してモックエンドポイントの作成を始めましょう。",
+        Key::WelcomeNoRecents => {
+            "ワークスペースを作成してモックエンドポイントの作成を始めましょう。"
+        }
         Key::WelcomeHowTitle => "リクエストの処理順序",
         Key::WelcomeHowMiddleware => "ミドルウェアスクリプト",
         Key::WelcomeHowRuleSets => "ルールセット",
@@ -75,15 +77,19 @@ pub fn t(key: Key) -> &'static str {
         Key::WizardFieldTlsCert => "TLS証明書パス",
         Key::WizardFieldTlsKey => "TLSキーパス",
         Key::WizardStarterTemplate => "スターターテンプレート",
-        Key::WizardStarterMinimal  => "最小構成 — GET /health → 200（推奨）",
-        Key::WizardStarterShopApi  => "Shop APIサンプル — 全機能の探索（2ルールセット、ストラテジー、フォールバック）",
-        Key::WizardStarterEmpty    => "空のワークスペース — ルールなし",
+        Key::WizardStarterMinimal => "最小構成 — GET /health → 200（推奨）",
+        Key::WizardStarterShopApi => {
+            "Shop APIサンプル — 全機能の探索（2ルールセット、ストラテジー、フォールバック）"
+        }
+        Key::WizardStarterEmpty => "空のワークスペース — ルールなし",
         Key::WizardTraceEnable => "トレースを有効にする",
         Key::WizardQueueSize => "キューサイズ",
         Key::WizardValidationNameRequired => "ワークスペース名は必須です。",
         Key::WizardValidationFolderInvalid => "親フォルダのパスが無効です。",
         Key::WizardValidationPortInvalid => "ポートは1から65535の数値を入力してください。",
-        Key::WizardValidationFolderHasWorkspace => "このフォルダには既にワークスペースが存在します。",
+        Key::WizardValidationFolderHasWorkspace => {
+            "このフォルダには既にワークスペースが存在します。"
+        }
         Key::WizardOverwriteGuide => "別のフォルダを選択するか、上書きを確認してください。",
         Key::WorkspaceMenuCurrent => "現在のワークスペース",
         Key::WorkspaceMenuOpen => "ワークスペースを開く…",
@@ -112,7 +118,9 @@ pub fn t(key: Key) -> &'static str {
         Key::BodyColumnOp => "演算子",
         Key::BodyColumnValue => "値",
         Key::BtnAddBodyCondition => "ボディ条件追加",
-        Key::BodyJsonpathWarn => "ドット記法を使用してください（例: user.id）。JSONPath はサポートされていません。",
+        Key::BodyJsonpathWarn => {
+            "ドット記法を使用してください（例: user.id）。JSONPath はサポートされていません。"
+        }
         Key::BodyDottedPathHint => "ドット記法（例: user.id や items.0.name）を使用します。",
         Key::RespondCardTitle => "レスポンス",
         Key::RespondModeInline => "インラインテキスト",
@@ -130,7 +138,9 @@ pub fn t(key: Key) -> &'static str {
         Key::InspectorActionsTitle => "クイックアクション",
         Key::SidebarDirtyMarker => "●",
         Key::SidebarMatchedMarker => "マッチ済み",
-        Key::EmptyNoRuleSelected => "左からルールを選択するか、新しいエンドポイントを作成してください。",
+        Key::EmptyNoRuleSelected => {
+            "左からルールを選択するか、新しいエンドポイントを作成してください。"
+        }
         Key::EmptyNoRuleSelectedCta => "ルール追加",
         Key::EmptyBlankWorkspace => "ルールセットを追加してモックを開始しましょう。",
         Key::EmptyRuleSetNoRules => "このルールセットにはまだルールがありません。",
@@ -141,7 +151,9 @@ pub fn t(key: Key) -> &'static str {
         Key::TracePause => "一時停止",
         Key::TraceResume => "再開",
         Key::TraceClear => "クリア",
-        Key::TraceEmptyMessage => "まだリクエストがありません。アプリを操作するか、サーバーにcurlしてください。",
+        Key::TraceEmptyMessage => {
+            "まだリクエストがありません。アプリを操作するか、サーバーにcurlしてください。"
+        }
         Key::TraceDroppedEvents => "件のイベントが削除されました（キュー満杯）",
         Key::TraceMatchedLabel => "マッチ",
         Key::TraceFallbackLabel => "フォールバック",
@@ -158,22 +170,26 @@ pub fn t(key: Key) -> &'static str {
         Key::DetailConditionResult => "結果",
         Key::DetailConditionMatched => "マッチ",
         Key::DetailConditionFailed => "失敗",
-        Key::DetailFallbackExplanation  => "フォールバックファイルで応答しました（一致するルールなし）。",
+        Key::DetailFallbackExplanation => {
+            "フォールバックファイルで応答しました（一致するルールなし）。"
+        }
         // MK-042
-        Key::DetailMatchedRuleSet   => "ルールセット",
-        Key::DetailMatchedRule      => "ルール",
-        Key::DetailJumpToRule       => "ルールへ移動",
-        Key::DetailFallbackFile     => "フォールバックファイル",
-        Key::DetailFallbackStatus   => "ステータス",
-        Key::DetailJumpToFile       => "ファイルへ移動",
-        Key::DetailMissStatus       => "ステータス",
-        Key::DetailMissExplanation  => "このリクエストに一致するルールがありませんでした。",
-        Key::DetailMissCreateCta    => "このパスにルールを作成",
-        Key::DetailErrorKind        => "エラーの種類",
-        Key::DetailErrorMessage     => "メッセージ",
-        Key::DetailDroppedWarning   => "件のイベントがこの前にドロップされました（キュー満杯）",
+        Key::DetailMatchedRuleSet => "ルールセット",
+        Key::DetailMatchedRule => "ルール",
+        Key::DetailJumpToRule => "ルールへ移動",
+        Key::DetailFallbackFile => "フォールバックファイル",
+        Key::DetailFallbackStatus => "ステータス",
+        Key::DetailJumpToFile => "ファイルへ移動",
+        Key::DetailMissStatus => "ステータス",
+        Key::DetailMissExplanation => "このリクエストに一致するルールがありませんでした。",
+        Key::DetailMissCreateCta => "このパスにルールを作成",
+        Key::DetailErrorKind => "エラーの種類",
+        Key::DetailErrorMessage => "メッセージ",
+        Key::DetailDroppedWarning => "件のイベントがこの前にドロップされました（キュー満杯）",
         // end MK-042 => "ルールが一致しませんでした。このパスはフォールバックファイルで処理されました。",
-        Key::DetailErrorExplanation => "ミドルウェアスクリプトがエラーをスローしました。ルールマッチングは実行されませんでした。",
+        Key::DetailErrorExplanation => {
+            "ミドルウェアスクリプトがエラーをスローしました。ルールマッチングは実行されませんでした。"
+        }
         Key::BtnReplayAsTestInput => "テスト入力として再実行",
         Key::BtnOpenMatchedRule => "マッチしたルールを開く",
         Key::BtnCopyRequest => "リクエストをコピー",
@@ -204,7 +220,9 @@ pub fn t(key: Key) -> &'static str {
         Key::SettingsFooterRestart => "有効にするには再起動が必要です。",
         Key::ScriptsTitle => "スクリプト",
         Key::ScriptsEmptyMessage => "このワークスペースにミドルウェアスクリプトはありません。",
-        Key::ScriptsEmptyExplanation => "ミドルウェアスクリプトはルールマッチングの前に実行され、リクエストを変換できます。",
+        Key::ScriptsEmptyExplanation => {
+            "ミドルウェアスクリプトはルールマッチングの前に実行され、リクエストを変換できます。"
+        }
         Key::DrawerValidationTitle => "バリデーション",
         Key::DrawerValidationErrors => "エラー",
         Key::DrawerValidationWarnings => "警告",
@@ -237,7 +255,9 @@ pub fn t(key: Key) -> &'static str {
         Key::PaletteCmdGoScripts => "スクリプトへ移動",
         Key::PaletteCmdGoSettings => "設定へ移動",
         Key::TestRuleTitle => "ルールテスト",
-        Key::TestRuleHint => "選択中のルールに対してドライランマッチを実行します。ネットワーク通信は発生しません。",
+        Key::TestRuleHint => {
+            "選択中のルールに対してドライランマッチを実行します。ネットワーク通信は発生しません。"
+        }
         Key::TestRuleMethod => "メソッド",
         Key::TestRulePath => "パス",
         Key::TestRuleHeaders => "ヘッダー（name: value、1行1件）",
@@ -252,7 +272,9 @@ pub fn t(key: Key) -> &'static str {
         Key::DottedPathSelectedLabel => "選択中のパス:",
         Key::DottedPathJsonError => "JSONが無効です。入力を確認してください。",
         Key::DottedPathEmpty => "サンプルJSONを貼り付けてパスを作成してください。",
-        Key::DottedPathJsonpathHint => "ドット記法を使用してください（例: user.id）。JSONPathはサポートされていません。",
+        Key::DottedPathJsonpathHint => {
+            "ドット記法を使用してください（例: user.id）。JSONPathはサポートされていません。"
+        }
         Key::BtnUse => "使用",
         Key::ConfirmProceed => "実行",
         Key::ConfirmDeleteRule => "ルールを削除しますか？",
@@ -266,93 +288,99 @@ pub fn t(key: Key) -> &'static str {
         Key::ConfirmOverwriteWorkspace => "既存のワークスペースを上書きしますか？",
         Key::ConfirmOverwriteWorkspaceBody => "フォルダ内の既存ファイルが置き換えられます。",
         Key::SettingsSectionAppearance => "外観",
-        Key::SettingsTheme             => "テーマ",
-        Key::SettingsThemeLight        => "ライト",
-        Key::ThemeLight              => "ライト",
-        Key::ThemeDark               => "ダーク",
-        Key::ThemeHighContrastLight  => "ハイコントラスト・ライト",
-        Key::ThemeHighContrastDark   => "ハイコントラスト・ダーク",
-        Key::SettingsThemeDark         => "ダーク",
-        Key::SettingsKeyboardSection   => "キーボードショートカット",
-        Key::SettingsPaletteShortcut   => "コマンドパレット  \u{2318}K · Ctrl+K",
+        Key::SettingsTheme => "テーマ",
+        Key::SettingsThemeLight => "ライト",
+        Key::ThemeLight => "ライト",
+        Key::ThemeDark => "ダーク",
+        Key::ThemeHighContrastLight => "ハイコントラスト・ライト",
+        Key::ThemeHighContrastDark => "ハイコントラスト・ダーク",
+        Key::SettingsThemeDark => "ダーク",
+        Key::SettingsKeyboardSection => "キーボードショートカット",
+        Key::SettingsPaletteShortcut => "コマンドパレット  \u{2318}K · Ctrl+K",
 
-        Key::HintBodyPath =>
-            "JSONリクエストボディをドット記法(user.id、items.0.sku)で照合します。             JSONPathではありません \u{2014} $.foo は使えません。",
-        Key::HintUrlOp =>
-            "受信URLパスの比較方法: Equal、StartsWith、Contains、EndsWith、WildCard、NotEqual。",
-        Key::RuleSetConfigStrategy       => "ストラテジー",
-        Key::RuleSetConfigMoreOptions    => "ルールセットの詳細設定",
-        Key::RuleSetConfigFewerOptions   => "詳細設定を隠す",
-        Key::DrawerValidationOk         => "\u{2713} バリデーション問題なし",
-        Key::DrawerValidationFileOk     => "\u{2713} 問題なし",
-        Key::DrawerValidationWorkspace  => "ワークスペース",
-        Key::DrawerJumpToRule           => "ルールへ移動",
+        Key::HintBodyPath => {
+            "JSONリクエストボディをドット記法(user.id、items.0.sku)で照合します。             JSONPathではありません \u{2014} $.foo は使えません。"
+        }
+        Key::HintUrlOp => {
+            "受信URLパスの比較方法: Equal、StartsWith、Contains、EndsWith、WildCard、NotEqual。"
+        }
+        Key::RuleSetConfigStrategy => "ストラテジー",
+        Key::RuleSetConfigMoreOptions => "ルールセットの詳細設定",
+        Key::RuleSetConfigFewerOptions => "詳細設定を隠す",
+        Key::DrawerValidationOk => "\u{2713} バリデーション問題なし",
+        Key::DrawerValidationFileOk => "\u{2713} 問題なし",
+        Key::DrawerValidationWorkspace => "ワークスペース",
+        Key::DrawerJumpToRule => "ルールへ移動",
         Key::DrawerSaveDiffChangedRules => "ルール \u{00B7}",
-        Key::DrawerSaveDiffFallbackMod  => "JSONコンテンツが変更されました",
+        Key::DrawerSaveDiffFallbackMod => "JSONコンテンツが変更されました",
 
         Key::RuleEditorValidationWarning => "バリデーション警告",
-        Key::RuleWeightLabel             => "重み",
-        Key::RuleWeightHint              => "WeightedRandomが有効なとき、このルールが選ばれる相対的な確率。デフォルト:1。",
-        Key::RulePriorityLabel           => "優先度",
-        Key::RulePriorityHint            => "Priorityストラテジー使用時、最高優先度のルールが勝ちます。負の値も可。",
+        Key::RuleWeightLabel => "重み",
+        Key::RuleWeightHint => {
+            "WeightedRandomが有効なとき、このルールが選ばれる相対的な確率。デフォルト:1。"
+        }
+        Key::RulePriorityLabel => "優先度",
+        Key::RulePriorityHint => {
+            "Priorityストラテジー使用時、最高優先度のルールが勝ちます。負の値も可。"
+        }
 
-        Key::HintStrategy =>
-            "複数のルールが一致した場合の選択方法(FirstMatch、WeightedRandom、Priority、RoundRobin)。",
-        Key::HintHeaderOp =>
-            "ヘッダー値の比較方法。Exists と Absent は値フィールドを無視します。",
-        Key::UndoLabel          => "元に戻す",
-        Key::RedoLabel          => "やり直す",
-        Key::UndoRuleDeleted    => "ルールを削除しました",
-        Key::UndoRuleAdded      => "ルールを追加しました",
-        Key::UndoRuleMoved      => "ルールを移動しました",
-        Key::UndoUrlPathEdited  => "URLパスを変更しました",
-        Key::UndoRedoAvailable  => "やり直せます",
-        Key::PaletteCmdUndo     => "元に戻す",
-        Key::PaletteCmdRedo     => "やり直す",
-        Key::NoticeRuleDeleted        => "ルールを削除しました",
-        Key::DisabledNeedUrlPath      => "先にURLパスを入力してください",
-        Key::DisabledNeedContent      => "先にレスポンス内容を追加してください",
-        Key::ErrorActionRetry         => "再試行",
-        Key::ErrorActionOpenSettings  => "設定を開く",
+        Key::HintStrategy => {
+            "複数のルールが一致した場合の選択方法(FirstMatch、WeightedRandom、Priority、RoundRobin)。"
+        }
+        Key::HintHeaderOp => "ヘッダー値の比較方法。Exists と Absent は値フィールドを無視します。",
+        Key::UndoLabel => "元に戻す",
+        Key::RedoLabel => "やり直す",
+        Key::UndoRuleDeleted => "ルールを削除しました",
+        Key::UndoRuleAdded => "ルールを追加しました",
+        Key::UndoRuleMoved => "ルールを移動しました",
+        Key::UndoUrlPathEdited => "URLパスを変更しました",
+        Key::UndoRedoAvailable => "やり直せます",
+        Key::PaletteCmdUndo => "元に戻す",
+        Key::PaletteCmdRedo => "やり直す",
+        Key::NoticeRuleDeleted => "ルールを削除しました",
+        Key::DisabledNeedUrlPath => "先にURLパスを入力してください",
+        Key::DisabledNeedContent => "先にレスポンス内容を追加してください",
+        Key::ErrorActionRetry => "再試行",
+        Key::ErrorActionOpenSettings => "設定を開く",
 
-        Key::LayoutMoreWhen       => "詳細な一致条件",
-        Key::LayoutFewerWhen     => "詳細条件を隠す",
-        Key::LayoutMoreSettings  => "詳細設定",
+        Key::LayoutMoreWhen => "詳細な一致条件",
+        Key::LayoutFewerWhen => "詳細条件を隠す",
+        Key::LayoutMoreSettings => "詳細設定",
         Key::LayoutFewerSettings => "詳細設定を隠す",
-        Key::LayoutActiveHeader  => "ヘッダー",
-        Key::LayoutActiveBody    => "ボディ",
+        Key::LayoutActiveHeader => "ヘッダー",
+        Key::LayoutActiveBody => "ボディ",
 
-        Key::ModePickerTitle   => "apimokka のガイド方法を選んでください",
-        Key::ModeGuidedTitle   => "ガイド付き",
-        Key::ModeGuidedDesc    => "作業中に補足説明を表示します。HTTPモックに不慣れな方向け。",
-        Key::ModeExpertTitle   => "エキスパート",
-        Key::ModeExpertDesc    => "補足説明なしのコンパクト表示。操作に慣れている方向け。",
-        Key::ModePickerHint    => "設定でいつでも変更できます。",
+        Key::ModePickerTitle => "apimokka のガイド方法を選んでください",
+        Key::ModeGuidedTitle => "ガイド付き",
+        Key::ModeGuidedDesc => "作業中に補足説明を表示します。HTTPモックに不慣れな方向け。",
+        Key::ModeExpertTitle => "エキスパート",
+        Key::ModeExpertDesc => "補足説明なしのコンパクト表示。操作に慣れている方向け。",
+        Key::ModePickerHint => "設定でいつでも変更できます。",
         Key::ModePickerContinue => "続ける",
         Key::SettingsAudienceMode => "ガイド",
-        Key::ErrorShowDetails  => "詳細を表示",
-        Key::ErrorHideDetails  => "詳細を隠す",
+        Key::ErrorShowDetails => "詳細を表示",
+        Key::ErrorHideDetails => "詳細を隠す",
 
         Key::LocaleEn => "EN",
         Key::LocaleJa => "JA",
 
-        Key::FallbackEditorHeading    => "ファイルベースルート",
-        Key::FallbackServesLabel      => "提供URL:",
-        Key::FallbackRouteExplanation =>
+        Key::FallbackEditorHeading => "ファイルベースルート",
+        Key::FallbackServesLabel => "提供URL:",
+        Key::FallbackRouteExplanation => {
             "このパスへのリクエストにルールが一致しない場合、このファイルが返されます。\
-             下のJSONを編集してレスポンスボディを変更してください。",
-        Key::FallbackContentLabel     => "レスポンスボディ",
-        Key::FallbackStatusLabel      => "ステータスコード",
-        Key::FallbackFormatJson       => "JSON整形",
-        Key::BtnAddFallbackFile       => "ファイル追加",
-        Key::FallbackEmptyHint        =>
-            "サイドバーからファイルを選択して内容を編集してください。",
-        Key::BtnRevert            => "元に戻す",
-        Key::FallbackJsonValid    => "✓ 有効なJSON",
-        Key::FallbackJsonInvalid  => "⚠ 無効なJSON — そのまま返されます",
-        Key::FallbackSavedHint    => "保存済み — 次のリクエストから反映されます。",
-        Key::FallbackUnsavedHint  => "未保存の変更があります。",
-        Key::ConfirmRevertFile     => "ファイルを元に戻しますか？",
+             下のJSONを編集してレスポンスボディを変更してください。"
+        }
+        Key::FallbackContentLabel => "レスポンスボディ",
+        Key::FallbackStatusLabel => "ステータスコード",
+        Key::FallbackFormatJson => "JSON整形",
+        Key::BtnAddFallbackFile => "ファイル追加",
+        Key::FallbackEmptyHint => "サイドバーからファイルを選択して内容を編集してください。",
+        Key::BtnRevert => "元に戻す",
+        Key::FallbackJsonValid => "✓ 有効なJSON",
+        Key::FallbackJsonInvalid => "⚠ 無効なJSON — そのまま返されます",
+        Key::FallbackSavedHint => "保存済み — 次のリクエストから反映されます。",
+        Key::FallbackUnsavedHint => "未保存の変更があります。",
+        Key::ConfirmRevertFile => "ファイルを元に戻しますか？",
         Key::ConfirmRevertFileBody => "このファイルの未保存の編集が破棄されます。",
     }
 }

@@ -13,13 +13,16 @@ pub enum WorkspaceTab {
 
 /// Bottom drawer modes (MK-032).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DrawerMode { Validation, SaveDiff }
+pub enum DrawerMode {
+    Validation,
+    SaveDiff,
+}
 
 /// Which items in the Routes sidebar are currently selected.
 #[derive(Debug, Clone, Default)]
 pub struct RouteSelection {
-    pub rule_set:   Option<RuleSetId>,
-    pub rule:       Option<NodeId>,
+    pub rule_set: Option<RuleSetId>,
+    pub rule: Option<NodeId>,
     pub file_route: Option<String>,
-    pub script:     Option<String>,
+    pub script: Option<String>,
 }

@@ -1,7 +1,10 @@
 //! Central app state and update (MK-021, MK-035).
 
 use apimokka_i18n::{Key, Locale};
-use apimokka_model::{mock, BodyConditionPayload, BodyOp, HeaderConditionPayload, HeaderOp, snapshot::WorkspaceSnapshot};
+use apimokka_model::{
+    BodyConditionPayload, BodyOp, HeaderConditionPayload, HeaderOp, mock,
+    snapshot::WorkspaceSnapshot,
+};
 use iced::{Element, Subscription, Theme};
 
 use crate::message::{ConfirmAction, Message, TestRuleResult};
@@ -25,20 +28,20 @@ impl ThemeChoice {
     /// MK-050: cycle Light → Dark → HC Light → HC Dark → Light.
     pub fn toggle(self) -> Self {
         match self {
-            Self::Light             => Self::Dark,
-            Self::Dark              => Self::HighContrastLight,
+            Self::Light => Self::Dark,
+            Self::Dark => Self::HighContrastLight,
             Self::HighContrastLight => Self::HighContrastDark,
-            Self::HighContrastDark  => Self::Light,
+            Self::HighContrastDark => Self::Light,
         }
     }
 
     /// The snora Design token preset for this choice (MK-050).
     pub fn tokens(self) -> snora::design::Tokens {
         match self {
-            Self::Light             => snora::design::Tokens::light(),
-            Self::Dark              => snora::design::Tokens::dark(),
+            Self::Light => snora::design::Tokens::light(),
+            Self::Dark => snora::design::Tokens::dark(),
             Self::HighContrastLight => snora::design::Tokens::high_contrast_light(),
-            Self::HighContrastDark  => snora::design::Tokens::high_contrast_dark(),
+            Self::HighContrastDark => snora::design::Tokens::high_contrast_dark(),
         }
     }
 
@@ -49,20 +52,20 @@ impl ThemeChoice {
         use snora::design::style::color::to_iced_color;
         match self {
             Self::Light => Theme::Light,
-            Self::Dark  => Theme::Dark,
+            Self::Dark => Theme::Dark,
             Self::HighContrastLight | Self::HighContrastDark => {
                 let t = self.tokens();
                 let pal = iced::theme::Palette {
                     background: to_iced_color(t.palette.background),
-                    text:       to_iced_color(t.palette.text_primary),
-                    primary:    to_iced_color(t.palette.accent),
-                    success:    to_iced_color(t.palette.success),
-                    warning:    to_iced_color(t.palette.warning),
-                    danger:     to_iced_color(t.palette.danger),
+                    text: to_iced_color(t.palette.text_primary),
+                    primary: to_iced_color(t.palette.accent),
+                    success: to_iced_color(t.palette.success),
+                    warning: to_iced_color(t.palette.warning),
+                    danger: to_iced_color(t.palette.danger),
                 };
                 let name = match self {
                     Self::HighContrastLight => "apimokka-hc-light",
-                    _                        => "apimokka-hc-dark",
+                    _ => "apimokka-hc-dark",
                 };
                 Theme::custom(name.to_string(), pal)
             }
@@ -83,15 +86,20 @@ impl ThemeChoice {
     pub fn label_key(self) -> apimokka_i18n::Key {
         use apimokka_i18n::Key;
         match self {
-            Self::Light             => Key::ThemeLight,
-            Self::Dark              => Key::ThemeDark,
+            Self::Light => Key::ThemeLight,
+            Self::Dark => Key::ThemeDark,
             Self::HighContrastLight => Key::ThemeHighContrastLight,
-            Self::HighContrastDark  => Key::ThemeHighContrastDark,
+            Self::HighContrastDark => Key::ThemeHighContrastDark,
         }
     }
 
     pub fn all() -> [ThemeChoice; 4] {
-        [Self::Light, Self::Dark, Self::HighContrastLight, Self::HighContrastDark]
+        [
+            Self::Light,
+            Self::Dark,
+            Self::HighContrastLight,
+            Self::HighContrastDark,
+        ]
     }
 }
 
@@ -187,7 +195,6 @@ pub struct PathAssistantState {
 
 // ── MK-039: undo entry for reversible actions ─────────────────────────────────
 
-
 // ── MK-045: typed undo/redo command log ───────────────────────────────────────
 
 pub const UNDO_STACK_DEPTH: usize = 25;
@@ -201,7 +208,7 @@ pub enum UndoCommand {
         rule_set: apimokka_model::RuleSetId,
         index: usize,
         #[allow(dead_code)]
-        rule_id: apimokka_model::NodeId,    // for forward redo (accessible via rule.id)
+        rule_id: apimokka_model::NodeId, // for forward redo (accessible via rule.id)
         rule: apimokka_model::snapshot::RuleView,
     },
     /// A rule was added; undo removes it.
@@ -218,8 +225,8 @@ pub enum UndoCommand {
     /// The URL path field was edited; undo restores `old_value`.
     EditUrlPath {
         rule_id: apimokka_model::NodeId,
-        old_value: String,    // value before the edit
-        new_value: String,    // value after the edit (for redo)
+        old_value: String, // value before the edit
+        new_value: String, // value after the edit (for redo)
     },
 }
 
@@ -227,9 +234,9 @@ impl UndoCommand {
     pub fn banner_key(&self) -> apimokka_i18n::Key {
         match self {
             Self::DeleteRule { .. } => apimokka_i18n::Key::UndoRuleDeleted,
-            Self::AddRule    { .. } => apimokka_i18n::Key::UndoRuleAdded,
-            Self::MoveRule   { .. } => apimokka_i18n::Key::UndoRuleMoved,
-            Self::EditUrlPath{ .. } => apimokka_i18n::Key::UndoUrlPathEdited,
+            Self::AddRule { .. } => apimokka_i18n::Key::UndoRuleAdded,
+            Self::MoveRule { .. } => apimokka_i18n::Key::UndoRuleMoved,
+            Self::EditUrlPath { .. } => apimokka_i18n::Key::UndoUrlPathEdited,
         }
     }
 }
@@ -310,7 +317,7 @@ impl App {
         let initial_rule_set_open = None;
 
         let app = Self {
-            view: AppView::Welcome,   // MK-046: start at Welcome, not Workspace
+            view: AppView::Welcome, // MK-046: start at Welcome, not Workspace
             locale: Locale::En,
             theme_choice: ThemeChoice::Light,
             wizard: WizardState::default(),
@@ -341,7 +348,7 @@ impl App {
             fallback_status_draft: std::collections::HashMap::new(),
             last_problem: None,
             show_problem_details: false,
-            audience_mode: None,   // None → first-run picker shown
+            audience_mode: None, // None → first-run picker shown
             rule_when_more: false,
             settings_advanced_more: false,
             rule_set_config_more: false,
@@ -371,7 +378,10 @@ impl App {
     /// should render inline. True only in Guided mode. Defaults to false until
     /// the first-run picker is answered (the picker covers the window anyway).
     pub fn shows_scaffolding(&self) -> bool {
-        matches!(self.audience_mode, Some(apimokka_model::AudienceMode::Guided))
+        matches!(
+            self.audience_mode,
+            Some(apimokka_model::AudienceMode::Guided)
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -494,7 +504,9 @@ impl App {
                 self.snapshot = Some(mock::shop_api_mock());
                 if let Some(s) = &self.snapshot {
                     self.selection.rule_set = s.rule_sets.first().map(|rs| rs.id);
-                    self.selection.rule = s.rule_sets.first()
+                    self.selection.rule = s
+                        .rule_sets
+                        .first()
                         .and_then(|rs| rs.rules.first())
                         .map(|r| r.id);
                 }
@@ -506,9 +518,15 @@ impl App {
             }
 
             // Locale / theme
-            Message::ChangeLocale(l) => { self.locale = l; }
-            Message::ToggleTheme => { self.theme_choice = self.theme_choice.toggle(); }
-            Message::SetTheme(choice) => { self.theme_choice = choice; }
+            Message::ChangeLocale(l) => {
+                self.locale = l;
+            }
+            Message::ToggleTheme => {
+                self.theme_choice = self.theme_choice.toggle();
+            }
+            Message::SetTheme(choice) => {
+                self.theme_choice = choice;
+            }
 
             // Keyboard
             Message::EscapePressed => {
@@ -530,7 +548,9 @@ impl App {
                 self.command_palette.open = !self.command_palette.open;
                 self.command_palette.query = String::new();
             }
-            Message::PaletteQuery(q) => { self.command_palette.query = q; }
+            Message::PaletteQuery(q) => {
+                self.command_palette.query = q;
+            }
 
             // Workspace menu
             Message::ToggleWorkspaceMenu => {
@@ -562,25 +582,49 @@ impl App {
                 self.simulate_save();
                 self.notice = Some(self.t(Key::FallbackSavedHint).to_string());
             }
-            Message::DiscardChanges => { self.discard_all_changes(); }
+            Message::DiscardChanges => {
+                self.discard_all_changes();
+            }
 
             // Drawer
-            Message::OpenValidationDrawer => { self.drawer = Some(DrawerMode::Validation); }
-            Message::OpenSaveDiffDrawer => { self.drawer = Some(DrawerMode::SaveDiff); }
-            Message::CloseDrawer => { self.drawer = None; }
+            Message::OpenValidationDrawer => {
+                self.drawer = Some(DrawerMode::Validation);
+            }
+            Message::OpenSaveDiffDrawer => {
+                self.drawer = Some(DrawerMode::SaveDiff);
+            }
+            Message::CloseDrawer => {
+                self.drawer = None;
+            }
 
             // Dashboard
-            Message::DashSearch(q) => { self.dash_search = q; }
+            Message::DashSearch(q) => {
+                self.dash_search = q;
+            }
             Message::DashPinToggle(_) => {}
 
             // Wizard
-            Message::WizardSetName(v) => { self.wizard.name = v; }
-            Message::WizardSetStarter(s) => { self.wizard.starter = s; }  // MK-048
-            Message::WizardSetFolder(v) => { self.wizard.folder = v; }
-            Message::WizardSetHost(v) => { self.wizard.host = v; }
-            Message::WizardSetPort(v) => { self.wizard.port = v; }
-            Message::WizardSetTls(v) => { self.wizard.tls = v; }
-            Message::WizardSetQueueSize(v) => { self.wizard.queue_size = v; }
+            Message::WizardSetName(v) => {
+                self.wizard.name = v;
+            }
+            Message::WizardSetStarter(s) => {
+                self.wizard.starter = s;
+            } // MK-048
+            Message::WizardSetFolder(v) => {
+                self.wizard.folder = v;
+            }
+            Message::WizardSetHost(v) => {
+                self.wizard.host = v;
+            }
+            Message::WizardSetPort(v) => {
+                self.wizard.port = v;
+            }
+            Message::WizardSetTls(v) => {
+                self.wizard.tls = v;
+            }
+            Message::WizardSetQueueSize(v) => {
+                self.wizard.queue_size = v;
+            }
             Message::WizardToggleSection(i) => {
                 if i < 3 {
                     self.wizard.section_open[i] = !self.wizard.section_open[i];
@@ -598,31 +642,34 @@ impl App {
                     self.wizard.host.trim().to_string()
                 };
                 let port = self.wizard.port.trim().parse::<u16>().unwrap_or(8080);
-                let tls  = self.wizard.tls;
+                let tls = self.wizard.tls;
 
                 // MK-048: starter choice drives the initial content.
                 self.snapshot = Some(match self.wizard.starter {
-                    WizardStarter::Empty   => mock::blank_workspace(&name, &host, port, tls),
+                    WizardStarter::Empty => mock::blank_workspace(&name, &host, port, tls),
                     WizardStarter::Minimal => mock::minimal_workspace(&name, &host, port, tls),
                     WizardStarter::ShopApi => {
                         let mut ws = mock::shop_api_mock();
                         ws.meta.name = name.clone();
                         ws.meta.path = format!("~/{name}/apimock.toml");
-                        ws.root_settings.listener_ip   = host;
+                        ws.root_settings.listener_ip = host;
                         ws.root_settings.listener_port = port;
-                        ws.root_settings.tls_enabled   = tls;
+                        ws.root_settings.tls_enabled = tls;
                         ws
                     }
                 });
                 // Select the first rule / rule set if the starter provided them.
                 if let Some(s) = &self.snapshot {
                     self.selection.rule_set = s.rule_sets.first().map(|rs| rs.id);
-                    self.rule_set_open      = self.selection.rule_set;
-                    self.selection.rule     = s.rule_sets.first()
-                        .and_then(|rs| rs.rules.first()).map(|r| r.id);
+                    self.rule_set_open = self.selection.rule_set;
+                    self.selection.rule = s
+                        .rule_sets
+                        .first()
+                        .and_then(|rs| rs.rules.first())
+                        .map(|r| r.id);
                 }
-                self.view         = AppView::Workspace;
-                self.tab          = WorkspaceTab::Routes;
+                self.view = AppView::Workspace;
+                self.tab = WorkspaceTab::Routes;
                 self.server_state = crate::shell::top_bar::ServerState::Stopped;
                 let notice_name = if self.wizard.name.trim().is_empty() {
                     "my-mock".to_string()
@@ -632,13 +679,15 @@ impl App {
                 self.notice = Some(format!(
                     "Workspace \"{notice_name}\" created. {}",
                     match self.wizard.starter {
-                        WizardStarter::Empty   => "Add a rule set to get started.",
+                        WizardStarter::Empty => "Add a rule set to get started.",
                         WizardStarter::Minimal => "A starter GET /health rule is ready.",
                         WizardStarter::ShopApi => "Shop API example rules are loaded.",
                     }
                 ));
             }
-            Message::WizardCancel => { self.view = AppView::Welcome; }
+            Message::WizardCancel => {
+                self.view = AppView::Welcome;
+            }
 
             // Selection
             Message::SelectRuleSet(id) => {
@@ -673,50 +722,57 @@ impl App {
                     );
                 }
                 if !self.fallback_status_draft.contains_key(&s) {
-                    let saved = self.fallback_status_saved.get(&s)
+                    let saved = self
+                        .fallback_status_saved
+                        .get(&s)
                         .cloned()
                         .unwrap_or_else(|| "200 OK".into());
                     self.fallback_status_draft.insert(s.clone(), saved);
                 }
                 self.selection.file_route = Some(s);
-                self.selection.rule       = None;
-                self.selection.rule_set   = None;  // prevent rule-set config taking priority
-                self.selection.script     = None;
+                self.selection.rule = None;
+                self.selection.rule_set = None; // prevent rule-set config taking priority
+                self.selection.script = None;
             }
             Message::SelectScript(s) => {
-                self.selection.script     = Some(s);
-                self.selection.rule       = None;
-                self.selection.rule_set   = None;  // prevent rule-set config taking priority
+                self.selection.script = Some(s);
+                self.selection.rule = None;
+                self.selection.rule_set = None; // prevent rule-set config taking priority
                 self.selection.file_route = None;
             }
             Message::AddRuleSet => {
                 // MK-048: create a real RuleSetView with a generated filename.
                 let mut undo_cmd: Option<UndoCommand> = None;
                 if let Some(snap) = &mut self.snapshot {
-                    use apimokka_model::{RuleSetId, node::{ConfigFileKind, ConfigFileView}, snapshot::RuleSetView, NodeValidation};
-                    let n    = snap.rule_sets.len() + 1;
+                    use apimokka_model::{
+                        NodeValidation, RuleSetId,
+                        node::{ConfigFileKind, ConfigFileView},
+                        snapshot::RuleSetView,
+                    };
+                    let n = snap.rule_sets.len() + 1;
                     let path = format!("rules/rule-set-{n}.toml");
                     let rs_id = RuleSetId(apimokka_model::NodeId::new());
                     let rs = RuleSetView {
-                        id:   rs_id,
+                        id: rs_id,
                         file: ConfigFileView {
-                            kind:  ConfigFileKind::RuleSet,
-                            path:  path.clone(),
+                            kind: ConfigFileKind::RuleSet,
+                            path: path.clone(),
                             dirty: true,
                         },
-                        rules:      vec![],
+                        rules: vec![],
                         validation: NodeValidation::default(),
                     };
                     snap.rule_sets.push(rs);
                     self.selection.rule_set = Some(rs_id);
-                    self.rule_set_open      = Some(rs_id);
-                    self.selection.rule     = None;
-                    undo_cmd = Some(UndoCommand::AddRule {   // repurpose for rule-set undo stub
+                    self.rule_set_open = Some(rs_id);
+                    self.selection.rule = None;
+                    undo_cmd = Some(UndoCommand::AddRule {
+                        // repurpose for rule-set undo stub
                         rule_set: rs_id,
-                        rule_id:  apimokka_model::NodeId::new(),
+                        rule_id: apimokka_model::NodeId::new(),
                     });
                 }
-                let _ = undo_cmd;  // TODO: UndoCommand::AddRuleSet in future RFC
+                let _ = undo_cmd; // TODO: UndoCommand::AddRuleSet in future RFC
                 self.recompute_dirty();
             }
             Message::AddRule(rs_id) => {
@@ -725,7 +781,9 @@ impl App {
                 let mut undo_cmd: Option<UndoCommand> = None;
                 if let Some(snap) = &mut self.snapshot {
                     if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == rs_id) {
-                        use apimokka_model::{NodeId, snapshot::RuleView, NodeValidation, rule::RulePayload};
+                        use apimokka_model::{
+                            NodeId, NodeValidation, rule::RulePayload, snapshot::RuleView,
+                        };
                         let new_id = NodeId::new();
                         let new_rule = RuleView {
                             id: new_id,
@@ -738,10 +796,15 @@ impl App {
                         self.selection.rule = Some(new_id);
                         self.selection.rule_set = Some(rs_id);
                         self.rule_set_open = Some(rs_id);
-                        undo_cmd = Some(UndoCommand::AddRule { rule_set: rs_id, rule_id: new_id });
+                        undo_cmd = Some(UndoCommand::AddRule {
+                            rule_set: rs_id,
+                            rule_id: new_id,
+                        });
                     }
                 }
-                if let Some(cmd) = undo_cmd { self.push_undo(cmd); }
+                if let Some(cmd) = undo_cmd {
+                    self.push_undo(cmd);
+                }
                 self.auto_save_rules();
             }
             Message::MoveRuleUp(id) => {
@@ -753,14 +816,18 @@ impl App {
                                 rs.rules.swap(i, i - 1);
                                 rs.file.dirty = true;
                                 undo_cmd = Some(UndoCommand::MoveRule {
-                                    rule_set: rs.id, rule_id: id, from_index: i,
+                                    rule_set: rs.id,
+                                    rule_id: id,
+                                    from_index: i,
                                 });
                             }
                             break;
                         }
                     }
                 }
-                if let Some(cmd) = undo_cmd { self.push_undo(cmd); }
+                if let Some(cmd) = undo_cmd {
+                    self.push_undo(cmd);
+                }
                 self.auto_save_rules();
             }
             Message::MoveRuleDown(id) => {
@@ -772,14 +839,18 @@ impl App {
                                 rs.rules.swap(i, i + 1);
                                 rs.file.dirty = true;
                                 undo_cmd = Some(UndoCommand::MoveRule {
-                                    rule_set: rs.id, rule_id: id, from_index: i,
+                                    rule_set: rs.id,
+                                    rule_id: id,
+                                    from_index: i,
                                 });
                             }
                             break;
                         }
                     }
                 }
-                if let Some(cmd) = undo_cmd { self.push_undo(cmd); }
+                if let Some(cmd) = undo_cmd {
+                    self.push_undo(cmd);
+                }
                 self.auto_save_rules();
             }
             Message::DeleteRuleSet(id) => {
@@ -794,14 +865,19 @@ impl App {
                             let rule = rs.rules.remove(index);
                             rs.file.dirty = true;
                             let rid = rule.id;
-                        undo_cmd = Some(UndoCommand::DeleteRule {
-                                rule_set: rs.id, index, rule_id: rid, rule,
+                            undo_cmd = Some(UndoCommand::DeleteRule {
+                                rule_set: rs.id,
+                                index,
+                                rule_id: rid,
+                                rule,
                             });
                             break;
                         }
                     }
                 }
-                if let Some(cmd) = undo_cmd { self.push_undo(cmd); }
+                if let Some(cmd) = undo_cmd {
+                    self.push_undo(cmd);
+                }
                 if self.selection.rule == Some(id) {
                     self.selection.rule = None;
                 }
@@ -814,9 +890,9 @@ impl App {
                     for rs in &mut snap.rule_sets {
                         if let Some(pos) = rs.rules.iter().position(|r| r.id == id) {
                             use apimokka_model::NodeId;
-                            let new_id   = NodeId::new();
+                            let new_id = NodeId::new();
                             let mut copy = rs.rules[pos].clone();
-                            copy.id      = new_id;
+                            copy.id = new_id;
                             copy.matched_by_latest_trace = false;
                             let insert_at = pos + 1;
                             rs.rules.insert(insert_at, copy);
@@ -824,29 +900,39 @@ impl App {
                             self.selection.rule = Some(new_id);
                             undo_cmd = Some(UndoCommand::AddRule {
                                 rule_set: rs.id,
-                                rule_id:  new_id,
+                                rule_id: new_id,
                             });
                             break;
                         }
                     }
                 }
-                if let Some(cmd) = undo_cmd { self.push_undo(cmd); }
+                if let Some(cmd) = undo_cmd {
+                    self.push_undo(cmd);
+                }
                 self.auto_save_rules();
             }
             // Rule edits — auto-save via with_rule
             Message::RuleSetUrlPath(v) => {
                 // MK-045: capture old URL path before overwriting.
                 if let Some(id) = self.selection.rule {
-                    let old = self.snapshot.as_ref()
+                    let old = self
+                        .snapshot
+                        .as_ref()
                         .and_then(|s| s.find_rule(id).map(|(_, r)| r.payload.url_path.clone()))
                         .unwrap_or_default();
                     if old != v {
-                        self.push_undo(UndoCommand::EditUrlPath { rule_id: id, old_value: old, new_value: v.clone() });
+                        self.push_undo(UndoCommand::EditUrlPath {
+                            rule_id: id,
+                            old_value: old,
+                            new_value: v.clone(),
+                        });
                     }
                 }
                 self.with_rule(|r| r.payload.url_path = v);
             }
-            Message::RuleSetUrlPathOp(op) => { self.with_rule(|r| r.payload.url_path_op = Some(op)); }
+            Message::RuleSetUrlPathOp(op) => {
+                self.with_rule(|r| r.payload.url_path_op = Some(op));
+            }
             Message::RuleSetUrlPathEnabled(v) => {
                 self.with_rule(|r| {
                     if !v {
@@ -855,62 +941,116 @@ impl App {
                     }
                 });
             }
-            Message::RuleSetMethod(m) => { self.with_rule(|r| r.payload.method = m); }
+            Message::RuleSetMethod(m) => {
+                self.with_rule(|r| r.payload.method = m);
+            }
             Message::HeaderAdd => {
-                self.with_rule(|r| r.payload.headers.push(HeaderConditionPayload {
-                    name: String::new(),
-                    op: HeaderOp::Equal,
-                    value: String::new(),
-                }));
+                self.with_rule(|r| {
+                    r.payload.headers.push(HeaderConditionPayload {
+                        name: String::new(),
+                        op: HeaderOp::Equal,
+                        value: String::new(),
+                    })
+                });
             }
             Message::HeaderRemove(i) => {
-                self.with_rule(|r| { if i < r.payload.headers.len() { r.payload.headers.remove(i); } });
+                self.with_rule(|r| {
+                    if i < r.payload.headers.len() {
+                        r.payload.headers.remove(i);
+                    }
+                });
             }
             Message::HeaderSetName { index, value } => {
-                self.with_rule(|r| { if index < r.payload.headers.len() { r.payload.headers[index].name = value; } });
+                self.with_rule(|r| {
+                    if index < r.payload.headers.len() {
+                        r.payload.headers[index].name = value;
+                    }
+                });
             }
             Message::HeaderSetOp { index, op } => {
-                self.with_rule(|r| { if index < r.payload.headers.len() { r.payload.headers[index].op = op; } });
+                self.with_rule(|r| {
+                    if index < r.payload.headers.len() {
+                        r.payload.headers[index].op = op;
+                    }
+                });
             }
             Message::HeaderSetValue { index, value } => {
-                self.with_rule(|r| { if index < r.payload.headers.len() { r.payload.headers[index].value = value; } });
+                self.with_rule(|r| {
+                    if index < r.payload.headers.len() {
+                        r.payload.headers[index].value = value;
+                    }
+                });
             }
-            Message::HeaderClearAll => { self.with_rule(|r| r.payload.headers.clear()); }
+            Message::HeaderClearAll => {
+                self.with_rule(|r| r.payload.headers.clear());
+            }
             Message::BodyAdd => {
-                self.with_rule(|r| r.payload.body.push(BodyConditionPayload {
-                    path: String::new(),
-                    op: BodyOp::Equal,
-                    value: String::new(),
-                }));
+                self.with_rule(|r| {
+                    r.payload.body.push(BodyConditionPayload {
+                        path: String::new(),
+                        op: BodyOp::Equal,
+                        value: String::new(),
+                    })
+                });
             }
             Message::BodyRemove(i) => {
-                self.with_rule(|r| { if i < r.payload.body.len() { r.payload.body.remove(i); } });
+                self.with_rule(|r| {
+                    if i < r.payload.body.len() {
+                        r.payload.body.remove(i);
+                    }
+                });
             }
             Message::BodySetPath { index, value } => {
-                self.with_rule(|r| { if index < r.payload.body.len() { r.payload.body[index].path = value; } });
+                self.with_rule(|r| {
+                    if index < r.payload.body.len() {
+                        r.payload.body[index].path = value;
+                    }
+                });
             }
             Message::BodySetOp { index, op } => {
-                self.with_rule(|r| { if index < r.payload.body.len() { r.payload.body[index].op = op; } });
+                self.with_rule(|r| {
+                    if index < r.payload.body.len() {
+                        r.payload.body[index].op = op;
+                    }
+                });
             }
             Message::BodySetValue { index, value } => {
-                self.with_rule(|r| { if index < r.payload.body.len() { r.payload.body[index].value = value; } });
+                self.with_rule(|r| {
+                    if index < r.payload.body.len() {
+                        r.payload.body[index].value = value;
+                    }
+                });
             }
-            Message::BodyClearAll => { self.with_rule(|r| r.payload.body.clear()); }
+            Message::BodyClearAll => {
+                self.with_rule(|r| r.payload.body.clear());
+            }
             Message::BodyOpenPathAssistant(i) => {
                 self.path_assistant.open = true;
                 self.path_assistant.target_index = i;
                 self.path_assistant.json_input = String::new();
                 self.path_assistant.selected_path = String::new();
             }
-            Message::RespondSetMode(m) => { self.with_rule(|r| r.payload.respond.mode = m); }
-            Message::RespondSetText(v) => { self.with_rule(|r| r.payload.respond.text = v); }
-            Message::RespondSetFilePath(v) => { self.with_rule(|r| r.payload.respond.file_path = v); }
-            Message::RespondSetStatus(v) => { self.with_rule(|r| r.payload.respond.status = v); }
+            Message::RespondSetMode(m) => {
+                self.with_rule(|r| r.payload.respond.mode = m);
+            }
+            Message::RespondSetText(v) => {
+                self.with_rule(|r| r.payload.respond.text = v);
+            }
+            Message::RespondSetFilePath(v) => {
+                self.with_rule(|r| r.payload.respond.file_path = v);
+            }
+            Message::RespondSetStatus(v) => {
+                self.with_rule(|r| r.payload.respond.status = v);
+            }
             Message::RespondSetDelay(v) => {
                 self.with_rule(|r| r.payload.respond.delay_milliseconds = v.parse().unwrap_or(0));
             }
-            Message::RuleSetWeight(v) => { self.with_rule(|r| r.payload.weight = v.parse().ok()); }
-            Message::RuleSetPriority(v) => { self.with_rule(|r| r.payload.priority = v.parse().ok()); }
+            Message::RuleSetWeight(v) => {
+                self.with_rule(|r| r.payload.weight = v.parse().ok());
+            }
+            Message::RuleSetPriority(v) => {
+                self.with_rule(|r| r.payload.priority = v.parse().ok());
+            }
 
             // Trace
             Message::JumpToTraceEvent(eid) => {
@@ -921,14 +1061,25 @@ impl App {
             Message::ViewAllInTrace => {
                 self.tab = crate::selection::WorkspaceTab::Trace;
             }
-            Message::TracePauseToggle => { self.trace_paused = !self.trace_paused; }
-            Message::TraceClear => { self.trace.clear(); self.selected_trace = None; }
-            Message::SelectTraceEvent(id) => { self.selected_trace = Some(id); }
-            Message::TraceFilterChanged(s) => { self.trace_filter = s; }
+            Message::TracePauseToggle => {
+                self.trace_paused = !self.trace_paused;
+            }
+            Message::TraceClear => {
+                self.trace.clear();
+                self.selected_trace = None;
+            }
+            Message::SelectTraceEvent(id) => {
+                self.selected_trace = Some(id);
+            }
+            Message::TraceFilterChanged(s) => {
+                self.trace_filter = s;
+            }
             Message::AddRuleFromPalette => {
                 self.command_palette.open = false;
                 self.tab = crate::selection::WorkspaceTab::Routes;
-                let rs_id = self.snapshot.as_ref()
+                let rs_id = self
+                    .snapshot
+                    .as_ref()
                     .and_then(|s| s.rule_sets.first())
                     .map(|rs| rs.id);
                 if let Some(id) = rs_id {
@@ -938,7 +1089,9 @@ impl App {
             }
             Message::AddRuleForPath(path) => {
                 self.tab = crate::selection::WorkspaceTab::Routes;
-                let rs_id = self.snapshot.as_ref()
+                let rs_id = self
+                    .snapshot
+                    .as_ref()
                     .and_then(|s| s.rule_sets.first())
                     .map(|rs| rs.id);
                 if let Some(id) = rs_id {
@@ -947,8 +1100,8 @@ impl App {
                 self.update(Message::RuleSetUrlPath(path));
             }
             Message::JumpToRule(id) => {
-                self.tab    = crate::selection::WorkspaceTab::Routes;
-                self.drawer = None;   // MK-044: close drawer when navigating
+                self.tab = crate::selection::WorkspaceTab::Routes;
+                self.drawer = None; // MK-044: close drawer when navigating
                 self.update(Message::SelectRule(id));
             }
             Message::JumpToFile(path) => {
@@ -958,36 +1111,50 @@ impl App {
 
             // Test rule
             Message::TestRuleOpen => {
-                let (method, url_path) = self.selected_rule()
+                let (method, url_path) = self
+                    .selected_rule()
                     .map(|r| (r.payload.method.clone(), r.payload.url_path.clone()))
                     .unwrap_or_default();
-                self.test_rule.method   = method;
+                self.test_rule.method = method;
                 self.test_rule.url_path = url_path;
-                self.test_rule.result   = None;
-                self.test_rule.open     = true;
+                self.test_rule.result = None;
+                self.test_rule.open = true;
             }
-            Message::TestRuleClose => { self.test_rule.open = false; }
+            Message::TestRuleClose => {
+                self.test_rule.open = false;
+            }
             Message::ReplayAsTestInput(eid) => {
                 if let Some(ev) = self.trace.iter().find(|e| e.event_id == eid) {
-                    let method       = ev.request.method.clone();
-                    let url_path     = ev.request.url_path.clone();
-                    let headers_text = ev.request.headers.iter()
+                    let method = ev.request.method.clone();
+                    let url_path = ev.request.url_path.clone();
+                    let headers_text = ev
+                        .request
+                        .headers
+                        .iter()
                         .map(|(k, v)| format!("{k}: {v}"))
                         .collect::<Vec<_>>()
                         .join("\n");
                     let body = ev.request.body_preview.clone().unwrap_or_default();
-                    self.test_rule.method       = method;
-                    self.test_rule.url_path     = url_path;
+                    self.test_rule.method = method;
+                    self.test_rule.url_path = url_path;
                     self.test_rule.headers_text = headers_text;
-                    self.test_rule.body         = body;
+                    self.test_rule.body = body;
                 }
                 self.test_rule.result = None;
-                self.test_rule.open   = true;
+                self.test_rule.open = true;
             }
-            Message::TestRuleSetMethod(v) => { self.test_rule.method = v; }
-            Message::TestRuleSetPath(v) => { self.test_rule.url_path = v; }
-            Message::TestRuleSetHeaders(v) => { self.test_rule.headers_text = v; }
-            Message::TestRuleSetBody(v) => { self.test_rule.body = v; }
+            Message::TestRuleSetMethod(v) => {
+                self.test_rule.method = v;
+            }
+            Message::TestRuleSetPath(v) => {
+                self.test_rule.url_path = v;
+            }
+            Message::TestRuleSetHeaders(v) => {
+                self.test_rule.headers_text = v;
+            }
+            Message::TestRuleSetBody(v) => {
+                self.test_rule.body = v;
+            }
             Message::TestRuleRun => {
                 self.test_rule.result = Some(self.run_stub_test());
             }
@@ -999,9 +1166,15 @@ impl App {
                 self.path_assistant.json_input = String::new();
                 self.path_assistant.selected_path = String::new();
             }
-            Message::PathAssistantClose => { self.path_assistant.open = false; }
-            Message::PathAssistantSetJson(v) => { self.path_assistant.json_input = v; }
-            Message::PathAssistantSelectPath(p) => { self.path_assistant.selected_path = p; }
+            Message::PathAssistantClose => {
+                self.path_assistant.open = false;
+            }
+            Message::PathAssistantSetJson(v) => {
+                self.path_assistant.json_input = v;
+            }
+            Message::PathAssistantSelectPath(p) => {
+                self.path_assistant.selected_path = p;
+            }
             Message::PathAssistantInsert => {
                 let path = self.path_assistant.selected_path.clone();
                 let index = self.path_assistant.target_index;
@@ -1012,14 +1185,28 @@ impl App {
             // Confirm dialog
             Message::ConfirmRequest(action) => {
                 let (title, body) = match &action {
-                    ConfirmAction::DeleteRuleSet(_) => (Key::ConfirmDeleteRuleSet, Key::ConfirmDeleteRuleSetBody),
-                    ConfirmAction::DiscardChanges => (Key::ConfirmDiscardChanges, Key::ConfirmDiscardChangesBody),
-                    ConfirmAction::SwitchWorkspace(_) => (Key::ConfirmSwitchWorkspace, Key::ConfirmSwitchWorkspaceBody),
-                    ConfirmAction::RevertFile(_) => (Key::ConfirmRevertFile, Key::ConfirmRevertFileBody),
+                    ConfirmAction::DeleteRuleSet(_) => {
+                        (Key::ConfirmDeleteRuleSet, Key::ConfirmDeleteRuleSetBody)
+                    }
+                    ConfirmAction::DiscardChanges => {
+                        (Key::ConfirmDiscardChanges, Key::ConfirmDiscardChangesBody)
+                    }
+                    ConfirmAction::SwitchWorkspace(_) => {
+                        (Key::ConfirmSwitchWorkspace, Key::ConfirmSwitchWorkspaceBody)
+                    }
+                    ConfirmAction::RevertFile(_) => {
+                        (Key::ConfirmRevertFile, Key::ConfirmRevertFileBody)
+                    }
                 };
-                self.confirm_dialog = Some(ConfirmDialogState { action, title, body });
+                self.confirm_dialog = Some(ConfirmDialogState {
+                    action,
+                    title,
+                    body,
+                });
             }
-            Message::ConfirmCancel => { self.confirm_dialog = None; }
+            Message::ConfirmCancel => {
+                self.confirm_dialog = None;
+            }
             Message::ConfirmProceed => {
                 if let Some(d) = self.confirm_dialog.take() {
                     match d.action {
@@ -1033,20 +1220,24 @@ impl App {
                             }
                             self.auto_save_rules();
                         }
-                        ConfirmAction::DiscardChanges => { self.discard_all_changes(); }
+                        ConfirmAction::DiscardChanges => {
+                            self.discard_all_changes();
+                        }
                         ConfirmAction::SwitchWorkspace(name) => {
                             self.update(Message::OpenWorkspace(name));
                         }
                         ConfirmAction::RevertFile(path) => {
                             // MK-038: draft ← saved (Dirty → Clean)
-                            let saved = self.fallback_saved.get(&path)
-                                .cloned().unwrap_or_default();
+                            let saved = self.fallback_saved.get(&path).cloned().unwrap_or_default();
                             self.fallback_drafts.insert(
                                 path.clone(),
                                 iced::widget::text_editor::Content::with_text(&saved),
                             );
-                            let status = self.fallback_status_saved.get(&path)
-                                .cloned().unwrap_or_else(|| "200 OK".into());
+                            let status = self
+                                .fallback_status_saved
+                                .get(&path)
+                                .cloned()
+                                .unwrap_or_else(|| "200 OK".into());
                             self.fallback_status_draft.insert(path, status);
                             self.recompute_dirty();
                         }
@@ -1056,10 +1247,14 @@ impl App {
 
             // Settings
             Message::SettingsSetName(v) => {
-                if let Some(s) = &mut self.snapshot { s.meta.name = v; }
+                if let Some(s) = &mut self.snapshot {
+                    s.meta.name = v;
+                }
             }
             Message::SettingsSetHost(v) => {
-                if let Some(s) = &mut self.snapshot { s.root_settings.listener_ip = v; }
+                if let Some(s) = &mut self.snapshot {
+                    s.root_settings.listener_ip = v;
+                }
                 self.trigger_restart();
             }
             Message::SettingsSetPort(v) => {
@@ -1069,19 +1264,27 @@ impl App {
                 self.trigger_restart();
             }
             Message::SettingsSetTls(v) => {
-                if let Some(s) = &mut self.snapshot { s.root_settings.tls_enabled = v; }
+                if let Some(s) = &mut self.snapshot {
+                    s.root_settings.tls_enabled = v;
+                }
                 self.trigger_restart();
             }
             Message::SettingsSetLogLevel(v) => {
-                if let Some(s) = &mut self.snapshot { s.root_settings.log_level = v; }
+                if let Some(s) = &mut self.snapshot {
+                    s.root_settings.log_level = v;
+                }
                 self.trigger_reload();
             }
             Message::SettingsSetStrategy(st) => {
-                if let Some(s) = &mut self.snapshot { s.root_settings.strategy = st; }
+                if let Some(s) = &mut self.snapshot {
+                    s.root_settings.strategy = st;
+                }
                 self.trigger_reload();
             }
             Message::SettingsSetTraceEnabled(v) => {
-                if let Some(s) = &mut self.snapshot { s.root_settings.trace_enabled = v; }
+                if let Some(s) = &mut self.snapshot {
+                    s.root_settings.trace_enabled = v;
+                }
                 self.trigger_reload();
             }
 
@@ -1127,9 +1330,7 @@ impl App {
                 if self.selection.file_route.is_some() {
                     if let Some(path) = self.selection.file_route.clone() {
                         if self.is_fallback_dirty(&path) {
-                            self.update(Message::ConfirmRequest(
-                                ConfirmAction::RevertFile(path),
-                            ));
+                            self.update(Message::ConfirmRequest(ConfirmAction::RevertFile(path)));
                         }
                     }
                 }
@@ -1154,7 +1355,9 @@ impl App {
 
     /// Undo the top command: apply its INVERSE, push the command to redo_stack.
     fn apply_undo(&mut self) {
-        let Some(cmd) = self.undo_stack.pop() else { return };
+        let Some(cmd) = self.undo_stack.pop() else {
+            return;
+        };
         self.apply_inverse(&cmd);
         self.redo_stack.push(cmd);
         self.auto_save_rules();
@@ -1162,7 +1365,9 @@ impl App {
 
     /// Redo the top command: apply it FORWARD, push the command back to undo_stack.
     fn apply_redo(&mut self) {
-        let Some(cmd) = self.redo_stack.pop() else { return };
+        let Some(cmd) = self.redo_stack.pop() else {
+            return;
+        };
         self.apply_forward(&cmd);
         self.undo_stack.push(cmd);
         self.auto_save_rules();
@@ -1170,10 +1375,17 @@ impl App {
 
     /// Apply the INVERSE of `cmd` (what undo does).
     fn apply_inverse(&mut self, cmd: &UndoCommand) {
-        let Some(snap) = &mut self.snapshot else { return };
+        let Some(snap) = &mut self.snapshot else {
+            return;
+        };
         match cmd {
             // Undo delete → re-insert the rule
-            UndoCommand::DeleteRule { rule_set, index, rule, .. } => {
+            UndoCommand::DeleteRule {
+                rule_set,
+                index,
+                rule,
+                ..
+            } => {
                 if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
                     let at = (*index).min(rs.rules.len());
                     rs.rules.insert(at, rule.clone());
@@ -1194,7 +1406,11 @@ impl App {
                 }
             }
             // Undo move → move the rule back to `from_index`
-            UndoCommand::MoveRule { rule_set, rule_id, from_index } => {
+            UndoCommand::MoveRule {
+                rule_set,
+                rule_id,
+                from_index,
+            } => {
                 if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
                     if let Some(cur) = rs.rules.iter().position(|r| r.id == *rule_id) {
                         let rule = rs.rules.remove(cur);
@@ -1205,7 +1421,9 @@ impl App {
                 }
             }
             // Undo url-path edit → restore old_value
-            UndoCommand::EditUrlPath { rule_id, old_value, .. } => {
+            UndoCommand::EditUrlPath {
+                rule_id, old_value, ..
+            } => {
                 for rs in &mut snap.rule_sets {
                     if let Some(r) = rs.rules.iter_mut().find(|r| r.id == *rule_id) {
                         r.payload.url_path = old_value.clone();
@@ -1219,7 +1437,9 @@ impl App {
 
     /// Apply `cmd` in the FORWARD direction (what redo does).
     fn apply_forward(&mut self, cmd: &UndoCommand) {
-        let Some(snap) = &mut self.snapshot else { return };
+        let Some(snap) = &mut self.snapshot else {
+            return;
+        };
         match cmd {
             // Redo delete → remove the rule by id
             UndoCommand::DeleteRule { rule_set, rule, .. } => {
@@ -1242,12 +1462,20 @@ impl App {
             // Redo move → move the rule FROM from_index to where it was moved TO
             // We store from_index (before move); after swap it's at from_index ± 1.
             // Re-doing = calling MoveRuleDown/Up again — infer from position.
-            UndoCommand::MoveRule { rule_set, rule_id, from_index } => {
+            UndoCommand::MoveRule {
+                rule_set,
+                rule_id,
+                from_index,
+            } => {
                 if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
                     if let Some(cur) = rs.rules.iter().position(|r| r.id == *rule_id) {
                         // The rule is currently at `from_index` (restored by undo).
                         // Move it back where it was after the original operation.
-                        let target = if cur + 1 <= rs.rules.len() - 1 { cur + 1 } else { cur };
+                        let target = if cur + 1 <= rs.rules.len() - 1 {
+                            cur + 1
+                        } else {
+                            cur
+                        };
                         if target != cur {
                             rs.rules.swap(cur, target);
                             rs.file.dirty = true;
@@ -1257,7 +1485,9 @@ impl App {
                 }
             }
             // Redo url-path edit → restore new_value
-            UndoCommand::EditUrlPath { rule_id, new_value, .. } => {
+            UndoCommand::EditUrlPath {
+                rule_id, new_value, ..
+            } => {
                 for rs in &mut snap.rule_sets {
                     if let Some(r) = rs.rules.iter_mut().find(|r| r.id == *rule_id) {
                         r.payload.url_path = new_value.clone();
@@ -1269,8 +1499,8 @@ impl App {
         }
     }
 
-
-    fn with_rule(&mut self, f: impl FnOnce(&mut apimokka_model::snapshot::RuleView)) {        if let (Some(snap), Some(id)) = (self.snapshot.as_mut(), self.selection.rule) {
+    fn with_rule(&mut self, f: impl FnOnce(&mut apimokka_model::snapshot::RuleView)) {
+        if let (Some(snap), Some(id)) = (self.snapshot.as_mut(), self.selection.rule) {
             if let Some(r) = snap.find_rule_mut(id) {
                 f(r);
             }
@@ -1304,7 +1534,9 @@ impl App {
                 rs.file.dirty = false;
             }
         }
-        let dirty_paths: Vec<String> = self.fallback_drafts.keys()
+        let dirty_paths: Vec<String> = self
+            .fallback_drafts
+            .keys()
             .filter(|p| self.is_fallback_dirty(p))
             .cloned()
             .collect();
@@ -1323,9 +1555,11 @@ impl App {
 
     /// dirty(path) := draft != saved (content or status code).
     pub fn is_fallback_dirty(&self, path: &str) -> bool {
-        let content_dirty = match (self.fallback_drafts.get(path), self.fallback_saved.get(path)) {
-            (Some(draft), Some(saved)) =>
-                Self::normalize(&draft.text()) != Self::normalize(saved),
+        let content_dirty = match (
+            self.fallback_drafts.get(path),
+            self.fallback_saved.get(path),
+        ) {
+            (Some(draft), Some(saved)) => Self::normalize(&draft.text()) != Self::normalize(saved),
             (Some(draft), None) => !draft.text().trim().is_empty(),
             _ => false,
         };
@@ -1334,7 +1568,7 @@ impl App {
             self.fallback_status_saved.get(path),
         ) {
             (Some(d), Some(s)) => d != s,
-            (Some(d), None)    => d != "200 OK",
+            (Some(d), None) => d != "200 OK",
             _ => false,
         };
         content_dirty || status_dirty
@@ -1342,7 +1576,8 @@ impl App {
 
     /// json_valid(path) := the draft parses as JSON. Warns, never blocks.
     pub fn fallback_json_valid(&self, path: &str) -> bool {
-        self.fallback_drafts.get(path)
+        self.fallback_drafts
+            .get(path)
             .map(|c| serde_json::from_str::<serde_json::Value>(&c.text()).is_ok())
             .unwrap_or(true)
     }
@@ -1354,17 +1589,22 @@ impl App {
             self.fallback_saved.insert(path.to_string(), draft.text());
         }
         if let Some(status) = self.fallback_status_draft.get(path) {
-            self.fallback_status_saved.insert(path.to_string(), status.clone());
+            self.fallback_status_saved
+                .insert(path.to_string(), status.clone());
         }
     }
 
     /// Recompute the top-bar dirty counter: dirty rule files + dirty
     /// fallback files. Derived, never event-counted.
     fn recompute_dirty(&mut self) {
-        let rule_dirty = self.snapshot.as_ref()
+        let rule_dirty = self
+            .snapshot
+            .as_ref()
             .map(|s| s.dirty_file_count())
             .unwrap_or(0);
-        let fallback_dirty = self.fallback_drafts.keys()
+        let fallback_dirty = self
+            .fallback_drafts
+            .keys()
             .filter(|p| self.is_fallback_dirty(p))
             .count();
         self.dirty_count = rule_dirty + fallback_dirty;
@@ -1374,7 +1614,9 @@ impl App {
     /// its saved baseline, rule dirty flags are cleared, and the counter is
     /// recomputed. Used by the save-diff drawer's Discard action.
     fn discard_all_changes(&mut self) {
-        let dirty_paths: Vec<String> = self.fallback_drafts.keys()
+        let dirty_paths: Vec<String> = self
+            .fallback_drafts
+            .keys()
             .filter(|p| self.is_fallback_dirty(p))
             .cloned()
             .collect();
@@ -1384,7 +1626,9 @@ impl App {
                 path.clone(),
                 iced::widget::text_editor::Content::with_text(&saved),
             );
-            let status = self.fallback_status_saved.get(&path)
+            let status = self
+                .fallback_status_saved
+                .get(&path)
                 .cloned()
                 .unwrap_or_else(|| "200 OK".into());
             self.fallback_status_draft.insert(path, status);
@@ -1405,7 +1649,10 @@ impl App {
     }
 
     fn trigger_restart(&mut self) {
-        if matches!(self.server_state, ServerState::Running | ServerState::ReloadPending) {
+        if matches!(
+            self.server_state,
+            ServerState::Running | ServerState::ReloadPending
+        ) {
             self.server_state = ServerState::RestartRequired;
         }
         self.save_pending_restart = true;
@@ -1437,19 +1684,26 @@ impl App {
         let req_path = &self.test_rule.url_path;
         if !p.url_path.is_empty() {
             let matched = match p.url_path_op {
-                Some(apimokka_model::UrlPathOp::StartsWith) => req_path.starts_with(p.url_path.as_str()),
-                Some(apimokka_model::UrlPathOp::Contains)   => req_path.contains(p.url_path.as_str()),
-                Some(apimokka_model::UrlPathOp::EndsWith)   => req_path.ends_with(p.url_path.as_str()),
-                Some(apimokka_model::UrlPathOp::NotEqual)   => req_path != &p.url_path,
-                Some(apimokka_model::UrlPathOp::WildCard)   => true, // best-effort
-                _                                            => req_path == &p.url_path,
+                Some(apimokka_model::UrlPathOp::StartsWith) => {
+                    req_path.starts_with(p.url_path.as_str())
+                }
+                Some(apimokka_model::UrlPathOp::Contains) => req_path.contains(p.url_path.as_str()),
+                Some(apimokka_model::UrlPathOp::EndsWith) => {
+                    req_path.ends_with(p.url_path.as_str())
+                }
+                Some(apimokka_model::UrlPathOp::NotEqual) => req_path != &p.url_path,
+                Some(apimokka_model::UrlPathOp::WildCard) => true, // best-effort
+                _ => req_path == &p.url_path,
             };
-            if !matched { return TestRuleResult::NoMatch; }
+            if !matched {
+                return TestRuleResult::NoMatch;
+            }
         }
 
         // ── Header conditions ─────────────────────────────────────────────────
         // Parse "name: value\nname2: value2" into a lowercase-name map.
-        let req_headers: std::collections::HashMap<String, String> = self.test_rule
+        let req_headers: std::collections::HashMap<String, String> = self
+            .test_rule
             .headers_text
             .lines()
             .filter_map(|line| {
@@ -1463,26 +1717,34 @@ impl App {
             let actual = req_headers.get(&name_lc);
             use apimokka_model::HeaderOp;
             let matched = match hc.op {
-                HeaderOp::Exists    => actual.is_some(),
-                HeaderOp::Absent    => actual.is_none(),
-                HeaderOp::Equal     => actual.map(|v| v == &hc.value).unwrap_or(false),
-                HeaderOp::NotEqual  => actual.map(|v| v != &hc.value).unwrap_or(true),
-                HeaderOp::Contains  => actual.map(|v| v.contains(hc.value.as_str())).unwrap_or(false),
-                HeaderOp::StartsWith => actual.map(|v| v.starts_with(hc.value.as_str())).unwrap_or(false),
-                HeaderOp::EndsWith  => actual.map(|v| v.ends_with(hc.value.as_str())).unwrap_or(false),
+                HeaderOp::Exists => actual.is_some(),
+                HeaderOp::Absent => actual.is_none(),
+                HeaderOp::Equal => actual.map(|v| v == &hc.value).unwrap_or(false),
+                HeaderOp::NotEqual => actual.map(|v| v != &hc.value).unwrap_or(true),
+                HeaderOp::Contains => actual
+                    .map(|v| v.contains(hc.value.as_str()))
+                    .unwrap_or(false),
+                HeaderOp::StartsWith => actual
+                    .map(|v| v.starts_with(hc.value.as_str()))
+                    .unwrap_or(false),
+                HeaderOp::EndsWith => actual
+                    .map(|v| v.ends_with(hc.value.as_str()))
+                    .unwrap_or(false),
                 HeaderOp::Regex | HeaderOp::WildCard => actual.is_some(), // best-effort
             };
-            if !matched { return TestRuleResult::NoMatch; }
+            if !matched {
+                return TestRuleResult::NoMatch;
+            }
         }
 
         // ── Body conditions ───────────────────────────────────────────────────
         if !p.body.is_empty() {
             let body_json: serde_json::Value = match serde_json::from_str(&self.test_rule.body) {
-                Ok(v)  => v,
+                Ok(v) => v,
                 Err(_) => {
                     if !self.test_rule.body.is_empty() {
                         return TestRuleResult::Error(
-                            "Body is not valid JSON — cannot evaluate body conditions.".into()
+                            "Body is not valid JSON — cannot evaluate body conditions.".into(),
                         );
                     }
                     serde_json::Value::Null
@@ -1493,12 +1755,14 @@ impl App {
                 let target_val = dotted_path_get(&body_json, &bc.path);
                 use apimokka_model::BodyOp;
                 let matched = match bc.op {
-                    BodyOp::Exists  => target_val.is_some(),
-                    BodyOp::Absent  => target_val.is_none(),
+                    BodyOp::Exists => target_val.is_some(),
+                    BodyOp::Absent => target_val.is_none(),
 
                     BodyOp::Equal | BodyOp::EqualString => {
                         // String-coerce both sides
-                        target_val.map(|v| json_to_string(v) == bc.value).unwrap_or(false)
+                        target_val
+                            .map(|v| json_to_string(v) == bc.value)
+                            .unwrap_or(false)
                     }
                     BodyOp::EqualTyped => {
                         // Compare JSON representations
@@ -1506,19 +1770,25 @@ impl App {
                             .unwrap_or(serde_json::Value::String(bc.value.clone()));
                         target_val.map(|v| v == &expected).unwrap_or(false)
                     }
-                    BodyOp::Contains   => target_val.map(|v| json_to_string(v).contains(bc.value.as_str())).unwrap_or(false),
-                    BodyOp::StartsWith => target_val.map(|v| json_to_string(v).starts_with(bc.value.as_str())).unwrap_or(false),
-                    BodyOp::EndsWith   => target_val.map(|v| json_to_string(v).ends_with(bc.value.as_str())).unwrap_or(false),
+                    BodyOp::Contains => target_val
+                        .map(|v| json_to_string(v).contains(bc.value.as_str()))
+                        .unwrap_or(false),
+                    BodyOp::StartsWith => target_val
+                        .map(|v| json_to_string(v).starts_with(bc.value.as_str()))
+                        .unwrap_or(false),
+                    BodyOp::EndsWith => target_val
+                        .map(|v| json_to_string(v).ends_with(bc.value.as_str()))
+                        .unwrap_or(false),
 
                     BodyOp::EqualNumber | BodyOp::EqualInteger => {
                         let exp = bc.value.parse::<f64>().ok();
                         let act = target_val.and_then(|v| v.as_f64());
                         matches!((exp, act), (Some(e), Some(a)) if (e - a).abs() < f64::EPSILON)
                     }
-                    BodyOp::GreaterThan  => cmp_f64(target_val, &bc.value, |a, e| a > e),
-                    BodyOp::LessThan     => cmp_f64(target_val, &bc.value, |a, e| a < e),
+                    BodyOp::GreaterThan => cmp_f64(target_val, &bc.value, |a, e| a > e),
+                    BodyOp::LessThan => cmp_f64(target_val, &bc.value, |a, e| a < e),
                     BodyOp::GreaterOrEqual => cmp_f64(target_val, &bc.value, |a, e| a >= e),
-                    BodyOp::LessOrEqual  => cmp_f64(target_val, &bc.value, |a, e| a <= e),
+                    BodyOp::LessOrEqual => cmp_f64(target_val, &bc.value, |a, e| a <= e),
 
                     BodyOp::ArrayLengthEqual => {
                         let exp = bc.value.parse::<usize>().ok();
@@ -1540,11 +1810,15 @@ impl App {
                     }
                     BodyOp::Regex => true, // best-effort: skip regex evaluation
                 };
-                if !matched { return TestRuleResult::NoMatch; }
+                if !matched {
+                    return TestRuleResult::NoMatch;
+                }
             }
         }
 
-        TestRuleResult::Matched { summary: rule.summary() }
+        TestRuleResult::Matched {
+            summary: rule.summary(),
+        }
     }
 }
 
@@ -1567,8 +1841,8 @@ fn dotted_path_get<'v>(root: &'v serde_json::Value, path: &str) -> Option<&'v se
 fn json_to_string(v: &serde_json::Value) -> String {
     match v {
         serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Null      => "null".into(),
-        other                        => other.to_string(),
+        serde_json::Value::Null => "null".into(),
+        other => other.to_string(),
     }
 }
 
@@ -1577,14 +1851,19 @@ fn cmp_f64(
     expected_str: &str,
     pred: impl Fn(f64, f64) -> bool,
 ) -> bool {
-    let exp = match expected_str.parse::<f64>() { Ok(v) => v, Err(_) => return false };
-    actual.and_then(|v| v.as_f64()).map(|act| pred(act, exp)).unwrap_or(false)
+    let exp = match expected_str.parse::<f64>() {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    actual
+        .and_then(|v| v.as_f64())
+        .map(|act| pred(act, exp))
+        .unwrap_or(false)
 }
 
 // ── App view / subscription (not in the impl block above) ─────────────────────
 
 impl App {
-
     // ─────────────────────────────────────────────────────────────────────────
     // View and subscription
     // ─────────────────────────────────────────────────────────────────────────
@@ -1597,9 +1876,9 @@ impl App {
             return screens::mode_picker::view(self);
         }
         match self.view {
-            AppView::Welcome   => screens::welcome::view(self),
+            AppView::Welcome => screens::welcome::view(self),
             AppView::Dashboard => screens::dashboard::view(self),
-            AppView::Wizard    => screens::wizard::view(self),
+            AppView::Wizard => screens::wizard::view(self),
             AppView::Workspace => shell::view::view(self),
         }
     }
@@ -1613,8 +1892,7 @@ impl App {
                         return Message::EscapePressed;
                     }
                     iced::keyboard::Key::Character(ref c)
-                        if c.as_str() == "k"
-                            && (modifiers.command() || modifiers.control()) =>
+                        if c.as_str() == "k" && (modifiers.command() || modifiers.control()) =>
                     {
                         return Message::ToggleCommandPalette;
                     }
@@ -1634,9 +1912,7 @@ impl App {
                         return Message::Redo;
                     }
                     iced::keyboard::Key::Character(ref c)
-                        if c.as_str() == "y"
-                            && modifiers.control()
-                            && !modifiers.command() =>
+                        if c.as_str() == "y" && modifiers.control() && !modifiers.command() =>
                     {
                         return Message::Redo;
                     }
@@ -1710,14 +1986,18 @@ mod tests {
         // Tests that exercise workspace features call this helper, which
         // sets mode and loads the workspace so the snapshot is available.
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         // Load mock workspace and navigate to the Routes workbench.
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
 
     /// An app at first launch, before the audience mode is chosen.
-    fn first_launch() -> App { App::new().0 }
+    fn first_launch() -> App {
+        App::new().0
+    }
 
     fn first_fallback_path(a: &App) -> String {
         a.snapshot.as_ref().unwrap().fallback_files[0].path.clone()
@@ -1734,7 +2014,10 @@ mod tests {
         let path = first_fallback_path(&a);
         a.update(Message::SelectFileRoute(path.clone()));
         assert_eq!(a.selection.file_route.as_deref(), Some(path.as_str()));
-        assert!(a.selection.rule_set.is_none(), "file selection must clear rule_set");
+        assert!(
+            a.selection.rule_set.is_none(),
+            "file selection must clear rule_set"
+        );
         assert!(a.selection.rule.is_none());
     }
 
@@ -1753,11 +2036,21 @@ mod tests {
     #[test]
     fn select_rule_set_is_single_open_accordion() {
         let mut a = fresh();
-        let ids: Vec<_> = a.snapshot.as_ref().unwrap()
-            .rule_sets.iter().map(|rs| rs.id).collect();
+        let ids: Vec<_> = a
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .rule_sets
+            .iter()
+            .map(|rs| rs.id)
+            .collect();
         if ids.len() > 1 {
             a.update(Message::SelectRuleSet(ids[1]));
-            assert_eq!(a.rule_set_open, Some(ids[1]), "selected set becomes the open one");
+            assert_eq!(
+                a.rule_set_open,
+                Some(ids[1]),
+                "selected set becomes the open one"
+            );
             assert_eq!(a.selection.rule_set, Some(ids[1]));
             assert!(a.selection.rule.is_none());
         }
@@ -1783,7 +2076,8 @@ mod tests {
         assert!(!a.is_fallback_dirty(&path), "freshly opened file is clean");
 
         // Simulate an edit by replacing the draft buffer.
-        a.fallback_drafts.insert(path.clone(), Content::with_text("{\"x\":1}"));
+        a.fallback_drafts
+            .insert(path.clone(), Content::with_text("{\"x\":1}"));
         assert!(a.is_fallback_dirty(&path), "modified draft is dirty");
 
         a.update(Message::FallbackFileSave);
@@ -1796,10 +2090,12 @@ mod tests {
         let path = first_fallback_path(&a);
         a.update(Message::SelectFileRoute(path.clone()));
 
-        a.fallback_drafts.insert(path.clone(), Content::with_text("{not valid"));
+        a.fallback_drafts
+            .insert(path.clone(), Content::with_text("{not valid"));
         assert!(!a.fallback_json_valid(&path), "broken JSON is invalid");
 
-        a.fallback_drafts.insert(path.clone(), Content::with_text("{\"ok\":true}"));
+        a.fallback_drafts
+            .insert(path.clone(), Content::with_text("{\"ok\":true}"));
         assert!(a.fallback_json_valid(&path), "well-formed JSON is valid");
     }
 
@@ -1810,14 +2106,16 @@ mod tests {
         let mut a = fresh();
         let path = first_fallback_path(&a);
         a.update(Message::SelectFileRoute(path.clone()));
-        a.fallback_drafts.insert(path.clone(), Content::with_text("{\"edited\":1}"));
+        a.fallback_drafts
+            .insert(path.clone(), Content::with_text("{\"edited\":1}"));
         assert!(a.is_fallback_dirty(&path));
 
-        let rule_id = a.snapshot.as_ref().unwrap()
-            .rule_sets[0].rules[0].id;
+        let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
         a.update(Message::MoveRuleUp(rule_id)); // triggers auto_save_rules
-        assert!(a.is_fallback_dirty(&path),
-            "rule auto-save must not commit fallback file drafts");
+        assert!(
+            a.is_fallback_dirty(&path),
+            "rule auto-save must not commit fallback file drafts"
+        );
     }
 
     #[test]
@@ -1825,24 +2123,32 @@ mod tests {
         let mut a = fresh();
         let path = first_fallback_path(&a);
         a.update(Message::SelectFileRoute(path.clone()));
-        a.fallback_drafts.insert(path.clone(), Content::with_text("{\"edited\":2}"));
+        a.fallback_drafts
+            .insert(path.clone(), Content::with_text("{\"edited\":2}"));
         assert!(a.is_fallback_dirty(&path));
 
         a.update(Message::Save); // global Save
-        assert!(!a.is_fallback_dirty(&path), "global save commits all drafts");
+        assert!(
+            !a.is_fallback_dirty(&path),
+            "global save commits all drafts"
+        );
     }
 
     // ── View build smoke tests (no rendering, just tree construction) ──────
 
     #[test]
     fn screen_views_build_without_panic() {
-        for tab in [WorkspaceTab::Routes, WorkspaceTab::Trace, WorkspaceTab::Settings] {
+        for tab in [
+            WorkspaceTab::Routes,
+            WorkspaceTab::Trace,
+            WorkspaceTab::Settings,
+        ] {
             let mut a = fresh();
             a.tab = tab;
             // Element is built and dropped — catches view-construction panics.
             let _ = match tab {
-                WorkspaceTab::Routes   => crate::screens::routes::view(&a),
-                WorkspaceTab::Trace    => crate::screens::trace::view(&a),
+                WorkspaceTab::Routes => crate::screens::routes::view(&a),
+                WorkspaceTab::Trace => crate::screens::trace::view(&a),
                 WorkspaceTab::Settings => crate::screens::settings::view(&a),
             };
         }
@@ -1855,8 +2161,8 @@ mod tests {
         let mut a = fresh();
         let snap = a.snapshot.as_ref().unwrap();
         let rule_id = snap.rule_sets[0].rules[0].id;
-        let rs_id   = snap.rule_sets[0].id;
-        let file    = snap.fallback_files[0].path.clone();
+        let rs_id = snap.rule_sets[0].id;
+        let file = snap.fallback_files[0].path.clone();
 
         a.update(Message::SelectRule(rule_id));
         let _ = crate::screens::routes::view(&a);
@@ -1881,17 +2187,36 @@ mod tests {
 
         a.update(Message::DeleteRule(rule_id));
         // No confirm dialog for this low-risk action.
-        assert!(a.confirm_dialog.is_none(), "delete rule must not open a dialog");
+        assert!(
+            a.confirm_dialog.is_none(),
+            "delete rule must not open a dialog"
+        );
         // Rule is gone and an undo is offered.
-        let after = a.snapshot.as_ref().unwrap()
-            .rule_sets.iter().find(|rs| rs.id == rs_id).unwrap().rules.len();
+        let after = a
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .rule_sets
+            .iter()
+            .find(|rs| rs.id == rs_id)
+            .unwrap()
+            .rules
+            .len();
         assert_eq!(after, before - 1);
         assert!(!a.undo_stack.is_empty(), "an undo entry must be offered");
 
         // Undo restores it at the same index.
         a.update(Message::UndoLast);
-        let restored = a.snapshot.as_ref().unwrap()
-            .rule_sets.iter().find(|rs| rs.id == rs_id).unwrap().rules.len();
+        let restored = a
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .rule_sets
+            .iter()
+            .find(|rs| rs.id == rs_id)
+            .unwrap()
+            .rules
+            .len();
         assert_eq!(restored, before);
         assert!(a.undo_stack.is_empty(), "undo stack is empty after use");
     }
@@ -1901,7 +2226,10 @@ mod tests {
         let mut a = fresh();
         let path = first_fallback_path(&a);
         a.update(Message::SelectFileRoute(path.clone()));
-        a.fallback_drafts.insert(path, iced::widget::text_editor::Content::with_text("{\"a\":1}"));
+        a.fallback_drafts.insert(
+            path,
+            iced::widget::text_editor::Content::with_text("{\"a\":1}"),
+        );
         a.update(Message::Save);
         assert!(a.notice.is_some(), "save shows a success notice");
         a.update(Message::DismissNotice);
@@ -1954,7 +2282,10 @@ mod tests {
         use apimokka_model::AudienceMode;
         let mut a = first_launch();
         a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
-        assert!(a.show_problem_details, "Expert expands technical detail inline");
+        assert!(
+            a.show_problem_details,
+            "Expert expands technical detail inline"
+        );
         a.update(Message::ChooseAudienceMode(AudienceMode::Guided));
         assert!(!a.show_problem_details, "Guided collapses technical detail");
         // And it can be toggled regardless of mode.
@@ -1969,14 +2300,23 @@ mod tests {
         use apimokka_i18n::Key;
         let mut a = first_launch();
         let keys = [
-            Key::UrlPathCardTitle, Key::MethodCardTitle,
-            Key::HeadersCardTitle, Key::BodyCardTitle,
+            Key::UrlPathCardTitle,
+            Key::MethodCardTitle,
+            Key::HeadersCardTitle,
+            Key::BodyCardTitle,
         ];
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Guided));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Guided,
+        ));
         let guided: Vec<&str> = keys.iter().map(|k| a.t(*k)).collect();
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         let expert: Vec<&str> = keys.iter().map(|k| a.t(*k)).collect();
-        assert_eq!(guided, expert, "domain vocabulary must not change with mode");
+        assert_eq!(
+            guided, expert,
+            "domain vocabulary must not change with mode"
+        );
     }
 
     #[test]
@@ -2005,13 +2345,17 @@ mod tests_mk041 {
 
     fn guided() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Guided));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Guided,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
     fn expert() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
@@ -2022,8 +2366,13 @@ mod tests_mk041 {
         a.update(Message::ToggleRuleWhenMore);
         assert!(a.rule_when_more);
         // Switching to Guided resets density toggles.
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Guided));
-        assert!(!a.rule_when_more, "switching to Guided resets advanced layout");
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Guided,
+        ));
+        assert!(
+            !a.rule_when_more,
+            "switching to Guided resets advanced layout"
+        );
         assert!(!a.settings_advanced_more);
     }
 
@@ -2038,7 +2387,10 @@ mod tests_mk041 {
             let other_id = snap.rule_sets[0].rules[1].id;
             a.update(Message::SelectRule(other_id));
         }
-        assert!(a.rule_when_more, "expanded state persists across rule navigation");
+        assert!(
+            a.rule_when_more,
+            "expanded state persists across rule navigation"
+        );
     }
 
     #[test]
@@ -2053,8 +2405,7 @@ mod tests_mk041 {
 
     #[test]
     fn routes_view_builds_in_guided_collapsed_and_expanded() {
-        let rule_id = expert()
-            .snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+        let rule_id = expert().snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
         for expanded in [false, true] {
             let mut a = guided();
             a.rule_when_more = expanded;
@@ -2078,11 +2429,13 @@ mod tests_mk041 {
 mod tests_mk042 {
     use super::*;
     use crate::message::Message;
-    use apimokka_model::{MatchTraceEvent, TraceOutcome, RequestSummary};
+    use apimokka_model::{MatchTraceEvent, RequestSummary, TraceOutcome};
 
     fn with_trace() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a.trace = apimokka_model::mock::sample_trace_events();
         a
@@ -2096,13 +2449,16 @@ mod tests_mk042 {
         let q = a.trace_filter.clone();
         assert!(q.is_empty());
         // All events pass an empty filter (checked via trace count equality).
-        let filtered: Vec<_> = a.trace.iter()
+        let filtered: Vec<_> = a
+            .trace
+            .iter()
             .filter(|ev| {
                 ev.request.url_path.to_lowercase().contains(&q)
                     || ev.request.method.to_lowercase().contains(&q)
                     || ev.outcome.label().contains(q.as_str())
                     || q.is_empty()
-            }).collect();
+            })
+            .collect();
         assert_eq!(filtered.len(), a.trace.len());
     }
 
@@ -2111,7 +2467,9 @@ mod tests_mk042 {
         let mut a = with_trace();
         a.update(Message::TraceFilterChanged("/api/orders".into()));
         assert_eq!(a.trace_filter, "/api/orders");
-        let filtered: Vec<_> = a.trace.iter()
+        let filtered: Vec<_> = a
+            .trace
+            .iter()
             .filter(|ev| ev.request.url_path.contains("/api/orders"))
             .collect();
         // sample data has 2 events on /api/orders
@@ -2151,22 +2509,31 @@ mod tests_mk042 {
         let snap = a.snapshot.as_ref().unwrap();
 
         let rule_matches = |rule: &apimokka_model::snapshot::RuleView| {
-            let rule_position: Option<(usize, usize)> = snap.rule_sets.iter()
-                .enumerate()
-                .find_map(|(rs_idx, rs)| {
-                    rs.rules.iter().position(|r| r.id == rule.id)
+            let rule_position: Option<(usize, usize)> =
+                snap.rule_sets.iter().enumerate().find_map(|(rs_idx, rs)| {
+                    rs.rules
+                        .iter()
+                        .position(|r| r.id == rule.id)
                         .map(|r_idx| (rs_idx, r_idx))
                 });
-            a.trace.iter().any(|ev| matches!(&ev.outcome,
-                TraceOutcome::Matched { rule_set_index, rule_index }
-                    if rule_position == Some((*rule_set_index, *rule_index))
-            ))
+            a.trace.iter().any(|ev| {
+                matches!(&ev.outcome,
+                    TraceOutcome::Matched { rule_set_index, rule_index }
+                        if rule_position == Some((*rule_set_index, *rule_index))
+                )
+            })
         };
 
         let rule_2 = &snap.rule_sets[0].rules[2];
         let rule_0 = &snap.rule_sets[0].rules[0];
-        assert!(rule_matches(rule_2), "rule at index 2 should have a matched trace event");
-        assert!(!rule_matches(rule_0), "rule at index 0 has no matched trace event");
+        assert!(
+            rule_matches(rule_2),
+            "rule at index 2 should have a matched trace event"
+        );
+        assert!(
+            !rule_matches(rule_0),
+            "rule at index 0 has no matched trace event"
+        );
     }
 
     // ── Trace view builds with each outcome ──────────────────────────────
@@ -2175,14 +2542,27 @@ mod tests_mk042 {
     fn trace_view_builds_for_each_outcome() {
         use apimokka_model::TraceOutcome;
         let outcomes = vec![
-            TraceOutcome::Matched { rule_set_index: 0, rule_index: 0 },
-            TraceOutcome::Fallback { file_path: "responses/health.json".into(), status: "200 OK".into() },
-            TraceOutcome::Miss    { status: "404 Not Found".into() },
-            TraceOutcome::Error   { kind: "RespondFile".into(), message: "permission denied".into() },
+            TraceOutcome::Matched {
+                rule_set_index: 0,
+                rule_index: 0,
+            },
+            TraceOutcome::Fallback {
+                file_path: "responses/health.json".into(),
+                status: "200 OK".into(),
+            },
+            TraceOutcome::Miss {
+                status: "404 Not Found".into(),
+            },
+            TraceOutcome::Error {
+                kind: "RespondFile".into(),
+                message: "permission denied".into(),
+            },
         ];
         for (i, outcome) in outcomes.into_iter().enumerate() {
             let mut a = App::new().0;
-            a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+            a.update(Message::ChooseAudienceMode(
+                apimokka_model::AudienceMode::Expert,
+            ));
             a.trace = vec![MatchTraceEvent {
                 event_id: i as u64,
                 time: "12:00:00.000".into(),
@@ -2194,7 +2574,7 @@ mod tests_mk042 {
                     body_preview: None,
                 },
                 outcome,
-                dropped_count: if i == 2 { 5 } else { 0 },  // test dropped_count warning
+                dropped_count: if i == 2 { 5 } else { 0 }, // test dropped_count warning
             }];
             a.selected_trace = Some(i as u64);
             let _ = crate::screens::trace::view(&a);
@@ -2210,13 +2590,17 @@ mod tests_mk043 {
 
     fn expert() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
     fn guided() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Guided));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Guided,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
@@ -2246,7 +2630,11 @@ mod tests_mk043 {
         a.update(Message::SelectRule(rule_id));
         a.update(Message::RuleWeightChanged("7".into()));
         let snap = a.snapshot.as_ref().unwrap();
-        let rule = snap.rule_sets[0].rules.iter().find(|r| r.id == rule_id).unwrap();
+        let rule = snap.rule_sets[0]
+            .rules
+            .iter()
+            .find(|r| r.id == rule_id)
+            .unwrap();
         assert_eq!(rule.payload.weight, Some(7));
     }
 
@@ -2258,7 +2646,11 @@ mod tests_mk043 {
         a.update(Message::SelectRule(rule_id));
         a.update(Message::RulePriorityChanged("-5".into()));
         let snap = a.snapshot.as_ref().unwrap();
-        let rule = snap.rule_sets[0].rules.iter().find(|r| r.id == rule_id).unwrap();
+        let rule = snap.rule_sets[0]
+            .rules
+            .iter()
+            .find(|r| r.id == rule_id)
+            .unwrap();
         assert_eq!(rule.payload.priority, Some(-5));
     }
 
@@ -2270,9 +2662,15 @@ mod tests_mk043 {
         a.update(Message::SelectRule(rule_id));
         a.update(Message::RuleWeightChanged("not-a-number".into()));
         let snap = a.snapshot.as_ref().unwrap();
-        let rule = snap.rule_sets[0].rules.iter().find(|r| r.id == rule_id).unwrap();
-        assert_eq!(rule.payload.weight, None,
-            "non-numeric input should leave weight as None");
+        let rule = snap.rule_sets[0]
+            .rules
+            .iter()
+            .find(|r| r.id == rule_id)
+            .unwrap();
+        assert_eq!(
+            rule.payload.weight, None,
+            "non-numeric input should leave weight as None"
+        );
     }
 
     // ── Layout density (Guided mode) ────────────────────────────────────
@@ -2281,9 +2679,13 @@ mod tests_mk043 {
     fn rule_set_config_more_resets_on_guided() {
         let mut a = expert();
         a.rule_set_config_more = true;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Guided));
-        assert!(!a.rule_set_config_more,
-            "switching to Guided resets rule_set_config_more");
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Guided,
+        ));
+        assert!(
+            !a.rule_set_config_more,
+            "switching to Guided resets rule_set_config_more"
+        );
     }
 
     #[test]
@@ -2320,7 +2722,7 @@ mod tests_mk043 {
             a.update(Message::RuleSetSetStrategy(strategy));
             let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
             a.update(Message::SelectRule(rule_id));
-            let _ = crate::screens::routes::view(&a);  // should not panic
+            let _ = crate::screens::routes::view(&a); // should not panic
         }
     }
 
@@ -2330,7 +2732,9 @@ mod tests_mk043 {
         // WeightedRandom validation warning — verify the view builds.
         let mut a = expert();
         let snap = a.snapshot.as_ref().unwrap();
-        let rule_with_issues = snap.rule_sets.iter()
+        let rule_with_issues = snap
+            .rule_sets
+            .iter()
             .flat_map(|rs| rs.rules.iter())
             .find(|r| !r.validation.issues.is_empty());
         if let Some(rule) = rule_with_issues {
@@ -2349,7 +2753,9 @@ mod tests_mk044 {
 
     fn expert() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
@@ -2378,8 +2784,10 @@ mod tests_mk044 {
         assert!(!a.command_palette.open, "palette should close");
         assert_eq!(a.tab, crate::selection::WorkspaceTab::Routes);
         // The first rule set is selected (accordion opened).
-        assert!(a.selection.rule_set.is_some(),
-            "a rule set should be selected/opened after AddRuleFromPalette");
+        assert!(
+            a.selection.rule_set.is_some(),
+            "a rule set should be selected/opened after AddRuleFromPalette"
+        );
     }
 
     // ── Drawer view smoke tests ─────────────────────────────────────────
@@ -2389,7 +2797,7 @@ mod tests_mk044 {
         // Mock has one rule set with validation issues, one without.
         let mut a = expert();
         a.drawer = Some(DrawerMode::Validation);
-        let _ = crate::shell::view::view(&a);  // should not panic
+        let _ = crate::shell::view::view(&a); // should not panic
     }
 
     #[test]
@@ -2406,7 +2814,9 @@ mod tests_mk044 {
         a.drawer = Some(DrawerMode::SaveDiff);
         // Mark everything clean.
         if let Some(snap) = &mut a.snapshot {
-            for rs in &mut snap.rule_sets { rs.file.dirty = false; }
+            for rs in &mut snap.rule_sets {
+                rs.file.dirty = false;
+            }
         }
         let _ = crate::shell::view::view(&a);
     }
@@ -2418,7 +2828,9 @@ mod tests_mk044 {
         // Clear all validation issues.
         if let Some(snap) = &mut a.snapshot {
             for rs in &mut snap.rule_sets {
-                for rule in &mut rs.rules { rule.validation.issues.clear(); }
+                for rule in &mut rs.rules {
+                    rule.validation.issues.clear();
+                }
             }
             snap.diagnostics.clear();
         }
@@ -2433,7 +2845,9 @@ mod tests_mk045 {
 
     fn expert() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
@@ -2454,18 +2868,23 @@ mod tests_mk045 {
             a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
             before - 1
         );
-        assert!(matches!(a.undo_stack.last(), Some(UndoCommand::DeleteRule { .. })),
-            "undo stack should have DeleteRule");
+        assert!(
+            matches!(a.undo_stack.last(), Some(UndoCommand::DeleteRule { .. })),
+            "undo stack should have DeleteRule"
+        );
         assert!(a.redo_stack.is_empty());
 
         a.update(Message::Undo);
         assert_eq!(
             a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
-            before, "undo restores the rule"
+            before,
+            "undo restores the rule"
         );
         assert!(a.undo_stack.is_empty(), "undo stack is empty after undo");
-        assert!(matches!(a.redo_stack.last(), Some(UndoCommand::DeleteRule { .. })),
-            "redo stack has the forward command");
+        assert!(
+            matches!(a.redo_stack.last(), Some(UndoCommand::DeleteRule { .. })),
+            "redo stack has the forward command"
+        );
 
         _ = rs_id; // suppress warning
     }
@@ -2478,10 +2897,16 @@ mod tests_mk045 {
             (snap.rule_sets[0].rules[0].id, snap.rule_sets[0].rules.len())
         };
         a.update(Message::DeleteRule(rule_id));
-        a.update(Message::Undo);          // restore
-        assert_eq!(a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(), before);
-        a.update(Message::Redo);          // delete again
-        assert_eq!(a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(), before - 1);
+        a.update(Message::Undo); // restore
+        assert_eq!(
+            a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
+            before
+        );
+        a.update(Message::Redo); // delete again
+        assert_eq!(
+            a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
+            before - 1
+        );
     }
 
     #[test]
@@ -2490,12 +2915,21 @@ mod tests_mk045 {
         let rs_id = a.snapshot.as_ref().unwrap().rule_sets[0].id;
         let before = a.snapshot.as_ref().unwrap().rule_sets[0].rules.len();
         a.update(Message::AddRule(rs_id));
-        assert_eq!(a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(), before + 1);
-        assert!(matches!(a.undo_stack.last(), Some(UndoCommand::AddRule { .. })));
+        assert_eq!(
+            a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
+            before + 1
+        );
+        assert!(matches!(
+            a.undo_stack.last(),
+            Some(UndoCommand::AddRule { .. })
+        ));
 
         a.update(Message::Undo);
-        assert_eq!(a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(), before,
-            "undo removes the added rule");
+        assert_eq!(
+            a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
+            before,
+            "undo removes the added rule"
+        );
     }
 
     #[test]
@@ -2515,8 +2949,10 @@ mod tests_mk045 {
 
         a.update(Message::Undo);
         let snap = a.snapshot.as_ref().unwrap();
-        assert_eq!(snap.rule_sets[0].rules[0].id, rule_id,
-            "undo restores original order");
+        assert_eq!(
+            snap.rule_sets[0].rules[0].id, rule_id,
+            "undo restores original order"
+        );
     }
 
     #[test]
@@ -2527,15 +2963,21 @@ mod tests_mk045 {
         a.update(Message::RuleSetUrlPath("/original".into()));
         // Push a second edit so we can undo to /original
         a.update(Message::RuleSetUrlPath("/modified".into()));
-        let path = a.snapshot.as_ref().unwrap()
-            .rule_sets[0].rules.iter().find(|r| r.id == rule_id)
-            .map(|r| r.payload.url_path.clone()).unwrap();
+        let path = a.snapshot.as_ref().unwrap().rule_sets[0]
+            .rules
+            .iter()
+            .find(|r| r.id == rule_id)
+            .map(|r| r.payload.url_path.clone())
+            .unwrap();
         assert_eq!(path, "/modified");
 
         a.update(Message::Undo);
-        let path = a.snapshot.as_ref().unwrap()
-            .rule_sets[0].rules.iter().find(|r| r.id == rule_id)
-            .map(|r| r.payload.url_path.clone()).unwrap();
+        let path = a.snapshot.as_ref().unwrap().rule_sets[0]
+            .rules
+            .iter()
+            .find(|r| r.id == rule_id)
+            .map(|r| r.payload.url_path.clone())
+            .unwrap();
         assert_eq!(path, "/original", "undo restores previous URL path");
     }
 
@@ -2545,7 +2987,10 @@ mod tests_mk045 {
         let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
         a.update(Message::DeleteRule(rule_id));
         a.update(Message::Undo);
-        assert!(!a.redo_stack.is_empty(), "redo should be available after undo");
+        assert!(
+            !a.redo_stack.is_empty(),
+            "redo should be available after undo"
+        );
 
         // New edit should clear redo
         let rs_id = a.snapshot.as_ref().unwrap().rule_sets[0].id;
@@ -2569,15 +3014,23 @@ mod tests_mk045 {
         let mut a = expert();
         let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
         a.update(Message::DeleteRule(rule_id));
-        assert!(!a.undo_stack.is_empty(), "undo stack should have entry after delete");
+        assert!(
+            !a.undo_stack.is_empty(),
+            "undo stack should have entry after delete"
+        );
 
         a.update(Message::DismissNotice);
-        assert!(!a.undo_stack.is_empty(),
-            "dismissing the notice banner must NOT clear the undo stack");
+        assert!(
+            !a.undo_stack.is_empty(),
+            "dismissing the notice banner must NOT clear the undo stack"
+        );
 
         // ⌘Z should still work after dismissal
         a.update(Message::Undo);
-        assert!(a.undo_stack.is_empty(), "stack consumed by undo after dismissal");
+        assert!(
+            a.undo_stack.is_empty(),
+            "stack consumed by undo after dismissal"
+        );
     }
 }
 
@@ -2589,12 +3042,18 @@ mod tests_mk046 {
     #[test]
     fn app_starts_at_welcome_with_no_snapshot() {
         let a = App::new().0;
-        assert!(matches!(a.view, AppView::Welcome),
-            "app must start at Welcome, not Workspace");
-        assert!(a.snapshot.is_none(),
-            "no snapshot until user opens a workspace");
-        assert!(a.audience_mode.is_none(),
-            "no audience mode until first-run picker is answered");
+        assert!(
+            matches!(a.view, AppView::Welcome),
+            "app must start at Welcome, not Workspace"
+        );
+        assert!(
+            a.snapshot.is_none(),
+            "no snapshot until user opens a workspace"
+        );
+        assert!(
+            a.audience_mode.is_none(),
+            "no audience mode until first-run picker is answered"
+        );
     }
 
     #[test]
@@ -2609,7 +3068,9 @@ mod tests_mk046 {
     fn choosing_mode_then_opening_workspace_reaches_routes() {
         let mut a = App::new().0;
         // First: the mode picker shows — choose Expert
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         assert!(matches!(a.view, AppView::Welcome));
 
         // Click "Open workspace" → Dashboard → click workspace
@@ -2625,7 +3086,9 @@ mod tests_mk046 {
     #[test]
     fn wizard_flow_opens_workspace() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::GoWizard);
         assert!(matches!(a.view, AppView::Wizard));
         a.update(Message::WizardCreate);
@@ -2636,7 +3099,9 @@ mod tests_mk046 {
     #[test]
     fn welcome_screen_builds_after_mode_is_chosen() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Guided));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Guided,
+        ));
         // After choosing, App::view() delegates to the Welcome screen
         let _ = a.view();
     }
@@ -2650,7 +3115,9 @@ mod tests_mk047 {
     #[test]
     fn wizard_create_produces_blank_workspace_with_wizard_name() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         // Fill in wizard fields
         a.update(Message::WizardSetName("inventory-mock".into()));
         a.update(Message::WizardSetHost("0.0.0.0".into()));
@@ -2663,10 +3130,16 @@ mod tests_mk047 {
         assert_eq!(snap.root_settings.listener_ip, "0.0.0.0");
         assert_eq!(snap.root_settings.listener_port, 9090);
         // Default starter is Minimal — one rule set with a health-check rule.
-        assert_eq!(snap.rule_sets.len(), 1,
-            "Minimal starter creates one rule set");
-        assert_eq!(snap.rule_sets[0].rules.len(), 1,
-            "Minimal starter has one rule");
+        assert_eq!(
+            snap.rule_sets.len(),
+            1,
+            "Minimal starter creates one rule set"
+        );
+        assert_eq!(
+            snap.rule_sets[0].rules.len(),
+            1,
+            "Minimal starter has one rule"
+        );
         assert_eq!(snap.rule_sets[0].rules[0].payload.url_path, "/health");
         assert!(matches!(a.view, AppView::Workspace));
         assert!(a.notice.is_some(), "welcome notice shown after create");
@@ -2675,7 +3148,9 @@ mod tests_mk047 {
     #[test]
     fn wizard_create_with_empty_name_uses_default() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         // Leave wizard name empty
         a.update(Message::WizardCreate);
         let snap = a.snapshot.as_ref().unwrap();
@@ -2686,18 +3161,24 @@ mod tests_mk047 {
     fn open_workspace_still_loads_the_mock() {
         // OpenWorkspace (from Dashboard) continues to load the rich mock workspace.
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("payments-mock".into()));
         let snap = a.snapshot.as_ref().unwrap();
-        assert!(!snap.rule_sets.is_empty(),
-            "opening an existing workspace loads the full mock");
+        assert!(
+            !snap.rule_sets.is_empty(),
+            "opening an existing workspace loads the full mock"
+        );
     }
 
     #[test]
     fn blank_workspace_shows_add_rule_set_cta() {
         // With no rule sets, the centre panel shows the blank-workspace CTA.
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::WizardCreate);
         assert!(matches!(a.view, AppView::Workspace));
         // Build the Routes view — should not panic even with no rule sets.
@@ -2712,7 +3193,9 @@ mod tests_mk048 {
 
     fn expert_at_wizard() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::GoWizard);
         a
     }
@@ -2722,7 +3205,9 @@ mod tests_mk048 {
     #[test]
     fn add_rule_set_creates_real_rule_set() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::WizardSetStarter(WizardStarter::Empty));
         a.update(Message::WizardCreate);
         assert!(a.snapshot.as_ref().unwrap().rule_sets.is_empty());
@@ -2730,18 +3215,29 @@ mod tests_mk048 {
         a.update(Message::AddRuleSet);
 
         let snap = a.snapshot.as_ref().unwrap();
-        assert_eq!(snap.rule_sets.len(), 1, "AddRuleSet creates a real rule set");
-        assert!(snap.rule_sets[0].file.path.contains("rule-set-1"),
-            "generated filename includes the sequence number");
+        assert_eq!(
+            snap.rule_sets.len(),
+            1,
+            "AddRuleSet creates a real rule set"
+        );
+        assert!(
+            snap.rule_sets[0].file.path.contains("rule-set-1"),
+            "generated filename includes the sequence number"
+        );
         assert!(snap.rule_sets[0].file.dirty, "new rule set starts dirty");
-        assert_eq!(a.selection.rule_set, Some(snap.rule_sets[0].id),
-            "new rule set is selected");
+        assert_eq!(
+            a.selection.rule_set,
+            Some(snap.rule_sets[0].id),
+            "new rule set is selected"
+        );
     }
 
     #[test]
     fn add_rule_set_increments_filename_number() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::WizardSetStarter(WizardStarter::Empty));
         a.update(Message::WizardCreate);
 
@@ -2750,8 +3246,10 @@ mod tests_mk048 {
 
         let snap = a.snapshot.as_ref().unwrap();
         assert_eq!(snap.rule_sets.len(), 2);
-        assert!(snap.rule_sets[1].file.path.contains("rule-set-2"),
-            "second rule set is numbered 2");
+        assert!(
+            snap.rule_sets[1].file.path.contains("rule-set-2"),
+            "second rule set is numbered 2"
+        );
     }
 
     // ── Wizard starter ───────────────────────────────────────────────────
@@ -2776,10 +3274,14 @@ mod tests_mk048 {
         a.update(Message::WizardCreate);
 
         let snap = a.snapshot.as_ref().unwrap();
-        assert!(snap.rule_sets.len() >= 2,
-            "ShopApi starter loads the full mock with multiple rule sets");
-        assert!(!snap.fallback_files.is_empty(),
-            "ShopApi starter includes fallback files");
+        assert!(
+            snap.rule_sets.len() >= 2,
+            "ShopApi starter loads the full mock with multiple rule sets"
+        );
+        assert!(
+            !snap.fallback_files.is_empty(),
+            "ShopApi starter includes fallback files"
+        );
     }
 
     #[test]
@@ -2828,7 +3330,9 @@ mod tests_mk049 {
 
     fn expert() -> App {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a
     }
@@ -2838,8 +3342,8 @@ mod tests_mk049 {
     #[test]
     fn duplicate_rule_creates_copy_after_original() {
         let mut a = expert();
-        let snap   = a.snapshot.as_ref().unwrap();
-        let orig   = snap.rule_sets[0].rules[0].id;
+        let snap = a.snapshot.as_ref().unwrap();
+        let orig = snap.rule_sets[0].rules[0].id;
         let before = snap.rule_sets[0].rules.len();
         let orig_path = snap.rule_sets[0].rules[0].payload.url_path.clone();
         drop(snap);
@@ -2847,29 +3351,42 @@ mod tests_mk049 {
         a.update(Message::DuplicateRule(orig));
 
         let snap = a.snapshot.as_ref().unwrap();
-        assert_eq!(snap.rule_sets[0].rules.len(), before + 1,
-            "duplicate adds one rule");
+        assert_eq!(
+            snap.rule_sets[0].rules.len(),
+            before + 1,
+            "duplicate adds one rule"
+        );
         // The copy is inserted right after the original
-        assert_eq!(snap.rule_sets[0].rules[1].payload.url_path, orig_path,
-            "copy has the same URL path");
-        assert_ne!(snap.rule_sets[0].rules[1].id, orig,
-            "copy has a fresh ID");
-        assert_eq!(a.selection.rule, Some(snap.rule_sets[0].rules[1].id),
-            "the copy is selected after duplication");
+        assert_eq!(
+            snap.rule_sets[0].rules[1].payload.url_path, orig_path,
+            "copy has the same URL path"
+        );
+        assert_ne!(snap.rule_sets[0].rules[1].id, orig, "copy has a fresh ID");
+        assert_eq!(
+            a.selection.rule,
+            Some(snap.rule_sets[0].rules[1].id),
+            "the copy is selected after duplication"
+        );
     }
 
     #[test]
     fn duplicate_rule_is_undoable() {
         let mut a = expert();
         let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
-        let before  = a.snapshot.as_ref().unwrap().rule_sets[0].rules.len();
+        let before = a.snapshot.as_ref().unwrap().rule_sets[0].rules.len();
 
         a.update(Message::DuplicateRule(rule_id));
-        assert_eq!(a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(), before + 1);
+        assert_eq!(
+            a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
+            before + 1
+        );
 
         a.update(Message::Undo);
-        assert_eq!(a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(), before,
-            "undo removes the duplicated rule");
+        assert_eq!(
+            a.snapshot.as_ref().unwrap().rule_sets[0].rules.len(),
+            before,
+            "undo removes the duplicated rule"
+        );
     }
 
     // ── run_stub_test header conditions ──────────────────────────────────
@@ -2882,10 +3399,16 @@ mod tests_mk049 {
         a.update(Message::SelectRule(rule_id));
         a.update(Message::RuleSetUrlPath("/api/test".into()));
         a.update(Message::HeaderAdd);
-        a.update(Message::HeaderSetName { index: 0, value: "authorization".into() });
-        a.update(Message::HeaderSetValue { index: 0, value: "Bearer token".into() });
+        a.update(Message::HeaderSetName {
+            index: 0,
+            value: "authorization".into(),
+        });
+        a.update(Message::HeaderSetValue {
+            index: 0,
+            value: "Bearer token".into(),
+        });
         a.test_rule.url_path = "/api/test".into();
-        a.test_rule.method   = "GET".into();
+        a.test_rule.method = "GET".into();
         a
     }
 
@@ -2894,8 +3417,10 @@ mod tests_mk049 {
         let mut a = make_test_app_with_header_rule();
         a.test_rule.headers_text = "authorization: Bearer token".into();
         a.update(Message::TestRuleRun);
-        assert!(matches!(a.test_rule.result, Some(TestRuleResult::Matched { .. })),
-            "should match when required header is present");
+        assert!(
+            matches!(a.test_rule.result, Some(TestRuleResult::Matched { .. })),
+            "should match when required header is present"
+        );
     }
 
     #[test]
@@ -2903,8 +3428,10 @@ mod tests_mk049 {
         let mut a = make_test_app_with_header_rule();
         a.test_rule.headers_text = "authorization: wrong".into();
         a.update(Message::TestRuleRun);
-        assert!(matches!(a.test_rule.result, Some(TestRuleResult::NoMatch)),
-            "should not match when header value is wrong");
+        assert!(
+            matches!(a.test_rule.result, Some(TestRuleResult::NoMatch)),
+            "should not match when header value is wrong"
+        );
     }
 
     #[test]
@@ -2912,8 +3439,10 @@ mod tests_mk049 {
         let mut a = make_test_app_with_header_rule();
         a.test_rule.headers_text = "".into(); // no headers at all
         a.update(Message::TestRuleRun);
-        assert!(matches!(a.test_rule.result, Some(TestRuleResult::NoMatch)),
-            "should not match when required header is missing");
+        assert!(
+            matches!(a.test_rule.result, Some(TestRuleResult::NoMatch)),
+            "should not match when required header is missing"
+        );
     }
 
     // ── run_stub_test body conditions ────────────────────────────────────
@@ -2923,30 +3452,34 @@ mod tests_mk049 {
         let mut a = expert();
         // Find a rule that has a body condition in the mock data
         let snap = a.snapshot.as_ref().unwrap();
-        let rule_with_body = snap.rule_sets.iter()
+        let rule_with_body = snap
+            .rule_sets
+            .iter()
             .flat_map(|rs| rs.rules.iter())
             .find(|r| !r.payload.body.is_empty());
         if let Some(rule) = rule_with_body {
-            let id  = rule.id;
-            let bc  = rule.payload.body[0].clone();
+            let id = rule.id;
+            let bc = rule.payload.body[0].clone();
             let url = rule.payload.url_path.clone();
             let method = rule.payload.method.clone();
             drop(snap);
             a.update(Message::SelectRule(id));
             a.test_rule.url_path = url;
-            a.test_rule.method   = if method.is_empty() { "POST".into() } else { method };
+            a.test_rule.method = if method.is_empty() {
+                "POST".into()
+            } else {
+                method
+            };
             // Build a JSON body that satisfies the first body condition
-            let json = format!(
-                r#"{{"{key}": "{val}"}}"#,
-                key = bc.path,
-                val = bc.value
-            );
+            let json = format!(r#"{{"{key}": "{val}"}}"#, key = bc.path, val = bc.value);
             a.test_rule.body = json;
             a.test_rule.headers_text = String::new();
             a.update(Message::TestRuleRun);
             // We can only assert it didn't error — the condition may not be Equal
-            assert!(!matches!(a.test_rule.result, Some(TestRuleResult::Error(_))),
-                "test runner should not error on well-formed body JSON");
+            assert!(
+                !matches!(a.test_rule.result, Some(TestRuleResult::Error(_))),
+                "test runner should not error on well-formed body JSON"
+            );
         }
     }
 
@@ -2954,20 +3487,24 @@ mod tests_mk049 {
     fn test_rule_errors_on_invalid_json_when_body_conditions_exist() {
         let mut a = expert();
         let snap = a.snapshot.as_ref().unwrap();
-        let rule_with_body = snap.rule_sets.iter()
+        let rule_with_body = snap
+            .rule_sets
+            .iter()
             .flat_map(|rs| rs.rules.iter())
             .find(|r| !r.payload.body.is_empty());
         if let Some(rule) = rule_with_body {
             let id = rule.id;
             drop(snap);
             a.update(Message::SelectRule(id));
-            a.test_rule.body         = "not json".into();
+            a.test_rule.body = "not json".into();
             a.test_rule.headers_text = String::new();
             a.update(Message::TestRuleRun);
             // Either NoMatch (other conditions failed before reaching body)
             // or Error (body is invalid JSON) — both are correct rejections.
-            assert!(!matches!(a.test_rule.result, Some(TestRuleResult::Matched { .. })),
-                "invalid JSON body should not produce a Matched result");
+            assert!(
+                !matches!(a.test_rule.result, Some(TestRuleResult::Matched { .. })),
+                "invalid JSON body should not produce a Matched result"
+            );
         }
     }
 
@@ -2978,11 +3515,14 @@ mod tests_mk049 {
         // Verifying the confirm dialog still handles DeleteRuleSet correctly
         // (the remaining live variant after DeleteRule was removed).
         let mut a = expert();
-        let rs_id  = a.snapshot.as_ref().unwrap().rule_sets[0].id;
+        let rs_id = a.snapshot.as_ref().unwrap().rule_sets[0].id;
         let before = a.snapshot.as_ref().unwrap().rule_sets.len();
 
         a.update(Message::DeleteRuleSet(rs_id));
-        assert!(a.confirm_dialog.is_some(), "DeleteRuleSet requires confirmation");
+        assert!(
+            a.confirm_dialog.is_some(),
+            "DeleteRuleSet requires confirmation"
+        );
 
         a.update(Message::ConfirmProceed);
         assert_eq!(
@@ -3026,10 +3566,14 @@ mod tests_mk050 {
     #[test]
     fn theme_toggle_cycles_through_all_four() {
         let mut c = ThemeChoice::Light;
-        c = c.toggle(); assert_eq!(c, ThemeChoice::Dark);
-        c = c.toggle(); assert_eq!(c, ThemeChoice::HighContrastLight);
-        c = c.toggle(); assert_eq!(c, ThemeChoice::HighContrastDark);
-        c = c.toggle(); assert_eq!(c, ThemeChoice::Light);
+        c = c.toggle();
+        assert_eq!(c, ThemeChoice::Dark);
+        c = c.toggle();
+        assert_eq!(c, ThemeChoice::HighContrastLight);
+        c = c.toggle();
+        assert_eq!(c, ThemeChoice::HighContrastDark);
+        c = c.toggle();
+        assert_eq!(c, ThemeChoice::Light);
     }
 
     #[test]
@@ -3037,7 +3581,7 @@ mod tests_mk050 {
         // Tokens differ across presets — verify text_muted is not identical
         // between light and high-contrast light (HC is darker/stronger).
         let light = ThemeChoice::Light.tokens();
-        let hc    = ThemeChoice::HighContrastLight.tokens();
+        let hc = ThemeChoice::HighContrastLight.tokens();
         let l = light.palette.text_muted;
         let h = hc.palette.text_muted;
         assert!(
@@ -3051,19 +3595,29 @@ mod tests_mk050 {
     #[test]
     fn standard_themes_use_native_iced() {
         assert!(matches!(ThemeChoice::Light.iced(), iced::Theme::Light));
-        assert!(matches!(ThemeChoice::Dark.iced(),  iced::Theme::Dark));
+        assert!(matches!(ThemeChoice::Dark.iced(), iced::Theme::Dark));
     }
 
     #[test]
     fn high_contrast_themes_use_custom_palette() {
-        assert!(matches!(ThemeChoice::HighContrastLight.iced(), iced::Theme::Custom(_)));
-        assert!(matches!(ThemeChoice::HighContrastDark.iced(),  iced::Theme::Custom(_)));
+        assert!(matches!(
+            ThemeChoice::HighContrastLight.iced(),
+            iced::Theme::Custom(_)
+        ));
+        assert!(matches!(
+            ThemeChoice::HighContrastDark.iced(),
+            iced::Theme::Custom(_)
+        ));
     }
 
     #[test]
     fn high_contrast_themes_are_detected() {
-        assert!(crate::theme::is_high_contrast(&ThemeChoice::HighContrastLight.iced()));
-        assert!(crate::theme::is_high_contrast(&ThemeChoice::HighContrastDark.iced()));
+        assert!(crate::theme::is_high_contrast(
+            &ThemeChoice::HighContrastLight.iced()
+        ));
+        assert!(crate::theme::is_high_contrast(
+            &ThemeChoice::HighContrastDark.iced()
+        ));
         assert!(!crate::theme::is_high_contrast(&ThemeChoice::Light.iced()));
         assert!(!crate::theme::is_high_contrast(&ThemeChoice::Dark.iced()));
     }
@@ -3071,7 +3625,9 @@ mod tests_mk050 {
     #[test]
     fn set_theme_message_updates_choice() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::SetTheme(ThemeChoice::HighContrastDark));
         assert_eq!(a.theme_choice, ThemeChoice::HighContrastDark);
     }
@@ -3098,7 +3654,9 @@ mod tests_mk050 {
     #[test]
     fn settings_view_builds_with_high_contrast_theme() {
         let mut a = App::new().0;
-        a.update(Message::ChooseAudienceMode(apimokka_model::AudienceMode::Expert));
+        a.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
         a.update(Message::OpenWorkspace("test".into()));
         a.update(Message::SetTheme(ThemeChoice::HighContrastLight));
         a.tab = crate::selection::WorkspaceTab::Settings;

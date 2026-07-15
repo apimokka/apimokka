@@ -15,29 +15,70 @@ use crate::validation::Diagnostic;
 #[derive(Debug, Clone)]
 pub enum EditCommand {
     // --- Rule sets -----------------------------------------------
-    AddRuleSet { path: String },
-    RemoveRuleSet { id: RuleSetId },
+    AddRuleSet {
+        path: String,
+    },
+    RemoveRuleSet {
+        id: RuleSetId,
+    },
 
     // --- Rules ---------------------------------------------------
-    AddRule { parent: RuleSetId, rule: RulePayload },
-    UpdateRule { id: NodeId, rule: RulePayload },
-    DeleteRule { id: NodeId },
-    MoveRule { id: NodeId, new_index: usize },
+    AddRule {
+        parent: RuleSetId,
+        rule: RulePayload,
+    },
+    UpdateRule {
+        id: NodeId,
+        rule: RulePayload,
+    },
+    DeleteRule {
+        id: NodeId,
+    },
+    MoveRule {
+        id: NodeId,
+        new_index: usize,
+    },
 
     // --- Respond -------------------------------------------------
-    UpdateRespond { id: NodeId, respond: RespondPayload },
+    UpdateRespond {
+        id: NodeId,
+        respond: RespondPayload,
+    },
 
     // --- Root settings ------------------------------------------
-    UpdateRootSetting { key: RootSettingKey, value: EditValue },
+    UpdateRootSetting {
+        key: RootSettingKey,
+        value: EditValue,
+    },
 
     // --- Per-condition (RFC 016) --------------------------------
-    AddHeaderCondition { rule_id: NodeId, condition: HeaderConditionPayload },
-    UpdateHeaderCondition { rule_id: NodeId, index: usize, condition: HeaderConditionPayload },
-    RemoveHeaderCondition { rule_id: NodeId, index: usize },
+    AddHeaderCondition {
+        rule_id: NodeId,
+        condition: HeaderConditionPayload,
+    },
+    UpdateHeaderCondition {
+        rule_id: NodeId,
+        index: usize,
+        condition: HeaderConditionPayload,
+    },
+    RemoveHeaderCondition {
+        rule_id: NodeId,
+        index: usize,
+    },
 
-    AddBodyCondition { rule_id: NodeId, condition: BodyConditionPayload },
-    UpdateBodyCondition { rule_id: NodeId, index: usize, condition: BodyConditionPayload },
-    RemoveBodyCondition { rule_id: NodeId, index: usize },
+    AddBodyCondition {
+        rule_id: NodeId,
+        condition: BodyConditionPayload,
+    },
+    UpdateBodyCondition {
+        rule_id: NodeId,
+        index: usize,
+        condition: BodyConditionPayload,
+    },
+    RemoveBodyCondition {
+        rule_id: NodeId,
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

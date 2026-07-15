@@ -40,7 +40,7 @@ pub enum Key {
     StatusRestartRequired,
     StatusError,
     StatusSaved,
-    StatusUnsaved,          // "Unsaved (N)" — caller appends count
+    StatusUnsaved, // "Unsaved (N)" — caller appends count
     StatusSaving,
     StatusSaveError,
     StatusTracePaused,
@@ -91,9 +91,9 @@ pub enum Key {
     WizardFieldTlsCert,
     WizardFieldTlsKey,
     WizardStarterTemplate,
-    WizardStarterMinimal,    // "Minimal (GET /health → 200)"
-    WizardStarterShopApi,    // "Shop API example (two rule sets, strategies, fallback files)"
-    WizardStarterEmpty,      // "Empty workspace"
+    WizardStarterMinimal, // "Minimal (GET /health → 200)"
+    WizardStarterShopApi, // "Shop API example (two rule sets, strategies, fallback files)"
+    WizardStarterEmpty,   // "Empty workspace"
     WizardTraceEnable,
     WizardQueueSize,
     WizardValidationNameRequired,
@@ -115,7 +115,7 @@ pub enum Key {
     BtnAddRule,
     WhenLabel,
     RespondLabel,
-    WhenArrow,                      // "→"
+    WhenArrow, // "→"
 
     // URL path card
     UrlPathCardTitle,
@@ -140,7 +140,7 @@ pub enum Key {
     BodyColumnOp,
     BodyColumnValue,
     BtnAddBodyCondition,
-    BodyJsonpathWarn,           // "Use dotted path, not JSONPath"
+    BodyJsonpathWarn, // "Use dotted path, not JSONPath"
     BodyDottedPathHint,
 
     // Respond card
@@ -149,7 +149,7 @@ pub enum Key {
     RespondModeFile,
     RespondStatusLabel,
     RespondDelayLabel,
-    RespondDelayUnit,           // "ms"
+    RespondDelayUnit, // "ms"
     RespondMutexHint,
 
     // Rule inspector
@@ -162,14 +162,14 @@ pub enum Key {
     InspectorActionsTitle,
 
     // Left sidebar states
-    SidebarDirtyMarker,         // "●"
-    SidebarMatchedMarker,       // "Matched"
+    SidebarDirtyMarker,   // "●"
+    SidebarMatchedMarker, // "Matched"
 
     // Empty states
     EmptyNoRuleSelected,
     EmptyNoRuleSelectedCta,
     EmptyRuleSetNoRules,
-    EmptyBlankWorkspace,    // "Add your first rule set to start mocking"
+    EmptyBlankWorkspace, // "Add your first rule set to start mocking"
 
     // ── Trace (S-11 / S-12) ──────────────────────────────────────────────
     TraceTitle,
@@ -180,7 +180,7 @@ pub enum Key {
     TraceResume,
     TraceClear,
     TraceEmptyMessage,
-    TraceDroppedEvents,         // "N events dropped (queue full)"
+    TraceDroppedEvents, // "N events dropped (queue full)"
     TraceMatchedLabel,
     TraceFallbackLabel,
     TraceMissLabel,
@@ -200,18 +200,18 @@ pub enum Key {
     DetailConditionFailed,
     DetailFallbackExplanation,
     // MK-042: outcome-specific detail labels
-    DetailMatchedRuleSet,      // "Rule set"
-    DetailMatchedRule,         // "Rule"
-    DetailJumpToRule,          // "Jump to rule"
-    DetailFallbackFile,        // "Fallback file"
-    DetailFallbackStatus,      // "Status"
-    DetailJumpToFile,          // "Jump to file"
-    DetailMissStatus,          // "Status"
-    DetailMissExplanation,     // "No rule matched this request."
-    DetailMissCreateCta,       // "Create rule for this path"
-    DetailErrorKind,           // "Error kind"
-    DetailErrorMessage,        // "Message"
-    DetailDroppedWarning,      // "N events dropped before this one (queue full)"
+    DetailMatchedRuleSet,  // "Rule set"
+    DetailMatchedRule,     // "Rule"
+    DetailJumpToRule,      // "Jump to rule"
+    DetailFallbackFile,    // "Fallback file"
+    DetailFallbackStatus,  // "Status"
+    DetailJumpToFile,      // "Jump to file"
+    DetailMissStatus,      // "Status"
+    DetailMissExplanation, // "No rule matched this request."
+    DetailMissCreateCta,   // "Create rule for this path"
+    DetailErrorKind,       // "Error kind"
+    DetailErrorMessage,    // "Message"
+    DetailDroppedWarning,  // "N events dropped before this one (queue full)"
     DetailErrorExplanation,
     BtnReplayAsTestInput,
     BtnOpenMatchedRule,
@@ -264,10 +264,10 @@ pub enum Key {
 
     // ── Bottom drawer ─────────────────────────────────────────────────────
     DrawerValidationTitle,
-    DrawerValidationErrors,     // "Errors N"
-    DrawerValidationWarnings,   // "Warnings N"
+    DrawerValidationErrors,   // "Errors N"
+    DrawerValidationWarnings, // "Warnings N"
     DrawerSaveDiffTitle,
-    DrawerSaveDiffCount,        // "N files will be written"
+    DrawerSaveDiffCount, // "N files will be written"
     DrawerSaveDiffModified,
     DrawerSaveDiffCreated,
     DrawerSaveDiffRemoved,
@@ -316,7 +316,7 @@ pub enum Key {
     DottedPathSelectedLabel,
     DottedPathJsonError,
     DottedPathEmpty,
-    DottedPathJsonpathHint,  // inline warning for $.foo syntax
+    DottedPathJsonpathHint, // inline warning for $.foo syntax
     BtnUse,
 
     // ── Confirm dialog ────────────────────────────────────────────────────
@@ -355,31 +355,31 @@ pub enum Key {
     HintUrlOp,
     HintStrategy,
     // MK-043: strategy UI
-    RuleSetConfigStrategy,       // "Strategy" section heading in rule set config
-    RuleSetConfigMoreOptions,    // "More rule-set options" toggle (Guided)
-    RuleSetConfigFewerOptions,   // "Fewer rule-set options" toggle (Guided)
+    RuleSetConfigStrategy,     // "Strategy" section heading in rule set config
+    RuleSetConfigMoreOptions,  // "More rule-set options" toggle (Guided)
+    RuleSetConfigFewerOptions, // "Fewer rule-set options" toggle (Guided)
     RuleEditorValidationWarning, // "Rule has validation issues:" strip
     // MK-044: bottom drawer
-    DrawerValidationOk,           // "✓ No validation issues"
-    DrawerValidationFileOk,       // "✓ No issues in {file}"
-    DrawerValidationWorkspace,    // "Workspace"
-    DrawerJumpToRule,             // "Go to rule"
-    DrawerSaveDiffChangedRules,   // "rules ·" (before summary list)
-    DrawerSaveDiffFallbackMod,    // "JSON content modified" // "Rule has validation issues:" strip
-    RuleWeightLabel,             // "Weight" — shown when WeightedRandom
-    RuleWeightHint,              // help text for weight field
-    RulePriorityLabel,           // "Priority" — shown when Priority
-    RulePriorityHint,            // help text for priority field
+    DrawerValidationOk,         // "✓ No validation issues"
+    DrawerValidationFileOk,     // "✓ No issues in {file}"
+    DrawerValidationWorkspace,  // "Workspace"
+    DrawerJumpToRule,           // "Go to rule"
+    DrawerSaveDiffChangedRules, // "rules ·" (before summary list)
+    DrawerSaveDiffFallbackMod,  // "JSON content modified" // "Rule has validation issues:" strip
+    RuleWeightLabel,            // "Weight" — shown when WeightedRandom
+    RuleWeightHint,             // help text for weight field
+    RulePriorityLabel,          // "Priority" — shown when Priority
+    RulePriorityHint,           // help text for priority field
     HintHeaderOp,
     UndoLabel,
     RedoLabel,
-    UndoRuleDeleted,     // "Deleted rule"
-    UndoRuleAdded,       // "Added rule"
-    UndoRuleMoved,       // "Moved rule"
-    UndoUrlPathEdited,   // "URL path changed"
-    UndoRedoAvailable,   // "Redo available"
-    PaletteCmdUndo,      // "Undo"
-    PaletteCmdRedo,      // "Redo"
+    UndoRuleDeleted,   // "Deleted rule"
+    UndoRuleAdded,     // "Added rule"
+    UndoRuleMoved,     // "Moved rule"
+    UndoUrlPathEdited, // "URL path changed"
+    UndoRedoAvailable, // "Redo available"
+    PaletteCmdUndo,    // "Undo"
+    PaletteCmdRedo,    // "Redo"
     NoticeRuleDeleted,
     DisabledNeedUrlPath,
     DisabledNeedContent,
@@ -391,8 +391,8 @@ pub enum Key {
     LayoutFewerWhen,
     LayoutMoreSettings,
     LayoutFewerSettings,
-    LayoutActiveHeader,   // "{n} header" (pluralised in code)
-    LayoutActiveBody,     // "{n} body" (pluralised in code)
+    LayoutActiveHeader, // "{n} header" (pluralised in code)
+    LayoutActiveBody,   // "{n} body" (pluralised in code)
 
     // ── MK-040: audience modes ───────────────────────────────────────────
     ModePickerTitle,

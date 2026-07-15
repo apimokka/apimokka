@@ -1,18 +1,21 @@
 //! MK-025 — S-01 Dashboard.
-use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
-use iced::{Alignment, Element, Length, Padding};
-use apimokka_i18n::Key;
-use apimokka_model::mock;
 use crate::app::App;
 use crate::message::Message;
 use crate::theme::{self, size, space};
 use crate::widgets;
+use apimokka_i18n::Key;
+use apimokka_model::mock;
+use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
+use iced::{Alignment, Element, Length, Padding};
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let header = row![
-        text(app.t(Key::DashTitle)).size(size::TITLE).width(Length::Fill),
+        text(app.t(Key::DashTitle))
+            .size(size::TITLE)
+            .width(Length::Fill),
         widgets::primary_btn(app.t(Key::BtnCreateWorkspace), Message::GoWizard),
-    ].align_y(Alignment::Center);
+    ]
+    .align_y(Alignment::Center);
 
     let search = text_input(app.t(Key::DashSearchPlaceholder), &app.dash_search)
         .on_input(Message::DashSearch)
@@ -21,13 +24,19 @@ pub fn view(app: &App) -> Element<'_, Message> {
         .width(Length::Fill);
 
     let q = app.dash_search.to_lowercase();
-    let workspaces: Vec<_> = mock::recent_workspaces().into_iter()
-        .filter(|ws| q.is_empty() || ws.name.to_lowercase().contains(&q) || ws.path.to_lowercase().contains(&q))
+    let workspaces: Vec<_> = mock::recent_workspaces()
+        .into_iter()
+        .filter(|ws| {
+            q.is_empty()
+                || ws.name.to_lowercase().contains(&q)
+                || ws.path.to_lowercase().contains(&q)
+        })
         .collect();
 
-    let rows: Vec<Element<Message>> = workspaces.into_iter().map(|ws| {
-        workspace_row(app, ws.name, ws.path, ws.last_opened, ws.pinned)
-    }).collect();
+    let rows: Vec<Element<Message>> = workspaces
+        .into_iter()
+        .map(|ws| workspace_row(app, ws.name, ws.path, ws.last_opened, ws.pinned))
+        .collect();
 
     let content = if rows.is_empty() {
         widgets::empty_state("No workspaces found.")
@@ -44,7 +53,10 @@ pub fn view(app: &App) -> Element<'_, Message> {
     .spacing(space::S4)
     .padding(Padding::from([space::S6, space::S6]));
 
-    container(page).width(Length::Fill).height(Length::Fill).into()
+    container(page)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 fn workspace_row(
@@ -56,17 +68,19 @@ fn workspace_row(
 ) -> Element<'static, Message> {
     let display_name = name.clone();
     let _open_msg = Message::OpenWorkspace(name.clone());
-    let row_msg      = Message::OpenWorkspace(name.clone());
+    let row_msg = Message::OpenWorkspace(name.clone());
 
     button(
         container(
             iced::widget::row![
                 iced::widget::column![
                     iced::widget::text(display_name).size(size::BODY),
-                    iced::widget::text(path).size(size::CAPTION)
+                    iced::widget::text(path)
+                        .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
                     iced::widget::text(format!("{}: {}", app.t(Key::DashLastOpened), last))
-                        .size(size::CAPTION).color(theme::muted(&app.theme())),
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme())),
                 ]
                 .spacing(space::S1)
                 .width(iced::Length::Fill),
@@ -80,7 +94,9 @@ fn workspace_row(
         .width(iced::Length::Fill),
     )
     .on_press(row_msg)
-    .padding(0).style(theme::naked).style(theme::naked)
+    .padding(0)
+    .style(theme::naked)
+    .style(theme::naked)
     .width(iced::Length::Fill)
     .into()
 }

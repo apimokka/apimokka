@@ -1,20 +1,22 @@
 //! MK-028 — Routes workbench. Three columns: sidebar / rule editor / right column.
-use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, Space};
-use iced::{Alignment, Color, Element, Length, Padding};
-use apimokka_i18n::Key;
-use apimokka_model::{BodyOp, HeaderOp, UrlPathOp, respond::RespondMode, settings::Strategy, snapshot::RuleSetView};
 use crate::app::App;
 use crate::message::Message;
 use crate::theme::{self, pad, size, space};
 use crate::widgets;
+use apimokka_i18n::Key;
+use apimokka_model::{
+    BodyOp, HeaderOp, UrlPathOp, respond::RespondMode, settings::Strategy, snapshot::RuleSetView,
+};
+use iced::widget::{
+    Space, button, column, container, pick_list, row, scrollable, text, text_input,
+};
+use iced::{Alignment, Color, Element, Length, Padding};
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let sidebar = left_sidebar(app);
-    let centre  = centre_panel(app);
+    let centre = centre_panel(app);
 
-    row![sidebar, centre]
-        .height(Length::Fill)
-        .into()
+    row![sidebar, centre].height(Length::Fill).into()
 }
 
 // ── Left sidebar ──────────────────────────────────────────────────────────────
@@ -23,18 +25,24 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
     let t = |k| app.t(k);
     let snap = match &app.snapshot {
         Some(s) => s,
-        None => return container(widgets::empty_state("No workspace open."))
-            .width(Length::Fixed(280.0)).height(Length::Fill)
-            .style(theme::panel_style).into(),
+        None => {
+            return container(widgets::empty_state("No workspace open."))
+                .width(Length::Fixed(280.0))
+                .height(Length::Fill)
+                .style(theme::panel_style)
+                .into();
+        }
     };
 
-    let mut col = column![].spacing(space::S1)
+    let mut col = column![]
+        .spacing(space::S1)
         .padding(Padding::from([space::S3, space::S2]));
 
     // ── Rule sets (accordion: only one open at a time) ────────────────────
     col = col.push(
-        text(t(Key::RoutesRuleSets)).size(size::CAPTION)
-            .color(theme::muted(&app.theme()))
+        text(t(Key::RoutesRuleSets))
+            .size(size::CAPTION)
+            .color(theme::muted(&app.theme())),
     );
     for rs in &snap.rule_sets {
         let is_open = app.rule_set_open == Some(rs.id);
@@ -52,15 +60,19 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
     col = col.push(widgets::divider());
     let fb_open = app.fallback_section_open;
     let fb_chevron = if fb_open { "▾" } else { "▸" };
-    let fb_count   = snap.fallback_files.len();
+    let fb_count = snap.fallback_files.len();
     col = col.push(
         button(
             row![
-                text(fb_chevron).size(size::CAPTION).color(theme::muted(&app.theme())),
-                text(t(Key::RoutesFallbackFiles)).size(size::CAPTION)
+                text(fb_chevron)
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
+                text(t(Key::RoutesFallbackFiles))
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme()))
                     .width(Length::Fill),
-                text(format!("({})", fb_count)).size(size::CAPTION)
+                text(format!("({})", fb_count))
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S2)
@@ -74,8 +86,8 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
 
     if fb_open {
         for f in &snap.fallback_files {
-            let sel    = app.selection.file_route.as_deref() == Some(f.path.as_str());
-            let hint   = f.route_hint.as_deref().unwrap_or("");
+            let sel = app.selection.file_route.as_deref() == Some(f.path.as_str());
+            let hint = f.route_hint.as_deref().unwrap_or("");
             let fdirty = app.is_fallback_dirty(&f.path);
             let dirty_el: Element<Message> = if fdirty {
                 widgets::dirty_dot()
@@ -87,23 +99,32 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
                     container(
                         column![
                             row![
-                                text("{ }").size(size::CAPTION)
+                                text("{ }")
+                                    .size(size::CAPTION)
                                     .color(theme::muted(&app.theme())),
                                 text(f.name.as_str()).size(size::BODY).width(Length::Fill),
                                 dirty_el,
                             ]
-                            .spacing(space::S2).align_y(Alignment::Center),
-                            text(hint).size(size::CAPTION)
+                            .spacing(space::S2)
+                            .align_y(Alignment::Center),
+                            text(hint)
+                                .size(size::CAPTION)
                                 .color(theme::muted(&app.theme())),
                         ]
                         .spacing(2.0),
                     )
                     .padding(Padding::from([space::S2, space::S3]))
-                    .style(if sel { theme::card_selected_style } else { theme::card_style })
+                    .style(if sel {
+                        theme::card_selected_style
+                    } else {
+                        theme::card_style
+                    })
                     .width(Length::Fill),
                 )
                 .on_press(Message::SelectFileRoute(f.path.clone()))
-                .padding(0).style(theme::naked).width(Length::Fill),
+                .padding(0)
+                .style(theme::naked)
+                .width(Length::Fill),
             );
         }
         col = col.push(
@@ -117,17 +138,21 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
 
     // ── Middleware scripts (collapsed by default) ─────────────────────────
     col = col.push(widgets::divider());
-    let mw_open    = app.middleware_section_open;
+    let mw_open = app.middleware_section_open;
     let mw_chevron = if mw_open { "▾" } else { "▸" };
-    let mw_count   = snap.middleware_scripts.len();
+    let mw_count = snap.middleware_scripts.len();
     col = col.push(
         button(
             row![
-                text(mw_chevron).size(size::CAPTION).color(theme::muted(&app.theme())),
-                text(t(Key::RoutesMiddleware)).size(size::CAPTION)
+                text(mw_chevron)
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
+                text(t(Key::RoutesMiddleware))
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme()))
                     .width(Length::Fill),
-                text(format!("({})", mw_count)).size(size::CAPTION)
+                text(format!("({})", mw_count))
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S2)
@@ -141,23 +166,29 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
 
     if mw_open {
         for s in &snap.middleware_scripts {
-            let name     = s.path.rsplit('/').next().unwrap_or(&s.path);
+            let name = s.path.rsplit('/').next().unwrap_or(&s.path);
             let path_str = s.path.clone();
-            let sel      = app.selection.script.as_deref() == Some(&path_str);
+            let sel = app.selection.script.as_deref() == Some(&path_str);
             col = col.push(
                 button(
                     container(text(name).size(size::BODY))
                         .padding(Padding::from([space::S2, space::S3]))
-                        .style(if sel { theme::card_selected_style } else { theme::card_style })
+                        .style(if sel {
+                            theme::card_selected_style
+                        } else {
+                            theme::card_style
+                        })
                         .width(Length::Fill),
                 )
                 .on_press(Message::SelectScript(path_str))
-                .padding(0).style(theme::naked).width(Length::Fill),
+                .padding(0)
+                .style(theme::naked)
+                .width(Length::Fill),
             );
         }
         col = col.push(
             button(text("+ Add .rhai").size(size::CAPTION))
-                .on_press(Message::Noop)  // stub
+                .on_press(Message::Noop) // stub
                 .padding(Padding::from([space::S1, space::S3]))
                 .style(iced::widget::button::text)
                 .width(Length::Fill),
@@ -187,21 +218,30 @@ fn rule_set_group<'a>(app: &'a App, rs: &'a RuleSetView, is_open: bool) -> Eleme
     let rs_row = button(
         container(
             row![
-                text(chevron).size(size::CAPTION).color(theme::muted(&app.theme())),
+                text(chevron)
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
                 text(file_name).size(size::BODY).width(Length::Fill),
                 text(format!("({})", rule_count))
-                    .size(size::CAPTION).color(theme::muted(&app.theme())),
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
                 dirty_el,
             ]
             .spacing(space::S2)
             .align_y(Alignment::Center),
         )
         .padding(Padding::from([space::S2, space::S3]))
-        .style(if rs_selected { theme::card_parent_selected_style } else { theme::card_style })
+        .style(if rs_selected {
+            theme::card_parent_selected_style
+        } else {
+            theme::card_style
+        })
         .width(Length::Fill),
     )
     .on_press(Message::SelectRuleSet(rs.id))
-    .padding(0).style(theme::naked).width(Length::Fill);
+    .padding(0)
+    .style(theme::naked)
+    .width(Length::Fill);
 
     if !is_open {
         // Collapsed: only show the header row
@@ -209,50 +249,68 @@ fn rule_set_group<'a>(app: &'a App, rs: &'a RuleSetView, is_open: bool) -> Eleme
     }
 
     // Expanded: show rules
-    let rule_rows: Vec<Element<Message>> = rs.rules.iter().map(|rule| {
-        let rule_selected = app.selection.rule == Some(rule.id);
-        let has_issues    = !rule.validation.issues.is_empty();
-        let status_glyph: Element<Message> = if has_issues {
-            text("⚠").size(size::CAPTION).color(Color::from_rgb(0.85, 0.45, 0.0)).into()
-        } else if rule.matched_by_latest_trace {
-            text("✓").size(size::CAPTION).color(Color::from_rgb(0.10, 0.65, 0.10)).into()
-        } else {
-            Space::new().width(0.0).into()
-        };
+    let rule_rows: Vec<Element<Message>> = rs
+        .rules
+        .iter()
+        .map(|rule| {
+            let rule_selected = app.selection.rule == Some(rule.id);
+            let has_issues = !rule.validation.issues.is_empty();
+            let status_glyph: Element<Message> = if has_issues {
+                text("⚠")
+                    .size(size::CAPTION)
+                    .color(Color::from_rgb(0.85, 0.45, 0.0))
+                    .into()
+            } else if rule.matched_by_latest_trace {
+                text("✓")
+                    .size(size::CAPTION)
+                    .color(Color::from_rgb(0.10, 0.65, 0.10))
+                    .into()
+            } else {
+                Space::new().width(0.0).into()
+            };
 
-        let summary = rule.summary();
-        button(
-            container(
-                row![
-                    text("⠿").size(size::CAPTION).color(theme::muted(&app.theme())),
-                    text(summary).size(size::CAPTION).width(Length::Fill),
-                    status_glyph,
-                ]
-                .spacing(space::S2)
-                .align_y(Alignment::Center),
+            let summary = rule.summary();
+            button(
+                container(
+                    row![
+                        text("⠿")
+                            .size(size::CAPTION)
+                            .color(theme::muted(&app.theme())),
+                        text(summary).size(size::CAPTION).width(Length::Fill),
+                        status_glyph,
+                    ]
+                    .spacing(space::S2)
+                    .align_y(Alignment::Center),
+                )
+                .padding(Padding::from([space::S1 + 2.0, space::S3]))
+                .style(if rule_selected {
+                    theme::card_selected_style
+                } else {
+                    theme::card_style
+                })
+                .width(Length::Fill),
             )
-            .padding(Padding::from([space::S1 + 2.0, space::S3]))
-            .style(if rule_selected { theme::card_selected_style } else { theme::card_style })
-            .width(Length::Fill),
-        )
-        .on_press(Message::SelectRule(rule.id))
-        .padding(0).style(theme::naked).width(Length::Fill)
-        .into()
-    }).collect();
+            .on_press(Message::SelectRule(rule.id))
+            .padding(0)
+            .style(theme::naked)
+            .width(Length::Fill)
+            .into()
+        })
+        .collect();
 
-    let add_rule_row = button(
-        row![
-            Space::new().width(Length::Fixed(space::S5)),
-            text(format!("+ {}", app.t(Key::BtnAddRule))).size(size::CAPTION),
-        ],
-    )
+    let add_rule_row = button(row![
+        Space::new().width(Length::Fixed(space::S5)),
+        text(format!("+ {}", app.t(Key::BtnAddRule))).size(size::CAPTION),
+    ])
     .on_press(Message::AddRule(rs.id))
     .padding(Padding::from([space::S1, space::S3]))
     .style(iced::widget::button::text)
     .width(Length::Fill);
 
     let mut col = column![rs_row, Space::new().height(space::S1)].spacing(space::S1);
-    for r in rule_rows { col = col.push(r); }
+    for r in rule_rows {
+        col = col.push(r);
+    }
     col = col.push(add_rule_row);
     col.into()
 }
@@ -260,8 +318,12 @@ fn rule_set_group<'a>(app: &'a App, rs: &'a RuleSetView, is_open: bool) -> Eleme
 fn centre_panel(app: &App) -> Element<'_, Message> {
     let snap = match &app.snapshot {
         Some(s) => s,
-        None => return container(widgets::empty_state(app.t(Key::EmptyNoRuleSelected)))
-            .width(Length::Fill).height(Length::Fill).into(),
+        None => {
+            return container(widgets::empty_state(app.t(Key::EmptyNoRuleSelected)))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into();
+        }
     };
 
     // Priority 1: rule selected → rule editor
@@ -274,7 +336,11 @@ fn centre_panel(app: &App) -> Element<'_, Message> {
     // Priority 2: fallback file selected → JSON file editor
     // (must be above rule-set-config: SelectFileRoute clears rule but not rule_set)
     if let Some(path) = &app.selection.file_route {
-        if let Some(file) = snap.fallback_files.iter().find(|f| &f.name == path || &f.path == path) {
+        if let Some(file) = snap
+            .fallback_files
+            .iter()
+            .find(|f| &f.name == path || &f.path == path)
+        {
             return fallback_file_editor(app, file);
         }
     }
@@ -302,22 +368,22 @@ fn centre_panel(app: &App) -> Element<'_, Message> {
             } else {
                 app.t(Key::EmptyBlankWorkspace)
             }),
-            container(
-                if has_rule_sets {
-                    widgets::primary_btn(app.t(Key::EmptyNoRuleSelectedCta), {
-                        if let Some(rs_id) = app.selection.rule_set {
-                            Message::AddRule(rs_id)
-                        } else if let Some(s) = &app.snapshot {
-                            s.rule_sets.first().map(|rs| Message::AddRule(rs.id))
-                                .unwrap_or(Message::Noop)
-                        } else {
-                            Message::Noop
-                        }
-                    })
-                } else {
-                    widgets::primary_btn(app.t(Key::BtnAddRuleSet), Message::AddRuleSet)
-                }
-            )
+            container(if has_rule_sets {
+                widgets::primary_btn(app.t(Key::EmptyNoRuleSelectedCta), {
+                    if let Some(rs_id) = app.selection.rule_set {
+                        Message::AddRule(rs_id)
+                    } else if let Some(s) = &app.snapshot {
+                        s.rule_sets
+                            .first()
+                            .map(|rs| Message::AddRule(rs.id))
+                            .unwrap_or(Message::Noop)
+                    } else {
+                        Message::Noop
+                    }
+                })
+            } else {
+                widgets::primary_btn(app.t(Key::BtnAddRuleSet), Message::AddRuleSet)
+            })
             .width(Length::Fill)
             .align_x(iced::alignment::Horizontal::Center),
         ]
@@ -339,9 +405,11 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
         row![
             column![
                 text(file_name).size(size::SECTION),
-                text(rs.file.path.as_str()).size(size::CAPTION)
+                text(rs.file.path.as_str())
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
-                text(format!("{} rules", rs.rules.len())).size(size::CAPTION)
+                text(format!("{} rules", rs.rules.len()))
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S1)
@@ -354,26 +422,34 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
     .padding(Padding::from([space::S4, space::S5]))
     .width(Length::Fill);
 
-    let rule_rows: Vec<Element<Message>> = rs.rules.iter().map(|r| {
-        let summary = r.summary();
-        let rule_id = r.id;
-        button(
-            container(
-                row![
-                    text("⠿").size(size::CAPTION).color(theme::muted(&app.theme())),
-                    text(summary).size(size::BODY).width(Length::Fill),
-                ]
-                .spacing(space::S2)
-                .align_y(Alignment::Center),
+    let rule_rows: Vec<Element<Message>> = rs
+        .rules
+        .iter()
+        .map(|r| {
+            let summary = r.summary();
+            let rule_id = r.id;
+            button(
+                container(
+                    row![
+                        text("⠿")
+                            .size(size::CAPTION)
+                            .color(theme::muted(&app.theme())),
+                        text(summary).size(size::BODY).width(Length::Fill),
+                    ]
+                    .spacing(space::S2)
+                    .align_y(Alignment::Center),
+                )
+                .padding(Padding::from([space::S2, space::S3]))
+                .style(theme::card_style)
+                .width(Length::Fill),
             )
-            .padding(Padding::from([space::S2, space::S3]))
-            .style(theme::card_style)
-            .width(Length::Fill),
-        )
-        .on_press(Message::SelectRule(rule_id))
-        .padding(0).style(theme::naked).width(Length::Fill)
-        .into()
-    }).collect();
+            .on_press(Message::SelectRule(rule_id))
+            .padding(0)
+            .style(theme::naked)
+            .width(Length::Fill)
+            .into()
+        })
+        .collect();
 
     let rules_body: Element<Message> = if rule_rows.is_empty() {
         widgets::empty_state(t(Key::EmptyRuleSetNoRules))
@@ -382,7 +458,9 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
     };
 
     // MK-043: strategy section — always visible in Expert, collapsible in Guided.
-    let active_strategy = app.snapshot.as_ref()
+    let active_strategy = app
+        .snapshot
+        .as_ref()
         .map(|s| s.root_settings.strategy)
         .unwrap_or(Strategy::FirstMatch);
 
@@ -395,26 +473,31 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
         .text_size(size::BODY)
         .padding(Padding::from([space::S2, space::S3]));
 
-        let help_text = text(active_strategy.help()).size(size::CAPTION)
+        let help_text = text(active_strategy.help())
+            .size(size::CAPTION)
             .color(theme::muted(&app.theme()));
 
         let heading: Element<Message> = if app.shows_scaffolding() {
             // Guided: ⓘ hint expanded inline
             column![
                 text(t(Key::RuleSetConfigStrategy)).size(size::BODY_STRONG),
-                text(active_strategy.help()).size(size::CAPTION)
+                text(active_strategy.help())
+                    .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S1)
             .into()
         } else {
-            widgets::label_with_hint(&app.theme(), t(Key::RuleSetConfigStrategy), t(Key::HintStrategy))
+            widgets::label_with_hint(
+                &app.theme(),
+                t(Key::RuleSetConfigStrategy),
+                t(Key::HintStrategy),
+            )
         };
 
         let inner = column![
             heading,
-            row![dropdown, Space::new().width(space::S3), help_text]
-                .align_y(Alignment::Center),
+            row![dropdown, Space::new().width(space::S3), help_text].align_y(Alignment::Center),
         ]
         .spacing(space::S2);
 
@@ -427,8 +510,12 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
             };
             let toggle = button(
                 row![
-                    text(chevron).size(size::CAPTION).color(theme::muted(&app.theme())),
-                    text(label).size(size::CAPTION).color(theme::muted(&app.theme())),
+                    text(chevron)
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme())),
+                    text(label)
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme())),
                 ]
                 .spacing(space::S2)
                 .align_y(Alignment::Center),
@@ -458,9 +545,10 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
                     widgets::divider(),
                     strategy_section,
                     Space::new().height(space::S3),
-                    container(
-                        widgets::primary_btn(t(Key::BtnAddRule), Message::AddRule(rs.id)),
-                    )
+                    container(widgets::primary_btn(
+                        t(Key::BtnAddRule),
+                        Message::AddRule(rs.id)
+                    ),)
                     .padding(Padding::from([0.0, space::S5])),
                 ]
                 .spacing(0)
@@ -475,13 +563,18 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
     .into()
 }
 
-fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -> Element<'a, Message> {
+fn rule_editor<'a>(
+    app: &'a App,
+    rule: &'a apimokka_model::snapshot::RuleView,
+) -> Element<'a, Message> {
     let p = &rule.payload;
     let t = |k| app.t(k);
     let rule_id = rule.id;
 
     // MK-043: active strategy drives conditional per-rule field visibility.
-    let active_strategy = app.snapshot.as_ref()
+    let active_strategy = app
+        .snapshot
+        .as_ref()
         .map(|s| s.root_settings.strategy)
         .unwrap_or(Strategy::FirstMatch);
 
@@ -489,18 +582,26 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
     // Shown above the action header when the rule has issues. Uses the
     // non-empty validation.issues from the mock data (e.g. missing weight).
     let validation_strip: Option<Element<Message>> = if !rule.validation.issues.is_empty() {
-        let msgs: Vec<Element<Message>> = rule.validation.issues.iter().map(|issue| {
-            row![
-                text("⚠").size(size::CAPTION).color(Color::from_rgb(0.85, 0.45, 0.0)),
-                text(issue.message.as_str()).size(size::CAPTION),
-            ]
-            .spacing(space::S2)
-            .into()
-        }).collect();
+        let msgs: Vec<Element<Message>> = rule
+            .validation
+            .issues
+            .iter()
+            .map(|issue| {
+                row![
+                    text("⚠")
+                        .size(size::CAPTION)
+                        .color(Color::from_rgb(0.85, 0.45, 0.0)),
+                    text(issue.message.as_str()).size(size::CAPTION),
+                ]
+                .spacing(space::S2)
+                .into()
+            })
+            .collect();
         Some(
             container(
                 column![
-                    text(t(Key::RuleEditorValidationWarning)).size(size::CAPTION)
+                    text(t(Key::RuleEditorValidationWarning))
+                        .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
                     column(msgs).spacing(space::S1),
                 ]
@@ -509,7 +610,7 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
             .padding(Padding::from([space::S2, space::S5]))
             .width(Length::Fill)
             .style(theme::banner_style)
-            .into()
+            .into(),
         )
     } else {
         None
@@ -522,7 +623,11 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
         || !p.method.is_empty()
         || !p.headers.is_empty()
         || !p.body.is_empty();
-    let test_ready = if has_when { Some(Message::TestRuleOpen) } else { None };
+    let test_ready = if has_when {
+        Some(Message::TestRuleOpen)
+    } else {
+        None
+    };
 
     let action_header = container(
         row![
@@ -569,7 +674,7 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
         if app.shows_scaffolding() {
             // Guided: show headers + body only when expanded.
             let header_count = p.headers.len();
-            let body_count   = p.body.len();
+            let body_count = p.body.len();
             let active_hidden = header_count + body_count;
 
             if app.rule_when_more {
@@ -579,9 +684,11 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
                 cards.push(
                     button(
                         row![
-                            text("▾").size(size::CAPTION)
+                            text("▾")
+                                .size(size::CAPTION)
                                 .color(theme::muted(&app.theme())),
-                            text(t(Key::LayoutFewerWhen)).size(size::CAPTION)
+                            text(t(Key::LayoutFewerWhen))
+                                .size(size::CAPTION)
                                 .color(theme::muted(&app.theme())),
                         ]
                         .spacing(space::S2)
@@ -590,7 +697,7 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
                     .on_press(Message::ToggleRuleWhenMore)
                     .padding(Padding::from([space::S2, space::S3]))
                     .style(iced::widget::button::text)
-                    .into()
+                    .into(),
                 );
             } else {
                 // Collapsed: show the "More" toggle + active-condition badge.
@@ -604,7 +711,8 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
                         parts.push(format!("{} {}", body_count, t(Key::LayoutActiveBody)));
                     }
                     let count_str = parts.join(" · ") + " active";
-                    text(count_str).size(size::CAPTION)
+                    text(count_str)
+                        .size(size::CAPTION)
                         .color(theme::muted(&app.theme()))
                         .into()
                 } else {
@@ -615,9 +723,11 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
                     row![
                         button(
                             row![
-                                text("▸").size(size::CAPTION)
+                                text("▸")
+                                    .size(size::CAPTION)
                                     .color(theme::muted(&app.theme())),
-                                text(t(Key::LayoutMoreWhen)).size(size::CAPTION)
+                                text(t(Key::LayoutMoreWhen))
+                                    .size(size::CAPTION)
                                     .color(theme::muted(&app.theme())),
                             ]
                             .spacing(space::S2)
@@ -630,7 +740,7 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
                     ]
                     .spacing(space::S3)
                     .align_y(Alignment::Center)
-                    .into()
+                    .into(),
                 );
             }
         } else {
@@ -657,65 +767,58 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
     // MK-043: when strategy is WeightedRandom or Priority, a per-rule numeric
     // field appears below the respond card. In Guided mode it follows the
     // rule_when_more toggle (advanced field, hidden by default).
-    let per_rule_field: Option<Element<Message>> =
-        if active_strategy.needs_per_rule_field()
-            && (!app.shows_scaffolding() || app.rule_when_more)
-        {
-            // Build each variant directly so the compiler has unambiguous types.
-            let (label_key, hint_key, field_el): (Key, Key, Element<Message>) =
-                match active_strategy {
-                    Strategy::WeightedRandom => {
-                        let current = p.weight.map(|w| w.to_string()).unwrap_or_default();
-                        let inp = text_input("", &current)
-                            .on_input(Message::RuleWeightChanged)
-                            .size(size::BODY)
-                            .padding(Padding::from([space::S2, space::S3]))
-                            .width(Length::Fixed(100.0));
-                        (Key::RuleWeightLabel, Key::RuleWeightHint, inp.into())
-                    }
-                    Strategy::Priority => {
-                        let current = p.priority.map(|pr| pr.to_string()).unwrap_or_default();
-                        let inp = text_input("", &current)
-                            .on_input(Message::RulePriorityChanged)
-                            .size(size::BODY)
-                            .padding(Padding::from([space::S2, space::S3]))
-                            .width(Length::Fixed(100.0));
-                        (Key::RulePriorityLabel, Key::RulePriorityHint, inp.into())
-                    }
-                    _ => unreachable!(),
-                };
-            Some(
-                container(
-                    column![
-                        widgets::label_with_hint(&app.theme(), t(label_key), t(hint_key)),
-                        field_el,
-                    ]
-                    .spacing(space::S2),
-                )
-                .padding(Padding::from(pad::CARD))
-                .style(theme::card_style)
-                .width(Length::Fill)
-                .into(),
-            )
-        } else {
-            None
+    let per_rule_field: Option<Element<Message>> = if active_strategy.needs_per_rule_field()
+        && (!app.shows_scaffolding() || app.rule_when_more)
+    {
+        // Build each variant directly so the compiler has unambiguous types.
+        let (label_key, hint_key, field_el): (Key, Key, Element<Message>) = match active_strategy {
+            Strategy::WeightedRandom => {
+                let current = p.weight.map(|w| w.to_string()).unwrap_or_default();
+                let inp = text_input("", &current)
+                    .on_input(Message::RuleWeightChanged)
+                    .size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fixed(100.0));
+                (Key::RuleWeightLabel, Key::RuleWeightHint, inp.into())
+            }
+            Strategy::Priority => {
+                let current = p.priority.map(|pr| pr.to_string()).unwrap_or_default();
+                let inp = text_input("", &current)
+                    .on_input(Message::RulePriorityChanged)
+                    .size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fixed(100.0));
+                (Key::RulePriorityLabel, Key::RulePriorityHint, inp.into())
+            }
+            _ => unreachable!(),
         };
-
-        let respond_col = container(
-        scrollable(
-            {
-                let mut col = column![
-                    section_head(t(Key::RespondLabel)),
-                    respond_card(app, p),
-                ];
-                if let Some(prf) = per_rule_field {
-                    col = col.push(prf);
-                }
-                col = col.push(Space::new().height(space::S4));
-                col.spacing(space::S3)
-                    .padding(Padding::from([space::S4, space::S3]))
-            },
+        Some(
+            container(
+                column![
+                    widgets::label_with_hint(&app.theme(), t(label_key), t(hint_key)),
+                    field_el,
+                ]
+                .spacing(space::S2),
+            )
+            .padding(Padding::from(pad::CARD))
+            .style(theme::card_style)
+            .width(Length::Fill)
+            .into(),
         )
+    } else {
+        None
+    };
+
+    let respond_col = container(
+        scrollable({
+            let mut col = column![section_head(t(Key::RespondLabel)), respond_card(app, p),];
+            if let Some(prf) = per_rule_field {
+                col = col.push(prf);
+            }
+            col = col.push(Space::new().height(space::S4));
+            col.spacing(space::S3)
+                .padding(Padding::from([space::S4, space::S3]))
+        })
         .height(Length::Fill),
     )
     .width(Length::FillPortion(2))
@@ -725,7 +828,9 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
     let arrow: Element<Message> = container(
         column![
             Space::new().height(Length::Fill),
-            text("→").size(size::TITLE).color(theme::muted(&app.theme())),
+            text("→")
+                .size(size::TITLE)
+                .color(theme::muted(&app.theme())),
             Space::new().height(Length::Fill),
         ]
         .align_x(Alignment::Center),
@@ -753,12 +858,17 @@ fn rule_editor<'a>(app: &'a App, rule: &'a apimokka_model::snapshot::RuleView) -
     outer.into()
 }
 
-fn fallback_file_editor<'a>(app: &'a App, file: &'a apimokka_model::node::FileNodeView) -> Element<'a, Message> {
+fn fallback_file_editor<'a>(
+    app: &'a App,
+    file: &'a apimokka_model::node::FileNodeView,
+) -> Element<'a, Message> {
     let t = |k| app.t(k);
     let route_hint = file.route_hint.as_deref().unwrap_or("/");
     let dirty = app.is_fallback_dirty(&file.path);
     let valid = app.fallback_json_valid(&file.path);
-    let status = app.fallback_status_draft.get(&file.path)
+    let status = app
+        .fallback_status_draft
+        .get(&file.path)
         .map(|s| s.as_str())
         .unwrap_or("200 OK");
 
@@ -849,16 +959,24 @@ fn fallback_file_editor<'a>(app: &'a App, file: &'a apimokka_model::node::FileNo
             .into()
     };
 
-    let state_hint = text(if dirty { t(Key::FallbackUnsavedHint) } else { t(Key::FallbackSavedHint) })
-        .size(size::CAPTION)
-        .color(theme::muted(&app.theme()));
+    let state_hint = text(if dirty {
+        t(Key::FallbackUnsavedHint)
+    } else {
+        t(Key::FallbackSavedHint)
+    })
+    .size(size::CAPTION)
+    .color(theme::muted(&app.theme()));
 
     // Revert: ghost, only actionable when dirty (routes through confirm).
     let revert_btn: Element<Message> = {
         let b = button(text(t(Key::BtnRevert)).size(size::CAPTION))
             .padding(Padding::from(pad::BUTTON))
             .style(iced::widget::button::text);
-        if dirty { b.on_press(Message::FallbackFileRevert).into() } else { b.into() }
+        if dirty {
+            b.on_press(Message::FallbackFileRevert).into()
+        } else {
+            b.into()
+        }
     };
 
     // Save: primary, only actionable when dirty. Label includes the filename
@@ -868,7 +986,11 @@ fn fallback_file_editor<'a>(app: &'a App, file: &'a apimokka_model::node::FileNo
         let b = button(text(save_label).size(size::BODY))
             .padding(Padding::from(pad::BUTTON_PRIMARY))
             .style(iced::widget::button::primary);
-        if dirty { b.on_press(Message::FallbackFileSave).into() } else { b.into() }
+        if dirty {
+            b.on_press(Message::FallbackFileSave).into()
+        } else {
+            b.into()
+        }
     };
 
     let footer = container(
@@ -899,21 +1021,19 @@ fn fallback_file_editor<'a>(app: &'a App, file: &'a apimokka_model::node::FileNo
     // ── Layout ────────────────────────────────────────────────────────────
 
     container(
-        column![
-            header_col,
-            widgets::divider(),
-            content_card,
-            footer,
-        ]
-        .spacing(space::S4)
-        .padding(Padding::from([space::S4, space::S5])),
+        column![header_col, widgets::divider(), content_card, footer,]
+            .spacing(space::S4)
+            .padding(Padding::from([space::S4, space::S5])),
     )
     .width(Length::Fill)
     .height(Length::Fill)
     .into()
 }
 
-fn script_viewer<'a>(app: &'a App, script: &'a apimokka_model::node::ConfigFileView) -> Element<'a, Message> {
+fn script_viewer<'a>(
+    app: &'a App,
+    script: &'a apimokka_model::node::ConfigFileView,
+) -> Element<'a, Message> {
     let name = script.path.rsplit('/').next().unwrap_or(&script.path);
 
     // Placeholder content — in production this would read the file from disk.
@@ -925,14 +1045,13 @@ fn script_viewer<'a>(app: &'a App, script: &'a apimokka_model::node::ConfigFileV
     let header = column![
         row![
             text(name).size(size::SECTION).width(Length::Fill),
-            container(
-                text("read-only").size(size::CAPTION),
-            )
-            .padding(Padding::from([2.0, space::S2]))
-            .style(theme::chip_style),
+            container(text("read-only").size(size::CAPTION),)
+                .padding(Padding::from([2.0, space::S2]))
+                .style(theme::chip_style),
         ]
         .align_y(Alignment::Center),
-        text(script.path.as_str()).size(size::CAPTION)
+        text(script.path.as_str())
+            .size(size::CAPTION)
             .color(theme::muted(&app.theme())),
         text("Middleware scripts run before rule matching and can transform requests.")
             .size(size::CAPTION)
@@ -941,11 +1060,7 @@ fn script_viewer<'a>(app: &'a App, script: &'a apimokka_model::node::ConfigFileV
     .spacing(space::S2);
 
     let code_card = container(
-        scrollable(
-            text(content).size(size::MONO)
-                .font(iced::Font::MONOSPACE),
-        )
-        .height(Length::Fill),
+        scrollable(text(content).size(size::MONO).font(iced::Font::MONOSPACE)).height(Length::Fill),
     )
     .padding(Padding::from(pad::CARD))
     .style(theme::card_style)
@@ -953,13 +1068,9 @@ fn script_viewer<'a>(app: &'a App, script: &'a apimokka_model::node::ConfigFileV
     .height(Length::Fill);
 
     container(
-        column![
-            header,
-            widgets::divider(),
-            code_card,
-        ]
-        .spacing(space::S4)
-        .padding(Padding::from([space::S4, space::S5])),
+        column![header, widgets::divider(), code_card,]
+            .spacing(space::S4)
+            .padding(Padding::from([space::S4, space::S5])),
     )
     .width(Length::Fill)
     .height(Length::Fill)
@@ -974,7 +1085,8 @@ fn trace_activity_section<'a>(
     let recent = recent_matching_events(app, rule);
 
     let header = row![
-        text("Recent trace activity").size(size::BODY)
+        text("Recent trace activity")
+            .size(size::BODY)
             .color(theme::muted(&app.theme()))
             .width(Length::Fill),
         button(text("View all in Trace →").size(size::CAPTION))
@@ -990,36 +1102,40 @@ fn trace_activity_section<'a>(
             .color(theme::muted(&app.theme()))
             .into()
     } else {
-        let rows: Vec<Element<Message>> = recent.iter().map(|ev| {
-            let eid = ev.event_id;
-            row![
-                text(ev.outcome.glyph()).size(size::BODY),
-                text(ev.request.method.as_str()).size(size::CAPTION),
-                text(ev.request.url_path.as_str()).size(size::CAPTION)
-                    .color(theme::muted(&app.theme()))
-                    .width(Length::Fill),
-                text(format!("{}ms", ev.duration_ms)).size(size::CAPTION)
-                    .color(theme::muted(&app.theme())),
-                text(ev.time.as_str()).size(size::CAPTION)
-                    .color(theme::muted(&app.theme())),
-                button(text("Jump →").size(size::CAPTION))
-                    .on_press(Message::JumpToTraceEvent(eid))
-                    .padding(Padding::from([space::S1, space::S2]))
-                    .style(iced::widget::button::text),
-            ]
-            .spacing(space::S3)
-            .align_y(Alignment::Center)
-            .into()
-        }).collect();
+        let rows: Vec<Element<Message>> = recent
+            .iter()
+            .map(|ev| {
+                let eid = ev.event_id;
+                row![
+                    text(ev.outcome.glyph()).size(size::BODY),
+                    text(ev.request.method.as_str()).size(size::CAPTION),
+                    text(ev.request.url_path.as_str())
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme()))
+                        .width(Length::Fill),
+                    text(format!("{}ms", ev.duration_ms))
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme())),
+                    text(ev.time.as_str())
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme())),
+                    button(text("Jump →").size(size::CAPTION))
+                        .on_press(Message::JumpToTraceEvent(eid))
+                        .padding(Padding::from([space::S1, space::S2]))
+                        .style(iced::widget::button::text),
+                ]
+                .spacing(space::S3)
+                .align_y(Alignment::Center)
+                .into()
+            })
+            .collect();
         column(rows).spacing(space::S1).into()
     };
 
-    container(
-        column![header, body].spacing(space::S2),
-    )
-    .padding(Padding::from([space::S3, space::S5]))
-    .width(Length::Fill)
-    .into()
+    container(column![header, body].spacing(space::S2))
+        .padding(Padding::from([space::S3, space::S5]))
+        .width(Length::Fill)
+        .into()
 }
 
 fn recent_matching_events<'a>(
@@ -1031,23 +1147,32 @@ fn recent_matching_events<'a>(
     // can compare against the trace outcome directly.
     let rule_position: Option<(usize, usize)> = app.snapshot.as_ref().and_then(|snap| {
         snap.rule_sets.iter().enumerate().find_map(|(rs_idx, rs)| {
-            rs.rules.iter().position(|r| r.id == rule.id)
+            rs.rules
+                .iter()
+                .position(|r| r.id == rule.id)
                 .map(|r_idx| (rs_idx, r_idx))
         })
     });
 
     let url_path = &rule.payload.url_path;
 
-    app.trace.iter().rev()
+    app.trace
+        .iter()
+        .rev()
         .filter(|ev| {
             match &ev.outcome {
-                apimokka_model::TraceOutcome::Matched { rule_set_index, rule_index } => {
+                apimokka_model::TraceOutcome::Matched {
+                    rule_set_index,
+                    rule_index,
+                } => {
                     // Primary: exact index match (engine-reported).
                     if let Some((rs, r)) = rule_position {
                         return *rule_set_index == rs && *rule_index == r;
                     }
                     // Fallback: index unavailable, use URL path heuristic.
-                    if url_path.is_empty() { return true; }
+                    if url_path.is_empty() {
+                        return true;
+                    }
                     ev.request.url_path == *url_path
                         || ev.request.url_path.starts_with(url_path.as_str())
                 }
@@ -1092,7 +1217,9 @@ fn card_with_hint<'a>(
     let heading: Element<Message> = if app.shows_scaffolding() {
         column![
             text(title).size(size::BODY_STRONG),
-            text(hint).size(size::CAPTION).color(theme::muted(&app.theme())),
+            text(hint)
+                .size(size::CAPTION)
+                .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S1)
         .into()
@@ -1100,18 +1227,11 @@ fn card_with_hint<'a>(
         widgets::label_with_hint(&app.theme(), title, hint)
     };
 
-    container(
-        column![
-            heading,
-            Space::new().height(space::S2),
-            body,
-        ]
-        .spacing(0),
-    )
-    .padding(Padding::from(pad::CARD))
-    .style(theme::card_style)
-    .width(Length::Fill)
-    .into()
+    container(column![heading, Space::new().height(space::S2), body,].spacing(0))
+        .padding(Padding::from(pad::CARD))
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .into()
 }
 
 fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
@@ -1135,7 +1255,8 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
             ]
             .spacing(space::S2)
             .align_y(Alignment::Center),
-            text(app.t(Key::UrlPathHint)).size(size::CAPTION)
+            text(app.t(Key::UrlPathHint))
+                .size(size::CAPTION)
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S2)
@@ -1145,50 +1266,76 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
 
 fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
     let methods = ["Any", "GET", "POST", "PUT", "PATCH", "DELETE"];
-    let btns: Vec<Element<Message>> = methods.iter().map(|m| {
-        let active = if *m == "Any" { method.is_empty() } else { method == *m };
-        let msg    = if *m == "Any" { Message::RuleSetMethod(String::new()) }
-                     else           { Message::RuleSetMethod(m.to_string()) };
-        button(text(*m).size(size::CAPTION))
-            .on_press(msg)
-            .padding(Padding::from([space::S2, space::S3 + 2.0]))
-            .style(if active { theme::seg_active } else { theme::seg_inactive })
-            .into()
-    }).collect();
+    let btns: Vec<Element<Message>> = methods
+        .iter()
+        .map(|m| {
+            let active = if *m == "Any" {
+                method.is_empty()
+            } else {
+                method == *m
+            };
+            let msg = if *m == "Any" {
+                Message::RuleSetMethod(String::new())
+            } else {
+                Message::RuleSetMethod(m.to_string())
+            };
+            button(text(*m).size(size::CAPTION))
+                .on_press(msg)
+                .padding(Padding::from([space::S2, space::S3 + 2.0]))
+                .style(if active {
+                    theme::seg_active
+                } else {
+                    theme::seg_inactive
+                })
+                .into()
+        })
+        .collect();
 
-    card(app.t(Key::MethodCardTitle), row(btns).spacing(space::S1).into())
+    card(
+        app.t(Key::MethodCardTitle),
+        row(btns).spacing(space::S1).into(),
+    )
 }
 
 fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
-    let mut rows: Vec<Element<Message>> = p.headers.iter().enumerate().map(|(i, h)| {
-        let show_val = !h.op.value_irrelevant();
-        row![
-            text_input(app.t(Key::HeaderColumnName), &h.name)
-                .on_input(move |v| Message::HeaderSetName { index: i, value: v })
-                .size(size::CAPTION)
-                .padding(Padding::from([space::S2, space::S2]))
-                .width(Length::Fixed(110.0)),
-            pick_list(HeaderOp::all().to_vec(), Some(h.op), move |op| Message::HeaderSetOp { index: i, op })
+    let mut rows: Vec<Element<Message>> = p
+        .headers
+        .iter()
+        .enumerate()
+        .map(|(i, h)| {
+            let show_val = !h.op.value_irrelevant();
+            row![
+                text_input(app.t(Key::HeaderColumnName), &h.name)
+                    .on_input(move |v| Message::HeaderSetName { index: i, value: v })
+                    .size(size::CAPTION)
+                    .padding(Padding::from([space::S2, space::S2]))
+                    .width(Length::Fixed(110.0)),
+                pick_list(HeaderOp::all().to_vec(), Some(h.op), move |op| {
+                    Message::HeaderSetOp { index: i, op }
+                })
                 .text_size(size::CAPTION)
                 .padding(Padding::from([space::S2, space::S2]))
                 .width(Length::Fixed(110.0)),
-            {
-                let val_el: Element<Message> = if show_val {
-                    text_input(app.t(Key::HeaderColumnValue), &h.value)
-                        .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
-                        .size(size::CAPTION)
-                        .padding(Padding::from([space::S2, space::S2]))
-                        .width(Length::Fill)
-                        .into()
-                } else {
-                    Space::new().width(Length::Fill).into()
-                };
-                val_el
-            },
-            widgets::icon_btn("✕", Message::HeaderRemove(i)),
-        ]
-        .spacing(space::S1).align_y(Alignment::Center).into()
-    }).collect();
+                {
+                    let val_el: Element<Message> = if show_val {
+                        text_input(app.t(Key::HeaderColumnValue), &h.value)
+                            .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
+                            .size(size::CAPTION)
+                            .padding(Padding::from([space::S2, space::S2]))
+                            .width(Length::Fill)
+                            .into()
+                    } else {
+                        Space::new().width(Length::Fill).into()
+                    };
+                    val_el
+                },
+                widgets::icon_btn("✕", Message::HeaderRemove(i)),
+            ]
+            .spacing(space::S1)
+            .align_y(Alignment::Center)
+            .into()
+        })
+        .collect();
 
     rows.push(
         button(text(format!("+ {}", app.t(Key::BtnAddHeader))).size(size::CAPTION))
@@ -1206,54 +1353,66 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
 }
 
 fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
-    let mut rows: Vec<Element<Message>> = p.body.iter().enumerate().map(|(i, b)| {
-        let show_val = b.op != BodyOp::Exists && b.op != BodyOp::Absent;
-        let jsonpath_warn: Element<Message> = if b.path.starts_with("$.") {
-            text(app.t(Key::BodyJsonpathWarn)).size(size::CAPTION)
-                .color(Color::from_rgb(0.85, 0.45, 0.0)).into()
-        } else {
-            Space::new().height(0.0).into()
-        };
-        column![
-            row![
-                text_input("user.id", &b.path)
-                    .on_input(move |v| Message::BodySetPath { index: i, value: v })
+    let mut rows: Vec<Element<Message>> = p
+        .body
+        .iter()
+        .enumerate()
+        .map(|(i, b)| {
+            let show_val = b.op != BodyOp::Exists && b.op != BodyOp::Absent;
+            let jsonpath_warn: Element<Message> = if b.path.starts_with("$.") {
+                text(app.t(Key::BodyJsonpathWarn))
                     .size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S2]))
-                    .width(Length::Fill),
-                button(text("…").size(size::CAPTION))
-                    .on_press(Message::PathAssistantOpen(i))
-                    .padding(Padding::from([space::S2, space::S2])),
-                pick_list(BodyOp::all().to_vec(), Some(b.op), move |op| Message::BodySetOp { index: i, op })
+                    .color(Color::from_rgb(0.85, 0.45, 0.0))
+                    .into()
+            } else {
+                Space::new().height(0.0).into()
+            };
+            column![
+                row![
+                    text_input("user.id", &b.path)
+                        .on_input(move |v| Message::BodySetPath { index: i, value: v })
+                        .size(size::CAPTION)
+                        .padding(Padding::from([space::S2, space::S2]))
+                        .width(Length::Fill),
+                    button(text("…").size(size::CAPTION))
+                        .on_press(Message::PathAssistantOpen(i))
+                        .padding(Padding::from([space::S2, space::S2])),
+                    pick_list(BodyOp::all().to_vec(), Some(b.op), move |op| {
+                        Message::BodySetOp { index: i, op }
+                    })
                     .text_size(size::CAPTION)
                     .padding(Padding::from([space::S2, space::S2]))
                     .width(Length::Fixed(120.0)),
-                {
-                    let bval: Element<Message> = if show_val {
-                        text_input("value", &b.value)
-                            .on_input(move |v| Message::BodySetValue { index: i, value: v })
-                            .size(size::CAPTION)
-                            .padding(Padding::from([space::S2, space::S2]))
-                            .width(Length::Fill)
-                            .into()
-                    } else {
-                        Space::new().width(Length::Fill).into()
-                    };
-                    bval
-                },
-                widgets::icon_btn("✕", Message::BodyRemove(i)),
+                    {
+                        let bval: Element<Message> = if show_val {
+                            text_input("value", &b.value)
+                                .on_input(move |v| Message::BodySetValue { index: i, value: v })
+                                .size(size::CAPTION)
+                                .padding(Padding::from([space::S2, space::S2]))
+                                .width(Length::Fill)
+                                .into()
+                        } else {
+                            Space::new().width(Length::Fill).into()
+                        };
+                        bval
+                    },
+                    widgets::icon_btn("✕", Message::BodyRemove(i)),
+                ]
+                .spacing(space::S1)
+                .align_y(Alignment::Center),
+                jsonpath_warn,
             ]
-            .spacing(space::S1).align_y(Alignment::Center),
-            jsonpath_warn,
-        ]
-        .spacing(space::S1)
-        .into()
-    }).collect();
+            .spacing(space::S1)
+            .into()
+        })
+        .collect();
 
     if p.body.is_empty() {
         rows.push(
-            text(app.t(Key::BodyDottedPathHint)).size(size::CAPTION)
-                .color(theme::muted(&app.theme())).into()
+            text(app.t(Key::BodyDottedPathHint))
+                .size(size::CAPTION)
+                .color(theme::muted(&app.theme()))
+                .into(),
         );
     }
     rows.push(
@@ -1274,8 +1433,16 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
 fn respond_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
     let is_inline = p.respond.mode == RespondMode::InlineText;
     let mode_btns: Element<Message> = row![
-        mode_tab(app.t(Key::RespondModeInline), is_inline, RespondMode::InlineText),
-        mode_tab(app.t(Key::RespondModeFile), !is_inline, RespondMode::ServeFile),
+        mode_tab(
+            app.t(Key::RespondModeInline),
+            is_inline,
+            RespondMode::InlineText
+        ),
+        mode_tab(
+            app.t(Key::RespondModeFile),
+            !is_inline,
+            RespondMode::ServeFile
+        ),
     ]
     .spacing(space::S1)
     .into();
@@ -1304,7 +1471,8 @@ fn respond_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
             mode_btns,
             body_el,
             row![
-                widgets::field(app.t(Key::RespondStatusLabel),
+                widgets::field(
+                    app.t(Key::RespondStatusLabel),
                     text_input("200 OK", &p.respond.status)
                         .on_input(Message::RespondSetStatus)
                         .size(size::CAPTION)
@@ -1313,7 +1481,8 @@ fn respond_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
                         .into(),
                 ),
                 Space::new().width(space::S3),
-                widgets::field(app.t(Key::RespondDelayLabel),
+                widgets::field(
+                    app.t(Key::RespondDelayLabel),
                     row![
                         text_input("0", &delay_str)
                             .on_input(Message::RespondSetDelay)
@@ -1328,7 +1497,8 @@ fn respond_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
                 ),
             ]
             .align_y(Alignment::End),
-            text(app.t(Key::RespondMutexHint)).size(size::CAPTION)
+            text(app.t(Key::RespondMutexHint))
+                .size(size::CAPTION)
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S3)
@@ -1340,6 +1510,10 @@ fn mode_tab(label: &str, active: bool, mode: RespondMode) -> Element<'_, Message
     button(text(label).size(size::CAPTION))
         .on_press(Message::RespondSetMode(mode))
         .padding(Padding::from([space::S2, space::S4]))
-        .style(if active { theme::seg_active } else { theme::seg_inactive })
+        .style(if active {
+            theme::seg_active
+        } else {
+            theme::seg_inactive
+        })
         .into()
 }
