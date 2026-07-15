@@ -456,7 +456,7 @@ blocking condition, owner, and next decision date.
 | Milestone | Status | Decision/evidence |
 |---|---|---|
 | M0 — Planning approval | Complete | Approved 2026-07-15; evidence: `.git-exclude/reviewed/2026-07-15-apimokka-stabilization-roadmap-m0-confirmation-review.md` |
-| M1 — Repository truth | Not started | — |
+| M1 — Repository truth | Designing | Proposed RFC: `rfcs/proposed/MK-051-repository-truth-and-rfc-integrity.md` |
 | M2 — Match-test conformance | Not started | — |
 | M3 — Integration boundary | Not started | — |
 | M4 — Quality and security gates | Not started | — |

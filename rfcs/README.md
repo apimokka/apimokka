@@ -10,7 +10,9 @@ RFC lifecycle policy: [MK-000](./done/MK-000-rfc-lifecycle.md)
 
 ## Proposed (open for review)
 
-*No RFCs currently under review.*
+| RFC | Title | Tracks |
+|---|---|---|
+| [MK-051](./proposed/MK-051-repository-truth-and-rfc-integrity.md) | Repository truth and RFC integrity | Stabilization M1 |
 
 ---
 
