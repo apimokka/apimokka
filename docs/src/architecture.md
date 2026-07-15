@@ -1,90 +1,86 @@
 # Architecture
 
-## Crate dependency graph
+This page describes the current v0.10.0 workspace. Historical design documents
+and RFC bodies remain useful decision records but are not inventories of the
+live source tree.
 
-```
-apimokka-app  ──depends──► apimokka-model
-     │                     apimokka-i18n
-     │                     iced 0.14
-     │                     snora 0.25
-     │
-apimokka-i18n ──depends──► (nothing — no external dependencies)
-apimokka-model ─depends──► uuid
-```
+## Workspace and dependencies
 
-## App state machine
+```text
+crates/app (apimokka-app)
+  ├── crates/model (apimokka-model)
+  ├── crates/i18n (apimokka-i18n)
+  ├── iced 0.14
+  └── snora 0.25
 
-```
-AppView::Welcome ──OpenWorkspace──► AppView::Workspace
-                 ──WizardStart───► AppView::Wizard ──WizardCreate──► AppView::Workspace
-                 ──GoDashboard──► AppView::Dashboard ──OpenWorkspace──► AppView::Workspace
-```
+crates/model
+  ├── serde_json
+  └── uuid
 
-## Shell composition (snora AppLayout)
-
-```
-AppLayout::new(shell_body)
-    .header(top_bar::view)
-    .side_bar(zero_width_placeholder)   // rail is in shell_body row
-    .sheet(bottom_drawer)               // when drawer.is_some()
-    .dialog(command_palette | path_assistant)
-    .on_close_modals(close_msg)
+crates/i18n
+  └── no external dependencies
 ```
 
-The left rail is embedded in the `shell_body` row directly (not in the
-AppLayout `side_bar` slot) to give full control over width, border, and
-padding.
+The root manifest requests snora 0.25 from crates.io; the lockfile currently
+resolves the snora family to 0.25.2. No `vendor/` tree is part of the current
+workspace.
 
-## Message flow
+## Application structure
 
-```
-User interaction
-      │
-      ▼
-iced calls App::update(msg)
-      │
-      ├── Mutates App fields (selection, wizard state, etc.)
-      ├── On EditCommand-class messages: mutates snapshot,
-      │   marks dirty, rebuilds validation
-      ├── On Save: simulate_save() → builds SaveResult
-      └── On StartStopServer: toggles ServerState
+`crates/app/src/app.rs` owns the central `App` state and message reducer.
+`message.rs` defines user and system events, `selection.rs` holds navigation
+selection types, and `theme.rs` maps theme choices to iced/snora styling.
 
-App::view() is called after every update
-      │
-      ├── AppView::Welcome → screens::welcome::view
-      ├── AppView::Dashboard → screens::dashboard::view
-      ├── AppView::Wizard → screens::wizard::view
-      └── AppView::Workspace → shell::view::view
-                                  │
-                                  ├── top_bar, rail, screen body (tab dispatch)
-                                  ├── right inspector (Routes only)
-                                  ├── sheet (drawer)
-                                  └── dialog (palette / path assistant)
-```
+Views are split between:
 
-## i18n architecture
+- `screens/` for mode selection, welcome, dashboard, wizard, routes, trace,
+  settings, scripts, and dialogs;
+- `shell/` for the workspace top bar, rail, tabs, body composition, and bottom
+  drawer;
+- `widgets/` for shared view helpers.
 
-`apimokka-i18n` defines a flat `Key` enum (~200 variants). Each locale
-module (`en.rs`, `ja.rs`) implements a `match` expression covering every
-variant — missing arms are compile errors. `Tr { locale }` wraps the
-lookup:
+The executable starts at the mode picker. The user then reaches Welcome and may
+open Dashboard, start the wizard, or enter a workspace. Workspace tabs dispatch
+to Routes, Trace, Settings, or Scripts views.
 
-```rust
-tr.t(Key::BtnSave)  // returns &'static str
+## Data and message flow
+
+```text
+user input
+  → iced dispatches Message
+  → App::update mutates mock state
+  → validation/save/trace state is recomputed as required
+  → App::view selects a screen and composes shell/dialog/drawer views
 ```
 
-Locale is stored in `App::locale` and changed via `Message::ChangeLocale`.
-`Locale` implements `Display` for use in iced `pick_list`.
+This repository remains a UI/UX mockup: workspace edits are in-memory and there
+is no live apimock-rs server integration. The stabilization roadmap governs work
+to establish those production boundaries.
 
-## File line-count targets
+## Internationalization
 
-Per project guidelines:
-- Aim for < 300 ELOC per `.rs` file
-- Split at > 500 ELOC
+`crates/i18n/src/keys.rs` defines the `Key` enum. English and Japanese locale
+modules match every key, so missing match arms are compile errors. The app uses
+`Tr { locale }` to resolve static display strings and changes locale through a
+`Message`.
 
-Current counts (approximate):
-- `app.rs`: ~450 (acceptable for central reducer)
-- `screens/rule_builder.rs`: ~240
-- `screens/settings.rs`: ~190
-- `shell/bottom_drawer.rs`: ~170
-- All other screens: < 150
+## Source-size baseline
+
+The project guideline is to aim below 300 lines per Rust file and split files
+above 500 lines. A 2026-07-15 physical line count identified the principal
+exceptions:
+
+| File | Lines |
+|---|---:|
+| `crates/app/src/app.rs` | 3,665 |
+| `crates/app/src/screens/routes.rs` | 1,519 |
+| `crates/model/src/mock.rs` | 513 |
+| `crates/app/src/theme.rs` | 420 |
+| `crates/i18n/src/keys.rs` | 412 |
+| `crates/i18n/src/en.rs` | 406 |
+| `crates/i18n/src/ja.rs` | 386 |
+| `crates/app/src/screens/trace.rs` | 356 |
+| `crates/app/src/shell/bottom_drawer.rs` | 327 |
+
+These are recorded facts, not exceptions to the guideline. Structural
+remediation is scheduled for roadmap milestone M5.

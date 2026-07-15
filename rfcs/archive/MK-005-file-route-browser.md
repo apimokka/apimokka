@@ -1,6 +1,6 @@
 # RFC MK-005 — File route browser and fallback hints
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Fallback file browser surface.
 **Touches.** `screens/routes.rs` left sidebar, `screens/settings.rs` file-tree section
 

@@ -1,6 +1,6 @@
 # RFC MK-041 — Layout density: common-first, advanced-behind-More
 
-**Status.** Implemented (v0.10.0)
+**Status.** Implemented (v0.9.10)
 **Tracks.** MK-040 phase 3. Per-screen layout density in Guided mode: the
 common 80% is always visible; the advanced 20% lives behind a toggleable
 "More" row.

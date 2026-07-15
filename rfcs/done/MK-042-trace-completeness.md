@@ -1,6 +1,6 @@
 # RFC MK-042 — Trace screen completeness
 
-**Status.** Implemented (v0.11.0)
+**Status.** Implemented (v0.9.11)
 **Tracks.** Trace screen (S-11) and match detail panel (S-12). Makes both
 production-quality by filling in the four deferred areas from the v0.6.0
 implementation.

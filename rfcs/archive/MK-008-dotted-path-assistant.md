@@ -1,6 +1,6 @@
 # RFC MK-008 — Dotted-path assistant and sample-JSON selector
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Body-condition path entry helper.
 **Touches.** `screens/dotted_path.rs`
 

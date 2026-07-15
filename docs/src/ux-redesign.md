@@ -1,5 +1,11 @@
 # UX redesign rationale (v0.3.0)
 
+> **Historical design input (v0.3.x):** This rationale is preserved for design
+> provenance. Its source paths, dependency versions, component names, and
+> capability claims are not authoritative for the current tree. See
+> [Architecture](./architecture.md), [ROADMAP.md](../../ROADMAP.md), and the
+> [RFC index](../../rfcs/README.md) for current decisions.
+
 ## Mental model
 
 A user opens apimokka to **observe and adjust how their mocked API

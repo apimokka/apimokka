@@ -1,6 +1,6 @@
 # RFC MK-015 — Accessibility, keyboard, and command palette contract
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Accessibility / keyboard navigation / command palette.
 **Touches.** `main.rs`, `app.rs::subscription`, all screens
 

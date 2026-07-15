@@ -1,5 +1,11 @@
 # apimokka — designer brief
 
+> **Historical design input (v0.3.x):** This document is preserved for design
+> provenance. Its source paths, dependency versions, component names, and
+> capability claims are not authoritative for the current tree. See
+> [Architecture](./architecture.md), [ROADMAP.md](../../ROADMAP.md), and the
+> [RFC index](../../rfcs/README.md) for current decisions.
+
 This document hands off the apimokka GUI mockup to a visual designer.
 The current implementation works as a functional spike but the visual
 result is dense and inconsistent. Use this brief to produce a clean

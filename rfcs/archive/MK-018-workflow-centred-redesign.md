@@ -1,6 +1,6 @@
 # RFC MK-018 — Workflow-centred UX redesign
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Top-level UX architecture.
 **Touches.** `shell/view.rs`, `shell/top_bar.rs`, `shell/left_rail.rs`, `screens/rule_builder.rs`, `screens/trace_strip.rs` (new), `screens/wizard.rs`, `screens/overview.rs` (removed), `selection.rs`
 

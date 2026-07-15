@@ -1,6 +1,6 @@
 # RFC MK-002 — Workspace dashboard and new-workspace wizard
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Workspace entry flow.
 **Touches.** `screens/welcome.rs`, `screens/dashboard.rs`, `screens/wizard.rs`
 

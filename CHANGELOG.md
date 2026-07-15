@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Changed
+
+- Repository governance records now reconcile every RFC lifecycle entry with
+  the files on disk and the historical release record.
+- The snora 0.25 dependency is no longer vendored. The workspace manifest uses
+  the crates.io release, and `Cargo.lock` currently resolves `snora`,
+  `snora-core`, `snora-design`, and `snora-widgets` to 0.25.2.
+
+---
+
 ## [0.10.0] — 2026-06-20
 
 RFC MK-050 — Migrate to snora 0.25 Snora Design system. A minor-version bump

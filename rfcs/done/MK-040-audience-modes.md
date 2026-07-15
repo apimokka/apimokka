@@ -1,6 +1,6 @@
 # RFC MK-040 — Audience modes: Guided and Expert
 
-**Status.** Implemented (v0.9.0–v0.10.0)
+**Status.** Implemented (v0.9.9)
 **Tracks.** A user-chosen presentation density (Guided / Expert) that adapts
 scaffolding without ever renaming the domain. First-run mode picker; persisted
 user setting; mode-aware content layer.

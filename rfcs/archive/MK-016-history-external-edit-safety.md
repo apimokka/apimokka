@@ -1,6 +1,6 @@
 # RFC MK-016 — Local history, external edit reload, and non-destructive safety
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Undo, external file watcher, destructive-action confirmation.
 **Touches.** `screens/confirm_dialog.rs`, `message.rs::ConfirmAction`, `app.rs`, `shell/right_inspector.rs`, `screens/rule_builder.rs`
 

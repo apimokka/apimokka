@@ -1,6 +1,6 @@
 # RFC MK-014 — Rhai middleware script surface
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Middleware script discovery and inspection.
 **Touches.** `screens/scripts.rs`
 

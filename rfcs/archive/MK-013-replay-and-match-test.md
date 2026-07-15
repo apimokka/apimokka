@@ -1,6 +1,6 @@
 # RFC MK-013 — Replay and match-test workflow
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Dry-run rule testing from inside the GUI.
 **Touches.** `screens/match_test.rs`, `screens/rule_builder.rs`, `screens/trace.rs`, `screens/match_detail.rs`, `app.rs::run_stub_match_test`
 

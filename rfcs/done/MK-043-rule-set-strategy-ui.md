@@ -1,6 +1,6 @@
 # RFC MK-043 — Rule-set strategy UI
 
-**Status.** Implemented (v0.12.0)
+**Status.** Implemented (v0.9.12)
 **Tracks.** Surfacing the rule-selection strategy, per-rule weight and
 priority fields, and validation feedback for strategy mismatches.
 **Touches.** `screens/routes.rs` (rule_set_config, rule_editor),

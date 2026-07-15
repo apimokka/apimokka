@@ -1,6 +1,6 @@
 # RFC MK-044 — Bottom drawer completeness
 
-**Status.** Implemented (v0.13.0)
+**Status.** Implemented (v0.9.13)
 **Tracks.** Bottom drawer (MK-032): validation panel and save-diff panel.
 Also: the one stubbed command palette entry (`PaletteCmdAddRule → Noop`).
 **Touches.** `screens/bottom_drawer.rs`, `message.rs`, `app.rs`,

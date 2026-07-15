@@ -1,6 +1,6 @@
 # RFC MK-006 — Rule-set manager and rule list
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Rule-set tree, rule list operations.
 **Touches.** `screens/routes.rs`, `shell/right_inspector.rs`
 

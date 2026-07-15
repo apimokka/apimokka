@@ -1,6 +1,6 @@
 # RFC MK-045 — Undo / redo history
 
-**Status.** Implemented (v0.14.0)
+**Status.** Implemented (v0.9.14)
 **Tracks.** Command-log undo/redo for rule-level operations.
 **Touches.** `app.rs`, `message.rs`, `shell/view.rs` (feedback banner),
 `screens/command_palette.rs`, keyboard subscription, i18n.

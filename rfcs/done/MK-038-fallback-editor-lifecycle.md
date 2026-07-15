@@ -1,6 +1,6 @@
 # RFC MK-038 — Fallback file editor: workflow and data lifecycle
 
-**Status.** Implemented (v0.6.3)
+**Status.** Implemented (v0.9.4)
 **Tracks.** Viewing, editing, saving, and reverting fallback `.json` files (file-system routing) on the Routes screen.
 **Touches.** `App` state, Routes centre panel, sidebar dirty markers, top-bar save chip, confirm dialog.
 **Refines.** MK-028 (Routes workbench), MK-035 (state models).

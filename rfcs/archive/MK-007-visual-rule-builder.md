@@ -1,6 +1,6 @@
 # RFC MK-007 — Visual rule builder screens
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Routes screen / rule editing UX.
 **Touches.** `crates/apimokka-app/src/screens/rule_builder.rs`, `screens/routes.rs`
 

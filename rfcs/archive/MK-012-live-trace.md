@@ -1,6 +1,6 @@
 # RFC MK-012 — Live Trace panel and match-detail inspector
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Trace event list and detail.
 **Touches.** `screens/trace.rs`, `screens/match_detail.rs`, `shell/bottom_drawer.rs`
 

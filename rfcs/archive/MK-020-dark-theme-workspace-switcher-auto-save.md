@@ -1,6 +1,6 @@
 # RFC MK-020 — Dark theme, workspace switcher, auto-save, styled buttons
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Remaining UX deferred items + visual completeness.
 **Touches.** `theme.rs`, `app.rs`, `shell/top_bar.rs`, `shell/view.rs`,
 `screens/workspace_menu.rs` (new), `screens/command_palette.rs`,

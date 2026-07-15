@@ -1,6 +1,6 @@
 # RFC MK-011 — Validation, diagnostics, save, and runtime action workflow
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Validation drawer, save flow, reload/restart banners.
 **Touches.** `shell/bottom_drawer.rs`, `shell/view.rs`, `app.rs::simulate_save`, `app.rs::rebuild_validation`
 

@@ -1,6 +1,6 @@
 # RFC MK-039 — Intuitive workflow without relabeling
 
-**Status.** Implemented (v0.8.0)
+**Status.** Implemented (v0.9.5)
 **Tracks.** Accessibility/comfort tokens, friendly error model, async-ready
 task shape, disabled-action reasons, inline concept hints, non-modal undo.
 **Touches.** `theme.rs` tokens, `apimokka-model` (new `friendly_error.rs`),

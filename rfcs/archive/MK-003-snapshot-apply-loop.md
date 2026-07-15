@@ -1,6 +1,6 @@
 # RFC MK-003 — Snapshot-apply loop and in-memory workspace adapter
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** State management / data layer.
 **Touches.** `crates/apimokka-model/src/mock.rs`, `crates/apimokka-app/src/app.rs`
 

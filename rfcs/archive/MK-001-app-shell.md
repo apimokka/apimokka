@@ -1,6 +1,6 @@
 # RFC MK-001 — App shell and snora AppLayout contract
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Top-level GUI architecture.
 **Touches.** `crates/apimokka-app/src/shell/`, `crates/apimokka-app/src/main.rs`
 

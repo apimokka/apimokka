@@ -1,6 +1,6 @@
 # RFC MK-009 — Respond editor and response preview
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Respond block editing.
 **Touches.** `screens/rule_builder.rs` (respond_card)
 

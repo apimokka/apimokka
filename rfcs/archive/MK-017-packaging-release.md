@@ -1,6 +1,6 @@
 # RFC MK-017 — Packaging, performance, and release gates
 
-**Status.** Superseded by RFC MK-021..MK-037 series (workflow-centred redesign)
+**Status.** Superseded by RFCs MK-021–MK-037 — workflow-centred redesign series
 **Tracks.** Release artifacts, performance benchmarks, review checklist.
 **Touches.** Workspace Cargo manifest, `README.md`, `CHANGELOG.md`, release archive
 
