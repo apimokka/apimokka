@@ -1,69 +1,86 @@
-# API mokka
+# apimokka
 
-[apimock-rs](https://github.com/nabbisen/apimock-rs) (API mock) based visual mocking helper to handle HTTP/JSON req/res written in Rust.
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.91%2B-orange.svg)](https://www.rust-lang.org)
 
-[![crates.io](https://img.shields.io/crates/v/apimokka?label=latest)](https://crates.io/crates/apimokka)
-[![Documentation](https://docs.rs/apimokka/badge.svg?version=latest)](https://docs.rs/apimokka)
-[![Dependency Status](https://deps.rs/crate/apimokka/latest/status.svg)](https://deps.rs/crate/apimokka)
-[![Releases Workflow](https://github.com/nabbisen/apimokka/actions/workflows/release-executable.yaml/badge.svg)](https://github.com/nabbisen/apimokka/actions/workflows/release-executable.yaml)
-[![License](https://img.shields.io/github/license/nabbisen/apimokka)](https://github.com/nabbisen/apimokka/blob/main/LICENSE)
+**A desktop GUI mockup for [apimock-rs](https://github.com/nabbisen/apimock-rs) — the Rhai-scriptable HTTP mock server.**
 
-## 🛠️ App overhaul announcement
+---
 
-### ⚠️ Major update in development (apimock-rs, the core lib, v4)
+## Overview
 
-apimock-rs, the core lib, v4 introduces a fundamental shift in design. Existing configuration files will no longer work as-is. Some features will be deprecated.
-In return: cleaner configs, dynamic resolution, and better extensibility.
+apimokka is a UI/UX prototype demonstrating the full screen flow of a desktop
+GUI for apimock-rs. It covers workspace management, visual rule editing,
+live-request tracing, server settings, and audience-mode switching — built on
+[iced 0.14](https://github.com/iced-rs/iced) and
+[snora 0.25](https://crates.io/crates/snora) with the Snora Design system.
 
-## Summary
+This is a **mockup only** — no file I/O, no live server connection. All workspace
+data is mock data seeded at startup. The goal is to validate screen flows and UX
+patterns before writing production integration code.
 
-Mock with mokka ☕️🌄
+---
 
-📖 Docs around server [Configure](https://github.com/nabbisen/apimock-rs/blob/main/docs/CONFIGURE.md), and [examples](https://github.com/nabbisen/apimock-rs/blob/main/examples/config/full/)
+## Why / When
 
-### Features
+Use this mockup to:
+- Evaluate the proposed screen architecture before committing to production code
+- Walk through the Guided / Expert audience-mode UX with stakeholders
+- Review the visual rule builder, trace screen, and workspace wizard with real users
+- Identify missing i18n keys or accessibility gaps early
+- Exercise the undo/redo command log and first-launch flow
 
-- GUI but lightweight as feather
-- Intutive terminal and productive tabs
-- Built as native and supports cross-platform
+---
 
-## Usage
+## Quick Start
 
-### Executable
+### Prerequisites
 
-[Assets](https://github.com/nabbisen/apimokka/releases/latest) in Releases offer executables for multiple platforms.
+- Rust 1.91 or later
+- A Linux desktop with Wayland or X11 (iced 0.14 requirement)
 
-```sh
-./apimokka
-
-# at startup, option to generate app default config and middleware files is available:
-./apimokka --init
-```
-
-Asset includes default config file as an example.
-
-### `cargo` install
+### Build and run
 
 ```sh
-cargo install apimokka
-```
-
-## Screenshot
-
-![screenshot.png](screenshot.png)
-
-## [Binding for Node.js](napi/README.md)
-
-Cross-platform supporting packages are available via `npm install`.
-
-## Development
-
-```sh
+git clone <this-repo>
+cd apimokka
 cargo run
-
-cargo test
 ```
 
-## Acknowledgements
+The app opens to the **mode picker** (first-launch flow). Choose Guided or Expert,
+then navigate to the Welcome screen. Click **Open workspace** → **shop-api-mock**
+to reach the full Routes workbench.
 
-Depends on [apimock-rs](https://github.com/nabbisen/apimock-rs) and [FLTK](https://www.fltk.org/) / [fltk-rs](https://github.com/fltk-rs/fltk-rs). [napi-rs](https://github.com/napi-rs/napi-rs) for binding for [Node.js](https://nodejs.org/).
+---
+
+## Features / Design Notes
+
+- **First-launch flow** — Mode picker → Welcome → Dashboard or Wizard → Workspace. On the Welcome screen, "Create workspace" opens a three-starter wizard (Minimal / Shop API example / Empty); the Minimal default generates a single `GET /health → 200 OK` rule.
+- **Audience modes** — Guided mode surfaces inline hints and collapses advanced controls (headers, body conditions, strategy) behind expandable "More" rows; Expert mode shows everything directly. Switching modes is reversible in Settings.
+- **Snapshot-apply loop simulation** — mirrors the apimock-rs `Workspace::apply(EditCommand)` contract without real file I/O (see [MK-035](./rfcs/done/MK-035-state-models.md))
+- **Undo / redo** — typed command log (⌘Z / ⌘⇧Z); covers delete, add, move, and URL-path edits
+- **MK-038 fallback file lifecycle** — two-buffer (saved baseline + draft), explicit Save, confirmed Revert, live JSON validity badge
+- **Snora Design tokens** — built on snora 0.25's design system: WCAG-AA contrast-tested color presets with four themes (Light, Dark, **High Contrast Light, High Contrast Dark**). High-contrast modes add visible card/panel borders for low-vision users. Selectable in Settings → Appearance.
+- **Non-colour status matrix** — every status indicator carries both a glyph and a text label
+- **i18n from day one** — English and Japanese translations compiled into the binary; locale switch in Settings
+- **snora AppLayout shell** — header / left sidebar / screen body / bottom drawer; command palette (all 17 commands wired)
+- **Visual rule builder** — URL path + operator, method segment controls, header and body condition rows with full operator coverage, respond editor (inline text / file path / status / delay)
+- **Live Trace panel** — filterable event list, outcome-aware match detail (Matched → jump to rule; Fallback → jump to file; Miss → create rule CTA; Error → kind + message), dropped-event warning
+- **Bottom drawer** — Validation panel grouped by rule set with jump-to-rule navigation; Save-diff panel with rule summaries per dirty file
+- **Test rule dialog** — evaluates method, URL path, all header conditions (9 ops), all body conditions (19 ops) including dotted-path JSON traversal
+
+---
+
+## More Detail
+
+- [Full documentation](./docs/src/README.md) *(mdbook source)*
+- [RFC index](./rfcs/README.md)
+- [Changelog](./CHANGELOG.md)
+
+---
+
+## License
+
+Apache-2.0. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
+
+Author: **nabbisen**

@@ -1,0 +1,13 @@
+pub mod command_palette;
+pub mod confirm_dialog;
+pub mod dashboard;
+pub mod dotted_path;
+pub mod mode_picker;
+pub mod routes;
+pub mod scripts;
+pub mod settings;
+pub mod test_rule;
+pub mod trace;
+pub mod welcome;
+pub mod wizard;
+pub mod workspace_menu;

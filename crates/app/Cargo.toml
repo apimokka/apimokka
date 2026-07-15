@@ -1,0 +1,21 @@
+[package]
+name        = "apimokka"
+description = "apimokka — a desktop GUI wrapper and helper for apimock-rs."
+readme      = "../../README.md"
+version.workspace       = true
+edition.workspace       = true
+rust-version.workspace  = true
+license.workspace       = true
+authors.workspace       = true
+repository.workspace    = true
+
+[[bin]]
+name = "apimokka"
+path = "src/main.rs"
+
+[dependencies]
+apimokka-model.workspace    = true
+apimokka-i18n.workspace     = true
+iced.workspace              = true
+snora.workspace             = true
+serde_json                  = "1"
