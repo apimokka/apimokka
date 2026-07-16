@@ -9,7 +9,9 @@ record. The lifecycle policy is the MK-000 entry below.
 
 ## Proposed (open for review)
 
-No RFCs are currently proposed.
+| RFC | Title | Tracks |
+|---|---|---|
+| [MK-052](./proposed/MK-052-test-rule-matcher-conformance.md) | Test Rule matcher conformance | M2 — Match-test conformance |
 
 ---
 
