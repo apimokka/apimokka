@@ -11,7 +11,8 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-| [MK-052](./proposed/MK-052-test-rule-matcher-conformance.md) | Test Rule matcher conformance | M2 — Match-test conformance |
+
+No RFCs are currently proposed.
 
 ---
 
@@ -50,6 +51,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-049](./done/MK-049-minor-gap-fixes.md) | Minor gap fixes | v0.9.18 |
 | [MK-050](./done/MK-050-snora-design-migration.md) | Migrate to snora 0.25 Snora Design system | v0.10.0 |
 | [MK-051](./done/MK-051-repository-truth-and-rfc-integrity.md) | Repository truth and RFC integrity | Unreleased |
+| [MK-052](./done/MK-052-test-rule-matcher-conformance.md) | Test Rule matcher conformance | Unreleased |
 
 ---
 

@@ -1,6 +1,6 @@
 # RFC MK-052 — Test Rule matcher conformance
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M2 — Match-test conformance.
 **Touches.** Test Rule evaluation and result types, matcher dependency and
 provenance, dialog rendering and EN/JA copy, conformance tests, capability
@@ -676,7 +676,7 @@ verified match/non-match until every condition is supported and valid.
 | Risk | Mitigation |
 |---|---|
 | 5.10.0 differs from intended 5.10.1 | Name both contracts, limit M2 to the executable baseline, and require explicit future adoption |
-| Dependencies increase build/security surface | Exact pins, lockfile checksums, MSRV build, audit, and review |
+| Dependencies increase build/security surface | Compatible manifest ranges plus the committed lockfile and executable oracle guard for version, source, checksum, and features; MSRV build, audit, and review |
 | Adapter mapping drifts when model variants change | Exhaustive capability mapping plus `all()` coverage tests |
 | Unsupported sibling is hidden by an early failure | Evaluate safely and enforce aggregate precedence |
 | Validation diverges from engine false-return behavior | Limit preflight to invalid/ambiguous inputs and test it separately; valid matching still calls engine |
@@ -699,4 +699,5 @@ The independent reviewer and project owner must explicitly confirm:
 5. configuration preflight errors should remain distinct from the engine's
    leaf-level `false` behavior for malformed expected values.
 
-Implementation is not authorized by creation of this proposed RFC.
+Implementation was not authorized merely by creation of the proposed RFC; the
+project owner authorized it separately after design acceptance.

@@ -110,3 +110,29 @@ features` to require `apimock-routing` features `[default]` and `http` features
 identity or feature drift, and exit 2 means the check could not run. Its
 self-test additionally requires `chmod`, `cp`, `env`, `mkdir`, `mktemp`, `rm`,
 and `sed`.
+
+## M2 lifecycle-closure candidate — 2026-07-16
+
+After independent acceptance of the implementation and compatible-manifest
+oracle-guard amendment, MK-052 moved to `rfcs/done/` with `Implemented
+(Unreleased)`. Its index entry moved to Implemented, and the Proposed section is
+explicitly empty. M2 remains `In review` with closure confirmation pending.
+Before restaging this move, the still-Proposed RFC's risk table was reconciled
+to name the accepted compatible-range, committed-lockfile, and executable-
+oracle-guard control instead of the superseded exact-manifest-pin policy. Its
+historical implementation-authorization sentence was also recast in past tense.
+
+| Closure check | Exit | Observed result |
+|---|---:|---|
+| `bash scripts/check-matcher-oracle-self-test.sh` | 0 | 6 checks passed |
+| `bash scripts/check-matcher-oracle.sh` | 0 | Reviewed package identities and resolved features verified |
+| `bash scripts/check-rfcs-self-test.sh` | 0 | 25 checks passed |
+| `bash scripts/check-rfcs.sh` | 0 | `RFC integrity: 0 error(s)` |
+| `git diff --check` | 0 | No tracked-file whitespace diagnostics |
+| `git diff --no-index --check /dev/null -- rfcs/done/MK-052-test-rule-matcher-conformance.md` | 1 | Clean moved-file difference with zero diagnostics |
+
+The closure patch changes lifecycle and evidence documentation only. Rust,
+dependency, lint, audit, stable, and MSRV implementation gates were not rerun;
+the accepted M2 evidence above remains the observed implementation record. The
+oracle guard and its self-test were rerun because the adopted dependency
+contract is part of MK-052 closure.
