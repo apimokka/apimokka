@@ -2,13 +2,15 @@
 
 ### Changed
 
-- Test Rule now evaluates supported conditions through exactly pinned
+- Test Rule now evaluates supported conditions through the lockfile-resolved
   apimock-routing 5.10.0 matcher primitives. Unsupported configured methods and
   operators produce a distinct “Unable to verify” outcome; malformed input
   produces Error; neither can be reported as Matched or No match. Exact i64,
   engine wildcard, dotted-path, typed JSON, numeric, array, and presence
   semantics have executable conformance coverage. The README and UI disclose
-  the supported matrix and link the detailed limitations page (RFC MK-052).
+  the supported matrix and link the detailed limitations page. A repository
+  guard rejects unreviewed matcher/parser version, source, checksum, or feature
+  drift (RFC MK-052).
 - Repository governance records now reconcile every RFC lifecycle entry with
   the files on disk and the historical release record.
 - The snora 0.25 dependency is no longer vendored. The workspace manifest uses

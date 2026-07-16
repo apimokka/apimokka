@@ -71,8 +71,10 @@ documentation only; their M1 baseline above remains the observed record.
 
 ## M2 match-test implementation candidate — 2026-07-16
 
-RFC MK-052 pins `apimock-routing` 5.10.0 and `http` 1.4.2 for fail-closed Test
-Rule conformance. The lockfile and downloaded crates agreed on these checksums:
+RFC MK-052 permits the `apimock-routing` 5.x and `http` 1.4 compatibility lines
+in the workspace manifest. For fail-closed Test Rule conformance, `Cargo.lock`
+fixes the reviewed build to `apimock-routing` 5.10.0 and `http` 1.4.2. The
+lockfile and downloaded crates agreed on these checksums:
 
 | Crate | SHA-256 / Cargo checksum |
 |---|---|
@@ -82,6 +84,8 @@ Rule conformance. The lockfile and downloaded crates agreed on these checksums:
 | Command | Exit | Observed result |
 |---|---:|---|
 | `cargo fmt --check` | 0 | Rust formatting is clean |
+| `bash scripts/check-matcher-oracle-self-test.sh` | 0 | 6 checks passed: valid contract plus version, source, checksum, routing-feature, and HTTP-feature drift rejection |
+| `bash scripts/check-matcher-oracle.sh` | 0 | Lockfile versions/sources/checksums and resolved feature sets match the reviewed oracle contract |
 | `TMPDIR=$PWD/target/tmp cargo test -p apimokka match_test --locked` | 0 | 30 focused conformance/diagnostic/screen tests passed |
 | `TMPDIR=$PWD/target/tmp cargo test --workspace --lib --bins --locked` | 0 | 121 tests passed (114 app, 7 model); three existing `dropping_references` warnings |
 | `TMPDIR=$PWD/target/tmp cargo build --workspace --locked` | 0 | Workspace build passed |
@@ -98,3 +102,11 @@ The audit used cargo-audit 0.22.2 and loaded 1,160 RustSec advisories. Clippy an
 audit remain truthful M4 inputs, not M2 passes. M2 is
 `In review`; this candidate does not claim implementation acceptance or
 milestone completion.
+
+The oracle guard requires Bash 4 or newer, `awk`, `dirname`, `sort`, and Cargo.
+It reads package identity from `Cargo.lock` and uses `cargo tree --locked -e
+features` to require `apimock-routing` features `[default]` and `http` features
+`[default, std]`. Exit 0 means the reviewed contract matches, exit 1 means
+identity or feature drift, and exit 2 means the check could not run. Its
+self-test additionally requires `chmod`, `cp`, `env`, `mkdir`, `mktemp`, `rm`,
+and `sed`.

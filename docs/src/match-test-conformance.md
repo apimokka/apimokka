@@ -1,10 +1,13 @@
 # Test Rule matcher conformance
 
 Test Rule is a local diagnostic dry run. It does not send network traffic. Its
-supported comparisons call leaf matcher primitives from the exactly pinned
-`apimock-routing` 5.10.0 crate. The repository's 5.10.1 GUI integration
-reference remains the intended M3 contract, but no reproducible 5.10.1 engine
-artifact was available when RFC MK-052 adopted the executable M2 oracle.
+supported comparisons call leaf matcher primitives from the `apimock-routing`
+5.10.0 crate fixed in `Cargo.lock`. The manifest accepts the 5.x compatibility
+line, but a later resolved artifact is not an adopted matcher until its
+provenance and conformance evidence are reviewed. The repository's 5.10.1 GUI
+integration reference remains the intended M3 contract, but no reproducible
+5.10.1 engine artifact was available when RFC MK-052 adopted the executable M2
+oracle.
 
 Test Rule fails closed:
 
@@ -73,4 +76,8 @@ Unavailable operations remain editable so the mockup does not destroy rule
 data. The dialog displays a warning before running and lists the unavailable
 conditions after running. A later engine version expands this matrix only after
 its immutable version/checksum, MSRV, executable behavior, tests, UI copy, and
-independent conformance review are recorded.
+independent conformance review are recorded. Programme gates use `--locked` so
+the build uses the checked-in resolution, and the matcher-oracle guard verifies
+that the checked-in versions, registry sources, checksums, and activated
+features still match the reviewed contract. A compatible lockfile update cannot
+pass that guard silently.

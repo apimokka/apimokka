@@ -9,8 +9,9 @@ documentation, changelog, and M2 evidence.
 ## Summary
 
 Replace the Test Rule dialog's best-effort evaluator with a fail-closed
-conformance adapter. Supported conditions call the matcher primitives from an
-exactly pinned `apimock-routing` 5.10.0 dependency. Conditions which cannot be
+conformance adapter. Supported conditions call the matcher primitives from the
+`apimock-routing` 5.10.0 artifact resolved exactly in `Cargo.lock`. Conditions
+which cannot be
 verified against that executable engine return `Unsupported`; malformed input
 or invalid rule configuration returns `Error`. Neither category may be reduced
 to `Matched` or `NoMatch`.
@@ -101,14 +102,33 @@ through Cargo, commit the resulting lockfile entry, and re-observe its checksum.
 
 ## Decision
 
-### 1. Pin and call the real matcher
+### 1. Lock and call the real matcher
 
-Implementation adds these exact workspace dependencies, with no semver range:
+Implementation declares compatible workspace dependency lines:
 
 ```toml
-apimock-routing = "=5.10.0"
-http = "=1.4.2"
+apimock-routing = "5"
+http = "1.4"
 ```
+
+Under Cargo's compatibility rules, these mean `>=5.0.0, <6.0.0` and
+`>=1.4.0, <2.0.0`. The requirements avoid unnecessarily excluding compatible
+releases during future dependency maintenance. They do not make every matching
+release an adopted conformance oracle. The committed `Cargo.lock`, used with
+`--locked`, fixes this implementation and its evidence to `apimock-routing`
+5.10.0 and `http` 1.4.2 with the recorded checksums.
+
+Repository gate `bash scripts/check-matcher-oracle.sh` mechanically verifies
+the adopted boundary before conformance evidence is accepted:
+
+- both package versions, the crates.io registry source, and checksums must match
+  the provenance table;
+- resolved `apimock-routing` features must be exactly `default`; and
+- resolved `http` features must be exactly `default,std`.
+
+The guard reads package identity from `Cargo.lock` and resolved features from
+`cargo tree --locked -e features`. Its mutation self-test must reject version,
+source, checksum, and feature drift.
 
 The app's conformance adapter maps supported GUI operations to the public
 5.10.0 matcher primitives and calls them in production. It may perform request
@@ -129,19 +149,22 @@ apimock_routing::rule_set::rule::when::request::body::body_operator::BodyOperato
 apimock_routing::util::json::json_value_by_jsonpath
 ```
 
-These paths are an accepted version-pinned integration risk, not a stable API
-claim beyond 5.10.0. A path change is handled by the same explicit upgrade rule
-as a behavior change.
+These paths are an accepted lockfile-version integration risk, not a stable API
+claim beyond the resolved 5.10.0 artifact. A path change is handled by the same
+explicit upgrade rule as a behavior change.
 
 The full `RuleSet` matcher is not reused because constructing engine rule sets
 from the GUI model would establish the editing mapping that M3 is scheduled to
 decide. M2 reuses only leaf matcher semantics and records the small orchestration
 boundary explicitly.
 
-`Cargo.lock` is the installed-version authority. The implementation review
-package records the resolved version and checksum and compares them with the
-provenance table. A version change, feature change, patch, fork, or source
-override requires an RFC amendment and a fresh conformance review.
+`Cargo.lock` is the installed-version and executable-oracle authority. The
+implementation review package records the resolved version and checksum and
+compares them with the provenance table. A manifest range alone does not adopt
+a later artifact. Any lockfile-resolved version change, feature change, patch,
+fork, or source override requires an RFC amendment and a fresh conformance
+review before it can become accepted evidence. Ordinary locked Cargo commands
+do not replace this identity gate; both are mandatory.
 
 ### 2. Separate verification outcomes
 
@@ -419,6 +442,8 @@ crates/app/src/match_test/tests/body.rs
 crates/app/src/match_test/tests/aggregation.rs
 crates/app/src/match_test/tests/screen.rs
 docs/src/match-test-conformance.md
+scripts/check-matcher-oracle.sh
+scripts/check-matcher-oracle-self-test.sh
 ```
 
 `match_test.rs` owns orchestration, capability lookup, and preflight. `result.rs`
@@ -488,9 +513,9 @@ covers:
   `BodyOp::all` so a newly added model variant cannot silently bypass the
   capability table.
 
-Expected matcher behavior is derived from the pinned engine calls. Assertions
+Expected matcher behavior is derived from the locked engine calls. Assertions
 also name stable known cases so an upstream behavior change cannot be normalized
-away by changing both sides unnoticed. The exact dependency pin and checksum
+away by changing both sides unnoticed. The exact lockfile version and checksum
 make that upstream change an explicit repository diff.
 
 Screen-flow tests cover Matched, NoMatch, Unsupported, and Error in both
@@ -525,7 +550,8 @@ it exists. Adoption requires:
 3. an updated operator matrix based on public executable primitives;
 4. focused positive and negative tests for changed behavior;
 5. documentation and UI capability updates; and
-6. independent conformance review.
+6. updated oracle-guard constants and negative tests; and
+7. independent conformance review.
 
 If the future artifact's body `Regex` behavior remains literal containment, it
 remains unsupported under that name unless the integration contract is also
@@ -533,16 +559,17 @@ revised. M2 must not label substring behavior as regex.
 
 ## Implementation sequence
 
-1. Add the exact dependencies, resolve the lockfile, and record
-   versions/checksums.
-2. Add domain results, capability tables, input parsing, and aggregation.
-3. Map supported operations directly to engine matcher primitives.
-4. Replace reducer stub evaluation and delete best-effort branches/tests.
-5. Render all four outcomes and pre-run limitations with EN/JA copy.
-6. Add the complete operator, boundary, aggregation, and screen-flow matrix.
-7. Correct README claims and add the conformance page and changelog entry.
-8. Run the focused suite, RFC integrity checks, and programme-wide gates.
-9. Produce implementation evidence for independent review.
+1. Add the compatible dependency requirements, resolve the lockfile, and record
+   exact versions/checksums.
+2. Add the oracle identity guard and its drift-mutation self-test.
+3. Add domain results, capability tables, input parsing, and aggregation.
+4. Map supported operations directly to engine matcher primitives.
+5. Replace reducer stub evaluation and delete best-effort branches/tests.
+6. Render all four outcomes and pre-run limitations with EN/JA copy.
+7. Add the complete operator, boundary, aggregation, and screen-flow matrix.
+8. Correct README claims and add the conformance page and changelog entry.
+9. Run the focused suite, RFC integrity checks, and programme-wide gates.
+10. Produce implementation evidence for independent review.
 
 The sequence is small enough and the mappings are fully enumerated here, so a
 separate developer handoff is not required. If implementation is delegated
@@ -557,6 +584,8 @@ also observes, without overclaiming, the programme commands:
 
 ```sh
 cargo fmt --check
+bash scripts/check-matcher-oracle-self-test.sh
+bash scripts/check-matcher-oracle.sh
 cargo test --workspace --lib --bins --locked
 cargo build --workspace --locked
 cargo +1.91 test --workspace --lib --bins --locked
