@@ -1,61 +1,65 @@
-//! MK-034 — O-03 Test Rule dialog.
+//! MK-034 / MK-052 — fail-closed Test Rule dialog.
 use crate::app::App;
-use crate::message::{Message, TestRuleResult};
+use crate::match_test::{
+    ConditionIdentity, ConditionOutcome, DiagnosticScope, EvaluationError, TestRuleOutcome,
+    UnsupportedReason,
+};
+use crate::message::Message;
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
 use iced::widget::{Space, button, column, container, row, text, text_input};
-use iced::{Alignment, Element, Length, Padding};
+use iced::{Alignment, Element, Length, Padding, Theme};
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let tr = &app.test_rule;
+    let limitations =
+        crate::match_test::unsupported_conditions(app.selected_rule().map(|rule| &rule.payload));
 
     let result_el: Element<Message> = match &tr.result {
         None => text(app.t(Key::TestRuleResultHint))
             .size(size::CAPTION)
             .color(theme::muted(&app.theme()))
             .into(),
-        Some(TestRuleResult::Matched { summary }) => container(
-            row![
-                text(app.t(Key::TestRuleMatched)).size(size::BODY),
-                text(summary.as_str())
-                    .size(size::CAPTION)
-                    .color(theme::muted(&app.theme())),
-            ]
-            .spacing(space::S3)
-            .align_y(Alignment::Center),
-        )
-        .padding(Padding::from([space::S3, space::S4]))
-        .style(theme::card_selected_style)
-        .width(Length::Fill)
-        .into(),
-        Some(TestRuleResult::NoMatch) => {
-            container(text(app.t(Key::TestRuleNoMatch)).size(size::BODY))
+        Some(result) => {
+            let style: fn(&Theme) -> iced::widget::container::Style = match result.outcome {
+                TestRuleOutcome::Matched => theme::card_selected_style,
+                TestRuleOutcome::NoMatch => theme::chip_style,
+                TestRuleOutcome::Unsupported | TestRuleOutcome::Error => theme::banner_style,
+            };
+            let mut details: Vec<Element<Message>> = vec![
+                text(result_title(app, result.outcome))
+                    .size(size::BODY)
+                    .into(),
+            ];
+            for line in result_lines(app, result) {
+                details.push(text(line).size(size::CAPTION).into());
+            }
+            container(column(details).spacing(space::S1))
                 .padding(Padding::from([space::S3, space::S4]))
-                .style(theme::chip_style)
+                .style(style)
                 .width(Length::Fill)
                 .into()
         }
-        Some(TestRuleResult::Error(msg)) => container(
-            row![
-                text(app.t(Key::TestRuleError)).size(size::BODY),
-                text(msg.as_str()).size(size::CAPTION),
-            ]
-            .spacing(space::S3),
-        )
-        .padding(Padding::from([space::S3, space::S4]))
-        .style(theme::banner_style)
-        .width(Length::Fill)
-        .into(),
+    };
+
+    let limitation_el: Element<Message> = if limitations.is_empty() {
+        Space::new().height(0).into()
+    } else {
+        container(text(app.t(Key::TestRuleUnableVerify)).size(size::CAPTION))
+            .padding(Padding::from([space::S2, space::S3]))
+            .style(theme::banner_style)
+            .width(Length::Fill)
+            .into()
     };
 
     let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
     let method_btns: Vec<Element<Message>> = methods
         .iter()
-        .map(|m| {
-            let active = tr.method.to_uppercase() == *m;
-            button(text(*m).size(size::CAPTION))
-                .on_press(Message::TestRuleSetMethod(m.to_string()))
+        .map(|method| {
+            let active = tr.method.to_uppercase() == *method;
+            button(text(*method).size(size::CAPTION))
+                .on_press(Message::TestRuleSetMethod((*method).to_owned()))
                 .padding(Padding::from([space::S2, space::S3]))
                 .style(if active {
                     theme::seg_active
@@ -80,7 +84,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             text(app.t(Key::TestRuleHint))
                 .size(size::CAPTION)
                 .color(theme::muted(&app.theme())),
-            Space::new().height(space::S2),
+            limitation_el,
             widgets::divider(),
             widgets::field(
                 app.t(Key::TestRuleMethod),
@@ -129,4 +133,130 @@ pub fn view(app: &App) -> Element<'_, Message> {
     )
     .style(theme::dialog_style)
     .into()
+}
+
+pub(crate) fn result_lines(app: &App, result: &crate::match_test::TestRuleResult) -> Vec<String> {
+    let mut lines = Vec::with_capacity(result.diagnostics.len() + result.conditions.len());
+    for diagnostic in &result.diagnostics {
+        lines.push(format!(
+            "{}: {}",
+            diagnostic_label(app, &diagnostic.scope),
+            error_label(app, &diagnostic.reason)
+        ));
+    }
+    for condition in &result.conditions {
+        lines.push(format!(
+            "{}: {}",
+            condition_label(app, &condition.condition),
+            outcome_label(app, &condition.outcome)
+        ));
+    }
+    lines
+}
+
+pub(crate) fn result_title(app: &App, outcome: TestRuleOutcome) -> &str {
+    match outcome {
+        TestRuleOutcome::Matched => app.t(Key::TestRuleMatched),
+        TestRuleOutcome::NoMatch => app.t(Key::TestRuleNoMatch),
+        TestRuleOutcome::Unsupported => app.t(Key::TestRuleUnsupported),
+        TestRuleOutcome::Error => app.t(Key::TestRuleError),
+    }
+}
+
+fn condition_label(app: &App, identity: &ConditionIdentity) -> String {
+    match identity {
+        ConditionIdentity::Method => app.t(Key::TestRuleMethod).to_owned(),
+        ConditionIdentity::UrlPath => app.t(Key::TestRulePath).to_owned(),
+        ConditionIdentity::Header { index, name } => {
+            format!("{} {} ({name})", app.t(Key::TestRuleHeaders), index + 1)
+        }
+        ConditionIdentity::Body { index, path } => {
+            format!("{} {} ({path})", app.t(Key::TestRuleBody), index + 1)
+        }
+    }
+}
+
+fn diagnostic_label(app: &App, scope: &DiagnosticScope) -> String {
+    match scope {
+        DiagnosticScope::Selection => app.t(Key::TestRuleScopeSelection).to_owned(),
+        DiagnosticScope::RequestMethod => app.t(Key::TestRuleScopeRequestMethod).to_owned(),
+        DiagnosticScope::RequestHeaderLine(line) => {
+            format!("{} {line}", app.t(Key::TestRuleScopeHeaderLine))
+        }
+        DiagnosticScope::RequestBody => app.t(Key::TestRuleScopeRequestBody).to_owned(),
+    }
+}
+
+fn outcome_label(app: &App, outcome: &ConditionOutcome) -> String {
+    match outcome {
+        ConditionOutcome::Passed => app.t(Key::TestRuleConditionPassed).to_owned(),
+        ConditionOutcome::Failed => app.t(Key::TestRuleConditionFailed).to_owned(),
+        ConditionOutcome::Unsupported { reason } => format!(
+            "{} — {}",
+            app.t(Key::TestRuleConditionUnsupported),
+            unsupported_label(app, reason)
+        ),
+        ConditionOutcome::Error { reason } => format!(
+            "{} — {}",
+            app.t(Key::TestRuleConditionError),
+            error_label(app, reason)
+        ),
+    }
+}
+
+fn unsupported_label(app: &App, reason: &UnsupportedReason) -> String {
+    match reason {
+        UnsupportedReason::ConfiguredMethod(method) => {
+            format!("{}: {method}", app.t(Key::TestRuleReasonUnsupportedMethod))
+        }
+        UnsupportedReason::UrlOperator(operator) => format!(
+            "{}: {} {operator}",
+            app.t(Key::TestRuleReasonUnsupportedOperator),
+            app.t(Key::TestRulePath)
+        ),
+        UnsupportedReason::HeaderOperator(operator) => format!(
+            "{}: {} {operator}",
+            app.t(Key::TestRuleReasonUnsupportedOperator),
+            app.t(Key::TestRuleHeaders)
+        ),
+        UnsupportedReason::BodyOperator(operator) => format!(
+            "{}: {} {operator}",
+            app.t(Key::TestRuleReasonUnsupportedOperator),
+            app.t(Key::TestRuleBody)
+        ),
+    }
+}
+
+fn error_label(app: &App, reason: &EvaluationError) -> String {
+    let key = match reason {
+        EvaluationError::NoRuleSelected => Key::TestRuleReasonNoSelection,
+        EvaluationError::InvalidRequestMethod(_) | EvaluationError::InvalidConfiguredMethod(_) => {
+            Key::TestRuleReasonInvalidMethod
+        }
+        EvaluationError::MissingHeaderColon
+        | EvaluationError::InvalidHeaderName(_)
+        | EvaluationError::InvalidHeaderValue
+        | EvaluationError::HeaderValueNotText
+        | EvaluationError::InvalidConfiguredHeaderName(_) => Key::TestRuleReasonInvalidHeader,
+        EvaluationError::DuplicateHeader { .. } => Key::TestRuleReasonDuplicateHeader,
+        EvaluationError::InvalidRequestBody => Key::TestRuleReasonInvalidBody,
+        EvaluationError::InvalidConfiguredJson
+        | EvaluationError::InvalidConfiguredNumber
+        | EvaluationError::InvalidConfiguredInteger
+        | EvaluationError::InvalidConfiguredLength => Key::TestRuleReasonInvalidConfig,
+    };
+    let label = app.t(key);
+    match reason {
+        EvaluationError::InvalidRequestMethod(value)
+        | EvaluationError::InvalidConfiguredMethod(value)
+        | EvaluationError::InvalidHeaderName(value)
+        | EvaluationError::InvalidConfiguredHeaderName(value) => format!("{label}: {value}"),
+        EvaluationError::DuplicateHeader { name, first_line } => {
+            format!(
+                "{label}: {name} ({} {first_line})",
+                app.t(Key::TestRuleScopeHeaderLine)
+            )
+        }
+        _ => label.to_owned(),
+    }
 }

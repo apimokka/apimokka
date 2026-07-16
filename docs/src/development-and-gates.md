@@ -68,3 +68,33 @@ The no-index check covers the move destination before the closure commit; exit
 expected tracked files in the closure patch. Rust, dependency, clippy, audit,
 and MSRV gates were not rerun because the closure patch changes lifecycle
 documentation only; their M1 baseline above remains the observed record.
+
+## M2 match-test implementation candidate — 2026-07-16
+
+RFC MK-052 pins `apimock-routing` 5.10.0 and `http` 1.4.2 for fail-closed Test
+Rule conformance. The lockfile and downloaded crates agreed on these checksums:
+
+| Crate | SHA-256 / Cargo checksum |
+|---|---|
+| `apimock-routing 5.10.0` | `72118fbc81807a3a3e511ec638b3fc798b5eee035c8d287158ae487763003cf1` |
+| `http 1.4.2` | `6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425` |
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `cargo fmt --check` | 0 | Rust formatting is clean |
+| `TMPDIR=$PWD/target/tmp cargo test -p apimokka match_test --locked` | 0 | 30 focused conformance/diagnostic/screen tests passed |
+| `TMPDIR=$PWD/target/tmp cargo test --workspace --lib --bins --locked` | 0 | 121 tests passed (114 app, 7 model); three existing `dropping_references` warnings |
+| `TMPDIR=$PWD/target/tmp cargo build --workspace --locked` | 0 | Workspace build passed |
+| `TMPDIR=$PWD/target/tmp cargo +1.91 test --workspace --lib --bins --locked` | 0 | 121 tests passed; the same three warnings |
+| `TMPDIR=$PWD/target/tmp cargo +1.91 build --workspace --locked` | 0 | Workspace build passed |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | 101 | Same four M1 model findings; no MK-052 code was reached before failure |
+| `cargo clippy -p apimokka --all-targets --no-deps` | 0 | Existing app warnings only; none in MK-052 paths |
+| `cargo audit` | 1 | Same two `quick-xml` vulnerabilities and seven allowed warnings as M1; no MK-052-added package appeared in an advisory |
+| `scripts/check-rfcs-self-test.sh` | 0 | 25 checks passed |
+| `scripts/check-rfcs.sh` | 0 | `RFC integrity: 0 error(s)` |
+| tracked plus new-file whitespace checks | expected | No whitespace diagnostics; each of eleven untracked files returned expected no-index status 1 |
+
+The audit used cargo-audit 0.22.2 and loaded 1,160 RustSec advisories. Clippy and
+audit remain truthful M4 inputs, not M2 passes. M2 is
+`In review`; this candidate does not claim implementation acceptance or
+milestone completion.

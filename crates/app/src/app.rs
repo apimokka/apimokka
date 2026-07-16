@@ -7,7 +7,8 @@ use apimokka_model::{
 };
 use iced::{Element, Subscription, Theme};
 
-use crate::message::{ConfirmAction, Message, TestRuleResult};
+use crate::match_test::{TestRequest, TestRuleResult};
+use crate::message::{ConfirmAction, Message};
 use crate::screens;
 use crate::selection::{DrawerMode, RouteSelection, WorkspaceTab};
 use crate::shell;
@@ -1113,7 +1114,14 @@ impl App {
             Message::TestRuleOpen => {
                 let (method, url_path) = self
                     .selected_rule()
-                    .map(|r| (r.payload.method.clone(), r.payload.url_path.clone()))
+                    .map(|r| {
+                        let method = if r.payload.method.is_empty() {
+                            "GET".to_owned()
+                        } else {
+                            r.payload.method.clone()
+                        };
+                        (method, r.payload.url_path.clone())
+                    })
                     .unwrap_or_default();
                 self.test_rule.method = method;
                 self.test_rule.url_path = url_path;
@@ -1145,18 +1153,30 @@ impl App {
             }
             Message::TestRuleSetMethod(v) => {
                 self.test_rule.method = v;
+                self.test_rule.result = None;
             }
             Message::TestRuleSetPath(v) => {
                 self.test_rule.url_path = v;
+                self.test_rule.result = None;
             }
             Message::TestRuleSetHeaders(v) => {
                 self.test_rule.headers_text = v;
+                self.test_rule.result = None;
             }
             Message::TestRuleSetBody(v) => {
                 self.test_rule.body = v;
+                self.test_rule.result = None;
             }
             Message::TestRuleRun => {
-                self.test_rule.result = Some(self.run_stub_test());
+                self.test_rule.result = Some(crate::match_test::evaluate(
+                    self.selected_rule().map(|rule| &rule.payload),
+                    TestRequest {
+                        method: &self.test_rule.method,
+                        url_path: &self.test_rule.url_path,
+                        headers: &self.test_rule.headers_text,
+                        body: &self.test_rule.body,
+                    },
+                ));
             }
 
             // Dotted-path assistant
@@ -1659,206 +1679,10 @@ impl App {
         self.dirty_count += 1;
     }
 
-    fn selected_rule(&self) -> Option<&apimokka_model::snapshot::RuleView> {
+    pub(crate) fn selected_rule(&self) -> Option<&apimokka_model::snapshot::RuleView> {
         let id = self.selection.rule?;
         self.snapshot.as_ref()?.find_rule(id).map(|(_, r)| r)
     }
-
-    /// MK-049: evaluate the test request against the selected rule's conditions.
-    /// Checks method, URL path (with op), all header conditions, and all body
-    /// conditions. Body is parsed as JSON; the dotted-path accessor follows the
-    /// engine's own semantics (`a.b.c`, `items.0.name`).
-    fn run_stub_test(&self) -> TestRuleResult {
-        let Some(rule) = self.selected_rule() else {
-            return TestRuleResult::Error("No rule selected.".into());
-        };
-        let p = &rule.payload;
-
-        // ── Method ──────────────────────────────────────────────────────────
-        let req_method = self.test_rule.method.to_uppercase();
-        if !p.method.is_empty() && p.method.to_uppercase() != req_method {
-            return TestRuleResult::NoMatch;
-        }
-
-        // ── URL path ─────────────────────────────────────────────────────────
-        let req_path = &self.test_rule.url_path;
-        if !p.url_path.is_empty() {
-            let matched = match p.url_path_op {
-                Some(apimokka_model::UrlPathOp::StartsWith) => {
-                    req_path.starts_with(p.url_path.as_str())
-                }
-                Some(apimokka_model::UrlPathOp::Contains) => req_path.contains(p.url_path.as_str()),
-                Some(apimokka_model::UrlPathOp::EndsWith) => {
-                    req_path.ends_with(p.url_path.as_str())
-                }
-                Some(apimokka_model::UrlPathOp::NotEqual) => req_path != &p.url_path,
-                Some(apimokka_model::UrlPathOp::WildCard) => true, // best-effort
-                _ => req_path == &p.url_path,
-            };
-            if !matched {
-                return TestRuleResult::NoMatch;
-            }
-        }
-
-        // ── Header conditions ─────────────────────────────────────────────────
-        // Parse "name: value\nname2: value2" into a lowercase-name map.
-        let req_headers: std::collections::HashMap<String, String> = self
-            .test_rule
-            .headers_text
-            .lines()
-            .filter_map(|line| {
-                let (k, v) = line.split_once(':')?;
-                Some((k.trim().to_lowercase(), v.trim().to_string()))
-            })
-            .collect();
-
-        for hc in &p.headers {
-            let name_lc = hc.name.to_lowercase();
-            let actual = req_headers.get(&name_lc);
-            use apimokka_model::HeaderOp;
-            let matched = match hc.op {
-                HeaderOp::Exists => actual.is_some(),
-                HeaderOp::Absent => actual.is_none(),
-                HeaderOp::Equal => actual.map(|v| v == &hc.value).unwrap_or(false),
-                HeaderOp::NotEqual => actual.map(|v| v != &hc.value).unwrap_or(true),
-                HeaderOp::Contains => actual
-                    .map(|v| v.contains(hc.value.as_str()))
-                    .unwrap_or(false),
-                HeaderOp::StartsWith => actual
-                    .map(|v| v.starts_with(hc.value.as_str()))
-                    .unwrap_or(false),
-                HeaderOp::EndsWith => actual
-                    .map(|v| v.ends_with(hc.value.as_str()))
-                    .unwrap_or(false),
-                HeaderOp::Regex | HeaderOp::WildCard => actual.is_some(), // best-effort
-            };
-            if !matched {
-                return TestRuleResult::NoMatch;
-            }
-        }
-
-        // ── Body conditions ───────────────────────────────────────────────────
-        if !p.body.is_empty() {
-            let body_json: serde_json::Value = match serde_json::from_str(&self.test_rule.body) {
-                Ok(v) => v,
-                Err(_) => {
-                    if !self.test_rule.body.is_empty() {
-                        return TestRuleResult::Error(
-                            "Body is not valid JSON — cannot evaluate body conditions.".into(),
-                        );
-                    }
-                    serde_json::Value::Null
-                }
-            };
-
-            for bc in &p.body {
-                let target_val = dotted_path_get(&body_json, &bc.path);
-                use apimokka_model::BodyOp;
-                let matched = match bc.op {
-                    BodyOp::Exists => target_val.is_some(),
-                    BodyOp::Absent => target_val.is_none(),
-
-                    BodyOp::Equal | BodyOp::EqualString => {
-                        // String-coerce both sides
-                        target_val
-                            .map(|v| json_to_string(v) == bc.value)
-                            .unwrap_or(false)
-                    }
-                    BodyOp::EqualTyped => {
-                        // Compare JSON representations
-                        let expected: serde_json::Value = serde_json::from_str(&bc.value)
-                            .unwrap_or(serde_json::Value::String(bc.value.clone()));
-                        target_val.map(|v| v == &expected).unwrap_or(false)
-                    }
-                    BodyOp::Contains => target_val
-                        .map(|v| json_to_string(v).contains(bc.value.as_str()))
-                        .unwrap_or(false),
-                    BodyOp::StartsWith => target_val
-                        .map(|v| json_to_string(v).starts_with(bc.value.as_str()))
-                        .unwrap_or(false),
-                    BodyOp::EndsWith => target_val
-                        .map(|v| json_to_string(v).ends_with(bc.value.as_str()))
-                        .unwrap_or(false),
-
-                    BodyOp::EqualNumber | BodyOp::EqualInteger => {
-                        let exp = bc.value.parse::<f64>().ok();
-                        let act = target_val.and_then(|v| v.as_f64());
-                        matches!((exp, act), (Some(e), Some(a)) if (e - a).abs() < f64::EPSILON)
-                    }
-                    BodyOp::GreaterThan => cmp_f64(target_val, &bc.value, |a, e| a > e),
-                    BodyOp::LessThan => cmp_f64(target_val, &bc.value, |a, e| a < e),
-                    BodyOp::GreaterOrEqual => cmp_f64(target_val, &bc.value, |a, e| a >= e),
-                    BodyOp::LessOrEqual => cmp_f64(target_val, &bc.value, |a, e| a <= e),
-
-                    BodyOp::ArrayLengthEqual => {
-                        let exp = bc.value.parse::<usize>().ok();
-                        let act = target_val.and_then(|v| v.as_array()).map(|a| a.len());
-                        matches!((exp, act), (Some(e), Some(a)) if e == a)
-                    }
-                    BodyOp::ArrayLengthAtLeast => {
-                        let exp = bc.value.parse::<usize>().ok();
-                        let act = target_val.and_then(|v| v.as_array()).map(|a| a.len());
-                        matches!((exp, act), (Some(e), Some(a)) if a >= e)
-                    }
-                    BodyOp::ArrayContains => {
-                        let exp: serde_json::Value = serde_json::from_str(&bc.value)
-                            .unwrap_or(serde_json::Value::String(bc.value.clone()));
-                        target_val
-                            .and_then(|v| v.as_array())
-                            .map(|arr| arr.contains(&exp))
-                            .unwrap_or(false)
-                    }
-                    BodyOp::Regex => true, // best-effort: skip regex evaluation
-                };
-                if !matched {
-                    return TestRuleResult::NoMatch;
-                }
-            }
-        }
-
-        TestRuleResult::Matched {
-            summary: rule.summary(),
-        }
-    }
-}
-
-// ── Test runner helpers ────────────────────────────────────────────────────────
-
-/// Navigate a `serde_json::Value` using the engine's dotted-path syntax.
-/// `a.b.c` → nested objects; `items.0.name` → array index.
-fn dotted_path_get<'v>(root: &'v serde_json::Value, path: &str) -> Option<&'v serde_json::Value> {
-    let mut cur = root;
-    for seg in path.split('.') {
-        cur = if let Ok(idx) = seg.parse::<usize>() {
-            cur.as_array()?.get(idx)?
-        } else {
-            cur.as_object()?.get(seg)?
-        };
-    }
-    Some(cur)
-}
-
-fn json_to_string(v: &serde_json::Value) -> String {
-    match v {
-        serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Null => "null".into(),
-        other => other.to_string(),
-    }
-}
-
-fn cmp_f64(
-    actual: Option<&serde_json::Value>,
-    expected_str: &str,
-    pred: impl Fn(f64, f64) -> bool,
-) -> bool {
-    let exp = match expected_str.parse::<f64>() {
-        Ok(v) => v,
-        Err(_) => return false,
-    };
-    actual
-        .and_then(|v| v.as_f64())
-        .map(|act| pred(act, exp))
-        .unwrap_or(false)
 }
 
 // ── App view / subscription (not in the impl block above) ─────────────────────
@@ -3389,125 +3213,6 @@ mod tests_mk049 {
         );
     }
 
-    // ── run_stub_test header conditions ──────────────────────────────────
-
-    fn make_test_app_with_header_rule() -> App {
-        let mut a = expert();
-        let rs_id = a.snapshot.as_ref().unwrap().rule_sets[0].id;
-        let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
-        // Set URL path and add a header condition
-        a.update(Message::SelectRule(rule_id));
-        a.update(Message::RuleSetUrlPath("/api/test".into()));
-        a.update(Message::HeaderAdd);
-        a.update(Message::HeaderSetName {
-            index: 0,
-            value: "authorization".into(),
-        });
-        a.update(Message::HeaderSetValue {
-            index: 0,
-            value: "Bearer token".into(),
-        });
-        a.test_rule.url_path = "/api/test".into();
-        a.test_rule.method = "GET".into();
-        a
-    }
-
-    #[test]
-    fn test_rule_matches_when_header_condition_satisfied() {
-        let mut a = make_test_app_with_header_rule();
-        a.test_rule.headers_text = "authorization: Bearer token".into();
-        a.update(Message::TestRuleRun);
-        assert!(
-            matches!(a.test_rule.result, Some(TestRuleResult::Matched { .. })),
-            "should match when required header is present"
-        );
-    }
-
-    #[test]
-    fn test_rule_no_match_when_header_condition_fails() {
-        let mut a = make_test_app_with_header_rule();
-        a.test_rule.headers_text = "authorization: wrong".into();
-        a.update(Message::TestRuleRun);
-        assert!(
-            matches!(a.test_rule.result, Some(TestRuleResult::NoMatch)),
-            "should not match when header value is wrong"
-        );
-    }
-
-    #[test]
-    fn test_rule_no_match_when_required_header_absent() {
-        let mut a = make_test_app_with_header_rule();
-        a.test_rule.headers_text = "".into(); // no headers at all
-        a.update(Message::TestRuleRun);
-        assert!(
-            matches!(a.test_rule.result, Some(TestRuleResult::NoMatch)),
-            "should not match when required header is missing"
-        );
-    }
-
-    // ── run_stub_test body conditions ────────────────────────────────────
-
-    #[test]
-    fn test_rule_matches_body_equal() {
-        let mut a = expert();
-        // Find a rule that has a body condition in the mock data
-        let snap = a.snapshot.as_ref().unwrap();
-        let rule_with_body = snap
-            .rule_sets
-            .iter()
-            .flat_map(|rs| rs.rules.iter())
-            .find(|r| !r.payload.body.is_empty());
-        if let Some(rule) = rule_with_body {
-            let id = rule.id;
-            let bc = rule.payload.body[0].clone();
-            let url = rule.payload.url_path.clone();
-            let method = rule.payload.method.clone();
-            drop(snap);
-            a.update(Message::SelectRule(id));
-            a.test_rule.url_path = url;
-            a.test_rule.method = if method.is_empty() {
-                "POST".into()
-            } else {
-                method
-            };
-            // Build a JSON body that satisfies the first body condition
-            let json = format!(r#"{{"{key}": "{val}"}}"#, key = bc.path, val = bc.value);
-            a.test_rule.body = json;
-            a.test_rule.headers_text = String::new();
-            a.update(Message::TestRuleRun);
-            // We can only assert it didn't error — the condition may not be Equal
-            assert!(
-                !matches!(a.test_rule.result, Some(TestRuleResult::Error(_))),
-                "test runner should not error on well-formed body JSON"
-            );
-        }
-    }
-
-    #[test]
-    fn test_rule_errors_on_invalid_json_when_body_conditions_exist() {
-        let mut a = expert();
-        let snap = a.snapshot.as_ref().unwrap();
-        let rule_with_body = snap
-            .rule_sets
-            .iter()
-            .flat_map(|rs| rs.rules.iter())
-            .find(|r| !r.payload.body.is_empty());
-        if let Some(rule) = rule_with_body {
-            let id = rule.id;
-            drop(snap);
-            a.update(Message::SelectRule(id));
-            a.test_rule.body = "not json".into();
-            a.test_rule.headers_text = String::new();
-            a.update(Message::TestRuleRun);
-            // Either NoMatch (other conditions failed before reaching body)
-            // or Error (body is invalid JSON) — both are correct rejections.
-            assert!(
-                !matches!(a.test_rule.result, Some(TestRuleResult::Matched { .. })),
-                "invalid JSON body should not produce a Matched result"
-            );
-        }
-    }
-
     // ── ConfirmAction::DeleteRule removed ────────────────────────────────
 
     #[test]
@@ -3530,26 +3235,6 @@ mod tests_mk049 {
             before - 1,
             "rule set removed after confirmation"
         );
-    }
-
-    // ── dotted_path_get ──────────────────────────────────────────────────
-
-    #[test]
-    fn dotted_path_get_nested_object() {
-        let v: serde_json::Value = serde_json::json!({"a": {"b": {"c": 42}}});
-        assert_eq!(dotted_path_get(&v, "a.b.c"), Some(&serde_json::json!(42)));
-    }
-
-    #[test]
-    fn dotted_path_get_array_index() {
-        let v: serde_json::Value = serde_json::json!({"items": [1, 2, 3]});
-        assert_eq!(dotted_path_get(&v, "items.1"), Some(&serde_json::json!(2)));
-    }
-
-    #[test]
-    fn dotted_path_get_missing_key_returns_none() {
-        let v: serde_json::Value = serde_json::json!({"a": 1});
-        assert_eq!(dotted_path_get(&v, "b.c"), None);
     }
 }
 

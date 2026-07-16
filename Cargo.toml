@@ -18,6 +18,10 @@ repository      = "https://github.com/apimokka/apimokka"
 apimokka-i18n               = { version = "0", path = "crates/i18n" }
 apimokka-model              = { version = "0", path = "crates/model" }
 
+# API service
+apimock-routing             = "5"
+http                        = "1.4"
+
 # GUI stack
 iced                        = { version = "0.14", features = ["tokio", "advanced", "highlighter"] }
 snora                       = { version = "0.25", features = ["widgets", "design"] }
@@ -27,9 +31,9 @@ serde_json                  = "1"
 uuid                        = { version = "1", features = ["v4"] }
 
 [profile.dev]
-opt-level = 0
-debug = 1
+opt-level       = 0
+debug           = 1
 
 [profile.release]
-opt-level = 3
-lto = "thin"
+opt-level       = 3
+lto             = "thin"

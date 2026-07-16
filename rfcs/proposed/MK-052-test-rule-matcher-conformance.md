@@ -181,7 +181,7 @@ pub struct RequestDiagnostic {
 
 `ConditionIdentity` names Method, URL path, header index/name, or body
 index/path. `DiagnosticScope` names Selection, RequestMethod,
-RequestHeaderLine(line number), RequestHeaders, RequestBody, or Internal.
+RequestHeaderLine(line number) or RequestBody.
 Condition errors remain attached to the relevant condition; request/global
 errors use `diagnostics`. Reasons are enums with data, not pre-localized strings.
 The screen maps them to localized copy. Debug detail may be derived for tests,
@@ -216,7 +216,6 @@ configured condition is invalid or ambiguous. At minimum this includes:
 - invalid request JSON when at least one selected body condition needs it;
 - a malformed configured value for `EqualTyped`, `ArrayContains`, numeric,
   exact-integer, or array-length operations; and
-- an internal mapping invariant failure.
 
 The engine leaf functions sometimes return `false` for malformed configured
 values. Test Rule is a diagnostic workflow, so a preflight validation error is
@@ -240,10 +239,15 @@ established safely.
 
 Diagnostics have deterministic order: Selection first when present; otherwise
 RequestMethod, RequestHeaderLine in ascending one-based line order,
-RequestHeaders aggregate diagnostics, RequestBody, condition results in Method,
-URL, header-vector order, then body-vector order, and Internal last. Duplicate
-header diagnostics attach to the later line and name the first line. An internal
-error discovered earlier is retained but rendered last.
+RequestBody, then condition results in Method, URL, header-vector order, and
+body-vector order. Duplicate header
+diagnostics attach to the later line and name the first line.
+
+A malformed request method or demanded request body produces its authoritative
+request diagnostic without a second derivative condition error. A supported
+method or body condition that needs the unavailable parsed value is omitted;
+configured validation errors and unsupported conditions remain independent and
+are retained. This keeps the report complete without repeating one input fault.
 
 ### 4. Request-header grammar
 
@@ -293,6 +297,8 @@ out-of-range tests where applicable.
 
 - Multiple conditions are ANDed subject to the aggregate precedence above.
 - HTTP methods are compared through the engine `HttpMethod` primitive.
+- `url_path_op: None` is an absent URL constraint and emits no condition result;
+  it is not displayed as a synthetic Passed condition.
 - Header names are parsed case-insensitively. Values remain case-sensitive.
 - For supported header operations, a missing named header is `Failed`, including
   `NotEqual`, matching the engine's header-condition short circuit.
@@ -317,17 +323,21 @@ empty configured `RulePayload.method` is Any/no constraint. Nonempty configured
 and request strings are validated without whitespace trimming by
 `http::Method::from_bytes`. After syntactic validation, configured
 GET/POST/PUT/DELETE are recognized ASCII-case-insensitively and mapped to the
-engine variants. Configured PATCH or any other syntactically valid extension has
-no 5.10.0 configured-method variant and is Unsupported. The request method may
+engine variants. Configured PATCH or any other syntactically valid but unmapped
+standard or extension method has no 5.10.0 configured-method variant and is
+Unsupported. The request method may
 be any syntactically valid standard or extension method because the engine
 primitive compares a configured variant with a general `http::Method`.
+The current Test Rule dialog offers GET, POST, PUT, PATCH, and DELETE request
+buttons rather than free-form entry. Other valid methods remain evaluator inputs
+for restored/internal state and executable conformance coverage.
 
 | Configured rule method | Same valid request | Other standard request, including PATCH | Unrelated valid extension request | Malformed request |
 |---|---|---|---|---|
 | empty (Any) | Passed | Passed | Passed | Error: RequestMethod |
 | GET/POST/PUT/DELETE | Passed through corresponding `HttpMethod::is_match` | Failed through `is_match` | Failed through `is_match` | Error: RequestMethod |
 | PATCH | Unsupported | Unsupported | Unsupported | Error takes precedence over Unsupported |
-| other syntactically valid extension | Unsupported | Unsupported | Unsupported | Error takes precedence over Unsupported |
+| other valid standard or extension method | Unsupported | Unsupported | Unsupported | Error takes precedence over Unsupported |
 | malformed nonempty configured value | Error: Method condition | Error: Method condition | Error: Method condition | both method errors retained; aggregate Error |
 
 Configured Any still emits a Passed Method condition so the diagnostic order is
@@ -337,7 +347,7 @@ as lowercase `get` passes configured GET even though HTTP method tokens are
 normally case-sensitive; an unrelated extension such as PURGE fails. M2 records
 and tests the executable engine behavior rather than silently correcting it.
 Required tests cover every configured standard variant plus Any, PATCH, a valid
-unknown extension, and malformed text against the request categories in this
+unknown standard/extension method, and malformed text against the request categories in this
 table, including lowercase-standard request tokens.
 
 ### URL path
@@ -401,17 +411,21 @@ The implementation extracts matching from the already oversized reducer:
 crates/app/src/match_test.rs
 crates/app/src/match_test/input.rs
 crates/app/src/match_test/engine.rs
+crates/app/src/match_test/result.rs
 crates/app/src/match_test/tests.rs
 crates/app/src/match_test/tests/input.rs
 crates/app/src/match_test/tests/matrix.rs
+crates/app/src/match_test/tests/body.rs
 crates/app/src/match_test/tests/aggregation.rs
+crates/app/src/match_test/tests/screen.rs
 docs/src/match-test-conformance.md
 ```
 
-`match_test.rs` owns domain results, condition identities, capability lookup,
-preflight, and aggregation. `input.rs` parses the dialog request. `engine.rs`
-contains only audited GUI-to-engine enum mappings and leaf calls. The files in
-the block are the expected new tracked-file inventory. Test modules remain
+`match_test.rs` owns orchestration, capability lookup, and preflight. `result.rs`
+owns domain results, condition identities, diagnostics, and aggregation.
+`input.rs` parses the dialog request. `engine.rs` contains only audited
+GUI-to-engine enum mappings and leaf calls. The files in the block are the
+expected new tracked-file inventory. Test modules remain
 outside implementation modules and may be consolidated if the implementation
 review inventory explains the final path and each file stays cohesive and within
 repository size guidance. Any other new tracked file must be added to that
@@ -449,7 +463,7 @@ covers:
 
 - the complete configured-method/request-method categories in the HTTP matrix,
   including configured Any, every supported standard constraint, configured
-  PATCH, valid unknown extensions, and malformed values;
+  PATCH, valid unknown standard/extension methods, and malformed values;
 - wildcard `*`, `?`, repeated wildcards, empty matches, and Unicode scalars;
 - header-name case folding, case-sensitive values, missing headers including
   `NotEqual`, blank lines, first-colon splitting, ASCII whitespace, empty values,
@@ -466,8 +480,8 @@ covers:
 - ignored malformed header/body text when the selected rule has no condition in
   that family, and demanded validation when it has supported or unsupported
   conditions;
-- Selection, RequestMethod, RequestHeaderLine, RequestHeaders, RequestBody, and
-  Internal diagnostics plus their deterministic ordering with condition results;
+- Selection, RequestMethod, RequestHeaderLine, and RequestBody diagnostics plus
+  their deterministic ordering with condition results;
 - multiple-condition AND behavior and Error > Unsupported > Failed > Passed
   aggregation precedence; and
 - an invariant test that enumerates `UrlPathOp::all`, `HeaderOp::all`, and

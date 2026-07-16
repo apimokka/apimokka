@@ -457,7 +457,7 @@ blocking condition, owner, and next decision date.
 |---|---|---|
 | M0 — Planning approval | Complete | Approved 2026-07-15; evidence: `.git-exclude/reviewed/2026-07-15-apimokka-stabilization-roadmap-m0-confirmation-review.md` |
 | M1 — Repository truth | Complete | Accepted 2026-07-15; MK-051 Implemented (Unreleased); evidence: `.git-exclude/reviewed/2026-07-15-rfc-mk051-repository-truth-closure-confirmation-review.md` |
-| M2 — Match-test conformance | Designing | Proposed RFC MK-052; executable-oracle design pending independent review |
+| M2 — Match-test conformance | In review | MK-052 implementation candidate; independent conformance review pending |
 | M3 — Integration boundary | Not started | — |
 | M4 — Quality and security gates | Not started | — |
 | R1 — Blocking re-review | Not started | — |

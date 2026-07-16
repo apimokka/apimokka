@@ -20,14 +20,6 @@ pub enum ConfirmAction {
     RevertFile(String),
 }
 
-/// Stub test result (MK-034 O-03).
-#[derive(Debug, Clone)]
-pub enum TestRuleResult {
-    Matched { summary: String },
-    NoMatch,
-    Error(String),
-}
-
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum Message {

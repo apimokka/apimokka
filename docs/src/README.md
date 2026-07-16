@@ -6,6 +6,7 @@ This documentation is structured for three reader paths:
 - **Intermediate users** — API references, functional specifications *(pages not yet written)*
 - **Maintainers / Contributors** — [Architecture](./architecture.md) and
   [Development and gates](./development-and-gates.md)
+- **Test Rule users** — [Matcher conformance and limitations](./match-test-conformance.md)
 
 For current project status, see the [RFC index](../../rfcs/README.md) and
 [Changelog](../../CHANGELOG.md).

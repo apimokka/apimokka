@@ -14,8 +14,13 @@ name = "apimokka"
 path = "src/main.rs"
 
 [dependencies]
-apimokka-model.workspace    = true
-apimokka-i18n.workspace     = true
-iced.workspace              = true
-snora.workspace             = true
-serde_json                  = "1"
+apimokka-model              = { workspace = true }
+apimokka-i18n               = { workspace = true }
+
+apimock-routing             = { workspace = true }
+
+iced                        = { workspace = true }
+snora                       = { workspace = true }
+
+http                        = { workspace = true }
+serde_json                  = { workspace = true }

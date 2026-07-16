@@ -275,7 +275,27 @@ pub fn t(key: Key) -> &'static str {
         Key::TestRuleResultHint => "Run the test to see condition-by-condition result.",
         Key::TestRuleMatched => "✓ Matched",
         Key::TestRuleNoMatch => "◯ No match",
+        Key::TestRuleUnsupported => "? Unable to verify",
         Key::TestRuleError => "! Error",
+        Key::TestRuleUnableVerify => {
+            "This rule uses conditions unavailable in the adopted matcher. Run for details."
+        }
+        Key::TestRuleConditionPassed => "passed",
+        Key::TestRuleConditionFailed => "failed",
+        Key::TestRuleConditionUnsupported => "unsupported",
+        Key::TestRuleConditionError => "error",
+        Key::TestRuleReasonUnsupportedMethod => "configured method is unsupported",
+        Key::TestRuleReasonUnsupportedOperator => "operator is unsupported",
+        Key::TestRuleReasonNoSelection => "no rule is selected",
+        Key::TestRuleReasonInvalidMethod => "method is invalid",
+        Key::TestRuleReasonInvalidHeader => "header input is invalid",
+        Key::TestRuleReasonDuplicateHeader => "duplicate header",
+        Key::TestRuleReasonInvalidBody => "body is not valid JSON",
+        Key::TestRuleReasonInvalidConfig => "configured value is invalid",
+        Key::TestRuleScopeSelection => "Selection",
+        Key::TestRuleScopeRequestMethod => "Request method",
+        Key::TestRuleScopeHeaderLine => "Header line",
+        Key::TestRuleScopeRequestBody => "Request body",
 
         Key::DottedPathTitle => "Dotted-path assistant",
         Key::DottedPathPasteLabel => "Paste sample JSON",

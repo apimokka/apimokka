@@ -67,7 +67,10 @@ to reach the full Routes workbench.
 - **Visual rule builder** — URL path + operator, method segment controls, header and body condition rows with full operator coverage, respond editor (inline text / file path / status / delay)
 - **Live Trace panel** — filterable event list, outcome-aware match detail (Matched → jump to rule; Fallback → jump to file; Miss → create rule CTA; Error → kind + message), dropped-event warning
 - **Bottom drawer** — Validation panel grouped by rule set with jump-to-rule navigation; Save-diff panel with rule summaries per dirty file
-- **Test rule dialog** — evaluates method, URL path, all header conditions (9 ops), all body conditions (19 ops) including dotted-path JSON traversal
+- **Test rule dialog** — fail-closed dry-run evaluation against pinned
+  apimock-routing 5.10.0 matcher primitives. Unsupported conditions are reported
+  as “Unable to verify,” never as a match or non-match. See the
+  [conformance matrix](./docs/src/match-test-conformance.md).
 
 ---
 
