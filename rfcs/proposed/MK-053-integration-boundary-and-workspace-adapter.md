@@ -95,6 +95,8 @@ pub trait WorkspacePort {
     fn apply(&mut self, transaction: EditTransaction) -> Result<EditOutcome, ApplyFailure>;
     fn validate(&self) -> ValidationReport;
     fn save(&mut self) -> Result<SaveOutcome, SaveFailure>;
+    fn acknowledge_reload(&mut self) -> PortSnapshot;
+    fn acknowledge_restart(&mut self) -> PortSnapshot;
 }
 
 pub struct EditOutcome {
@@ -161,33 +163,59 @@ duplicating fields inside the legacy render types:
 ```rust
 pub struct PortSnapshot {
     workspace: WorkspaceSnapshot,
-    rule_conditions: Vec<RuleConditionsEntry>,
+    rules: Vec<PortRuleView>,
+    dirty_files: Vec<FileDiff>,
+    unsaved_hint: ReloadHint,
+    runtime_pending: ReloadHint,
 }
 
-pub struct RuleConditionsEntry {
+pub struct PortRuleView {
     rule_id: NodeId,
+    rule_match: RuleMatch,
     conditions: RuleConditionsView,
+    respond: RespondDefinition,
 }
 ```
 
-Read-only accessors expose the render workspace, the ordered condition entries,
-and lookup by rule ID. `into_legacy_workspace` may be used only where ownership
-of the legacy render snapshot is required during migration; its name documents
-that condition identity is deliberately discarded. Callers cannot construct or
-mutate wrapper entries. The in-memory port builds both views from one private
-canonical state; the legacy payload vectors are projections for existing
+Read-only accessors expose the render workspace, ordered canonical rule views,
+lookup by rule ID, dirty-file diffs, and both runtime phases.
+`into_legacy_workspace` may be used only where ownership of the legacy render
+snapshot is required during migration; its name documents that canonical rule
+state and condition identity are deliberately discarded. Callers cannot
+construct or mutate wrapper entries. The in-memory port builds both views from
+one private canonical state; the legacy payloads are projections for existing
 screens, not a second mutable source of truth.
 
-There is exactly one entry per rule, in rule-set/rule presentation order. No
-entry names an absent rule. Condition IDs are unique across the entire session
-node domain and the canonical values in each entry project to the corresponding
-legacy payload order according to the normalization contract below. One private
+There is exactly one canonical view per rule, in rule-set/rule presentation
+order. No view names an absent rule. Condition IDs are unique across the entire
+session node domain and canonical values project to the corresponding legacy
+payload order according to the normalization contract below. One private
 snapshot-construction routine creates both views and makes consistency true by
 construction; contract tests independently verify the invariants. Later reducer
-slices cache `PortSnapshot`, render through `workspace()`, and address condition
-edits through `conditions(rule_id)`. This additive transition seam avoids
-rewriting screens in the adapter slice and can disappear when the legacy render
-payload is retired.
+slices cache `PortSnapshot`, render through `workspace()`, and address edits
+through `rule(rule_id)` and its canonical values. This additive transition seam
+avoids rewriting screens in the adapter slice and can disappear when the legacy
+render payload is retired.
+
+The complete canonical rule view is required because the legacy response delay
+cannot distinguish canonical `None` from `Some(0)`. Keeping only condition IDs
+would make response history and unrelated response edits reconstruct canonical
+state from a lossy projection. `RuleMatch` is included alongside
+`RespondDefinition` so all reference-backed editable rule-core state has one
+canonical read surface.
+
+`dirty_files` is sorted by canonical path bytes and includes the root
+`apimock.toml` diff as well as dirty rule-set files. This makes root-setting
+dirty state observable even though the legacy render snapshot has no root
+`ConfigFileView`. Its worst effect equals `unsaved_hint`. The two phase fields
+equal those returned by the latest apply/save outcome.
+
+Runtime acknowledgement is a session operation, not an edit transaction.
+`acknowledge_reload` clears only a pending Reload and leaves Restart unchanged;
+`acknowledge_restart` clears either pending phase. Both return a fresh atomic
+`PortSnapshot`, do not change canonical workspace data or dirty files, and
+cannot fail. Deterministic save-failure injection remains a test control on the
+in-memory implementation and is not part of the production port trait.
 
 Canonical condition state does not retain the user's original draft bytes.
 Legacy render payloads use these two exhaustive projection functions:
@@ -230,6 +258,27 @@ projects as sorted compact JSON, and every presence value projects as an empty
 string. If exact draft preservation is later required for an active editor,
 the draft is app-owned presentation state and is never inferred from canonical
 workspace data.
+
+Legacy rule-core and response payloads are projected by the same private
+snapshot-construction path:
+
+| Canonical rule field | Legacy projection |
+|---|---|
+| absent URL path/operator | empty `url_path`, `url_path_op: None` |
+| present URL path/operator | stored path and operator |
+| absent/constrained method | empty string / stored uppercase method |
+| inline response | `InlineText`, stored text, empty file path |
+| file response | `ServeFile`, empty text, stored relative file path |
+| absent/present status | empty string / stored status |
+| absent delay | `0` |
+| present delay | stored `u64`, including `0` |
+
+All branches are exhaustive. Projection equality is required between each
+canonical `PortRuleView` and its legacy `RuleView`. Unlike condition projection,
+response projection is intentionally not invertible because absent delay and
+present zero both render as legacy zero. Reducer and history code must read the
+canonical `PortRuleView`; it may not remap a legacy response to recover the
+before value.
 
 ### 2. Boundary types, provenance, and conversion contract
 
@@ -480,8 +529,9 @@ value first, the prompt may be a false positive. Tracking an acknowledged
 runtime baseline and recomputing actual divergence is a later refinement, not
 an M3 claim.
 
-Every apply/save outcome exposes the current phase value rather than an event
-counter. Workspace-derived state therefore follows these rules:
+Every `PortSnapshot` and apply/save outcome exposes the current phase value
+rather than an event counter. Workspace-derived state therefore follows these
+rules:
 
 - dirty count is derived from snapshot file flags plus separately scoped
   fallback drafts;
@@ -623,9 +673,13 @@ Required tests cover:
   names, value-bearing empty strings, presence operations, exponent-form
   numeric input, integer/length values, and typed JSON with differing
   whitespace and object-key order at multiple nesting levels;
-- `PortSnapshot` construction proving exactly one ordered condition entry per
-  rule, no absent-rule entries, global editable-node ID uniqueness, matching
-  canonical/render condition order, and equality to the defined projections;
+- `PortSnapshot` construction proving exactly one ordered canonical view per
+  rule, no absent-rule views, global editable-node ID uniqueness, matching
+  canonical/render condition order, and equality to all defined rule,
+  response, and condition projections;
+- absent-delay versus present-zero canonical response visibility despite their
+  shared legacy zero projection, plus a prohibition on reconstructing history
+  before-values from that lossy projection;
 - stable/unique rule and condition IDs across update, move, snapshot, and save;
 - typed creation receipts for duplicate-equal conditions, fresh IDs, and
   complete history rebinding after recreation;
@@ -636,6 +690,9 @@ Required tests cover:
 - `changed_nodes`, canonical snapshot diagnostics, dirty flags, unsaved-hint
   recomputation, saved runtime-pending precedence/acknowledgement, failed-apply
   atomicity, and no-op save;
+- root-only dirty state visible through sorted `PortSnapshot::dirty_files`,
+  phase equality between snapshots and outcomes, Reload acknowledgement not
+  clearing Restart, and Restart acknowledgement clearing either pending phase;
 - multi-file save success, failure at first/middle/last file, returned
   post-attempt snapshots/diffs, both runtime phases, retry, and deterministic
   path ordering;
