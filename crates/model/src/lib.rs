@@ -28,6 +28,7 @@ pub mod settings;
 pub mod snapshot;
 pub mod trace;
 pub mod validation;
+pub mod workspace_port;
 
 pub use audience::AudienceMode;
 pub use edit_command::{ApplyResult, EditCommand, EditValue, RootSettingKey};
@@ -45,3 +46,11 @@ pub use settings::{RootSettings, Strategy};
 pub use snapshot::{RuleSetView, RuleView, WorkspaceMeta, WorkspaceSnapshot};
 pub use trace::{MatchTraceEvent, RequestSummary, TraceOutcome};
 pub use validation::{Diagnostic, NodeValidation, Severity, ValidationIssue, ValidationReport};
+pub use workspace_port::{
+    ApplyFailure, ArchivedNode, ArchivedNodePayload, ArchivedSubtree, BodyCondition,
+    CollectionEdit, ConditionWithId, CreationReceipt, EditIntent, EditOutcome, EditTransaction,
+    FieldError, HeaderCondition, NodeRebind, RespondDefinition, ResponseMode, RestorePlacement,
+    RootSettingEdit, RuleConditionsView, RuleEditPayload, RuleMatch, RuleSetPath, RuntimeEffect,
+    SaveError, SaveErrorKind, SaveFailure, SaveOutcome, SemanticCreationKey, WorkspaceEditValue,
+    WorkspaceNodeKind, WorkspacePort, WorkspaceRelativePath, WorkspaceRootKey,
+};

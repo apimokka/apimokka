@@ -10,4 +10,6 @@ authors.workspace       = true
 repository.workspace    = true
 
 [dependencies]
+http.workspace              = true
+serde_json.workspace        = true
 uuid.workspace              = true
