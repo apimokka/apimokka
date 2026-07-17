@@ -8,7 +8,8 @@ use super::{
     ResponseMode, RootSettingEdit, RuleMatch, RuleSetPath, RuntimeEffect, WorkspaceEditValue,
     WorkspaceRelativePath, WorkspaceRootKey,
 };
-use crate::rule::{BodyOp, HeaderOp, UrlPathOp};
+use crate::respond::{RespondMode, RespondPayload};
+use crate::rule::{BodyConditionPayload, BodyOp, HeaderConditionPayload, HeaderOp, UrlPathOp};
 
 pub fn parse_workspace_relative_path(
     field: &'static str,
@@ -395,4 +396,111 @@ fn type_mismatch<T>() -> Result<T, FieldError> {
         "root_value",
         FieldErrorKind::ValueTypeMismatch,
     ))
+}
+
+pub(super) fn project_header_condition(value: &HeaderCondition) -> HeaderConditionPayload {
+    let expected = match value.op {
+        HeaderOp::Equal
+        | HeaderOp::Contains
+        | HeaderOp::StartsWith
+        | HeaderOp::EndsWith
+        | HeaderOp::Regex
+        | HeaderOp::NotEqual
+        | HeaderOp::WildCard => value
+            .expected
+            .as_deref()
+            .expect("value-bearing canonical header condition has an expected value")
+            .to_owned(),
+        HeaderOp::Exists | HeaderOp::Absent => String::new(),
+    };
+    HeaderConditionPayload {
+        name: value.name.as_str().to_owned(),
+        op: value.op,
+        value: expected,
+    }
+}
+
+pub(super) fn project_body_condition(value: &BodyCondition) -> BodyConditionPayload {
+    use BodyOp::*;
+    let expected = match value.op {
+        Equal | EqualString | Contains | StartsWith | EndsWith | Regex => value
+            .expected
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("canonical string condition contains a JSON string")
+            .to_owned(),
+        EqualTyped | ArrayContains => value
+            .expected
+            .as_ref()
+            .map(canonical_json)
+            .expect("canonical typed condition has an expected value"),
+        EqualNumber | GreaterThan | LessThan | GreaterOrEqual | LessOrEqual | EqualInteger
+        | ArrayLengthEqual | ArrayLengthAtLeast => value
+            .expected
+            .as_ref()
+            .and_then(Value::as_number)
+            .map(ToString::to_string)
+            .expect("canonical numeric condition contains a JSON number"),
+        Exists | Absent => String::new(),
+    };
+    BodyConditionPayload {
+        path: value.path.clone(),
+        op: value.op,
+        value: expected,
+    }
+}
+
+fn canonical_json(value: &Value) -> String {
+    match value {
+        Value::Null => "null".to_owned(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::String(value) => {
+            serde_json::to_string(value).expect("serializing an in-memory JSON string cannot fail")
+        }
+        Value::Array(values) => {
+            let values = values.iter().map(canonical_json).collect::<Vec<_>>();
+            format!("[{}]", values.join(","))
+        }
+        Value::Object(values) => {
+            let mut entries = values.iter().collect::<Vec<_>>();
+            entries.sort_by(|(left, _), (right, _)| left.as_bytes().cmp(right.as_bytes()));
+            let entries = entries
+                .into_iter()
+                .map(|(key, value)| {
+                    let key = serde_json::to_string(key)
+                        .expect("serializing an in-memory JSON object key cannot fail");
+                    format!("{key}:{}", canonical_json(value))
+                })
+                .collect::<Vec<_>>();
+            format!("{{{}}}", entries.join(","))
+        }
+    }
+}
+
+pub(super) fn project_rule_match(value: &RuleMatch) -> (String, Option<UrlPathOp>, String) {
+    (
+        value.url_path.clone().unwrap_or_default(),
+        value.url_path_op,
+        value.method.clone().unwrap_or_default(),
+    )
+}
+
+pub(super) fn project_response(value: &RespondDefinition) -> RespondPayload {
+    let (mode, text, file_path) = match (&value.text, &value.file_path) {
+        (Some(text), None) => (RespondMode::InlineText, text.clone(), String::new()),
+        (None, Some(file_path)) => (
+            RespondMode::ServeFile,
+            String::new(),
+            file_path.as_str().to_owned(),
+        ),
+        _ => unreachable!("RespondDefinition construction seals response mode"),
+    };
+    RespondPayload {
+        mode,
+        text,
+        file_path,
+        status: value.status.clone().unwrap_or_default(),
+        delay_milliseconds: value.delay_milliseconds.unwrap_or(0),
+    }
 }

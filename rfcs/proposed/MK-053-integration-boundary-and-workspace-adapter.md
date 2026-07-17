@@ -289,7 +289,7 @@ before value.
 - response update;
 - root setting update for reference-backed keys;
 - header/body add/update/remove by condition `NodeId`; and
-- explicit collection replacement using `CollectionEdit<T>`.
+- explicit identity-bearing collection replacement.
 
 ```rust
 pub enum CollectionEdit<T> {
@@ -297,7 +297,40 @@ pub enum CollectionEdit<T> {
     Clear,
     Replace(Vec<T>),
 }
+
+pub enum ConditionEdit<T> {
+    Existing { id: NodeId, condition: T },
+    Create {
+        key: SemanticCreationKey,
+        condition: T,
+    },
+}
+
+pub struct RuleEditPayload {
+    // ...
+    pub headers: CollectionEdit<ConditionEdit<HeaderCondition>>,
+    pub body: CollectionEdit<ConditionEdit<BodyCondition>>,
+}
 ```
+
+`Existing` preserves the named condition ID while updating or reordering its
+canonical value. The ID must be unique in the replacement and currently belong
+to the same rule and condition family. `Create` allocates a fresh ID and returns
+a typed receipt for its transaction-unique semantic key. `AddRule` rejects
+`Existing` because no condition can already belong to a new rule; every nested
+condition is a keyed `Create`. `UpdateRule::Replace` may mix existing and new
+entries. Existing IDs omitted from the replacement are invalidated, and no
+structural-equality correlation is attempted.
+
+History preparation for a replacement records semantic creation keys alongside
+any invalidated before-bindings that a later compensation recreates. Receipt
+processing updates those recorded bindings by key before the history entry
+moves stacks, using the same complete-binding rule as explicit subtree
+`NodeRebind`s. This correlation is semantic and position-based, never
+content-based. `Preserve` creates or invalidates no condition and reports no
+condition in `changed_nodes`; `Clear` invalidates every prior condition;
+`Replace` reports every prior condition plus every newly created condition.
+Duplicate keys are rejected with the rest of the transaction before apply.
 
 The boundary distinguishes three provenance classes:
 
@@ -311,7 +344,7 @@ The common conversion contract is:
 
 | Surface | Conversion | Provenance |
 |---|---|---|
-| collection Preserve / Clear / Replace | `None` / `Some(vec![])` / `Some(values)` | Documented Reference |
+| collection Preserve / Clear / Replace | `None` / `Some(vec![])` / `Some(resolved values)` after identity validation | Documented Reference plus Local M3 identity decision |
 | empty URL draft | `url_path: None`, `url_path_op: None` | Local M3 Decision |
 | nonempty URL draft | `Some(value)` and selected operator | Documented Reference |
 | Any / constrained method | `None` / `Some(value)` | Documented Reference |
@@ -683,6 +716,10 @@ Required tests cover:
 - stable/unique rule and condition IDs across update, move, snapshot, and save;
 - typed creation receipts for duplicate-equal conditions, fresh IDs, and
   complete history rebinding after recreation;
+- `AddRule` with duplicate-equal keyed header/body creations, plus
+  `UpdateRule` replacement preserving/reordering `Existing` IDs, receipting
+  every keyed `Create`, invalidating omitted IDs, rejecting cross-rule/family
+  IDs, and reporting exact Preserve/Clear/Replace changed-node sets;
 - deletion/recreation of a nonempty rule set, including older history entries
   for rules, equal conditions, and prototype extras inside that subtree;
 - injected failure in the middle of compound compensation proving candidate

@@ -4,6 +4,10 @@
 //! to be source- or binary-isomorphic with an unavailable engine crate.
 
 mod mapping;
+mod memory;
+
+#[cfg(test)]
+mod memory_tests;
 
 #[cfg(test)]
 mod tests;
@@ -22,6 +26,7 @@ pub use mapping::{
     map_body_condition, map_header_condition, map_response, map_root_setting, map_rule_match,
     parse_rule_set_path, parse_workspace_relative_path,
 };
+pub use memory::MemoryWorkspace;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldError {
@@ -68,6 +73,9 @@ pub enum FieldErrorKind {
     DuplicateArchivedNode,
     InvalidRestorePlacement,
     InvalidArchiveTopology,
+    DuplicateNodeId,
+    DuplicateRuleSetPath,
+    SaveTargetNotDirty,
 }
 
 impl fmt::Display for FieldErrorKind {
@@ -127,6 +135,18 @@ pub enum CollectionEdit<T> {
     Preserve,
     Clear,
     Replace(Vec<T>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConditionEdit<T> {
+    Existing {
+        id: NodeId,
+        condition: T,
+    },
+    Create {
+        key: SemanticCreationKey,
+        condition: T,
+    },
 }
 
 impl<T> CollectionEdit<T> {
@@ -198,6 +218,32 @@ impl BodyCondition {
 pub struct RuleConditionsView {
     pub headers: Vec<ConditionWithId<HeaderCondition>>,
     pub body: Vec<ConditionWithId<BodyCondition>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PortRuleView {
+    rule_id: NodeId,
+    rule_match: RuleMatch,
+    conditions: RuleConditionsView,
+    respond: RespondDefinition,
+}
+
+impl PortRuleView {
+    pub fn rule_id(&self) -> NodeId {
+        self.rule_id
+    }
+
+    pub fn rule_match(&self) -> &RuleMatch {
+        &self.rule_match
+    }
+
+    pub fn conditions(&self) -> &RuleConditionsView {
+        &self.conditions
+    }
+
+    pub fn respond(&self) -> &RespondDefinition {
+        &self.respond
+    }
 }
 
 /// Canonical rule match. Construction is restricted to [`map_rule_match`].
@@ -365,9 +411,30 @@ impl RuntimeEffect {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuleEditPayload {
     pub rule_match: RuleMatch,
-    pub headers: CollectionEdit<HeaderCondition>,
-    pub body: CollectionEdit<BodyCondition>,
+    pub headers: CollectionEdit<ConditionEdit<HeaderCondition>>,
+    pub body: CollectionEdit<ConditionEdit<BodyCondition>>,
     pub respond: RespondDefinition,
+}
+
+impl RuleEditPayload {
+    fn creation_keys(&self) -> impl Iterator<Item = &SemanticCreationKey> {
+        self.headers
+            .creation_keys()
+            .chain(self.body.creation_keys())
+    }
+}
+
+impl<T> CollectionEdit<ConditionEdit<T>> {
+    fn creation_keys(&self) -> impl Iterator<Item = &SemanticCreationKey> {
+        match self {
+            Self::Replace(values) => values.iter(),
+            Self::Preserve | Self::Clear => [].iter(),
+        }
+        .filter_map(|value| match value {
+            ConditionEdit::Create { key, .. } => Some(key),
+            ConditionEdit::Existing { .. } => None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -633,9 +700,14 @@ impl EditIntent {
     fn creation_keys(&self) -> Vec<&SemanticCreationKey> {
         match self {
             Self::AddRuleSet { key, .. }
-            | Self::AddRule { key, .. }
             | Self::AddHeaderCondition { key, .. }
             | Self::AddBodyCondition { key, .. } => vec![key],
+            Self::AddRule { rule, key, .. } => {
+                let mut keys = vec![key];
+                keys.extend(rule.creation_keys());
+                keys
+            }
+            Self::UpdateRule { rule, .. } => rule.creation_keys().collect(),
             Self::RestoreSubtree { archive } => {
                 archive.nodes.iter().map(|node| &node.key).collect()
             }
@@ -646,7 +718,7 @@ impl EditIntent {
 
 #[derive(Debug, Clone)]
 pub struct EditOutcome {
-    pub snapshot: WorkspaceSnapshot,
+    pub snapshot: PortSnapshot,
     pub changed_nodes: Vec<NodeId>,
     pub creations: Vec<CreationReceipt>,
     pub rebound_nodes: Vec<NodeRebind>,
@@ -665,8 +737,64 @@ pub struct FileDiff {
 }
 
 #[derive(Debug, Clone)]
+pub struct PortSnapshot {
+    workspace: WorkspaceSnapshot,
+    rules: Vec<PortRuleView>,
+    dirty_files: Vec<FileDiff>,
+    unsaved_hint: RuntimeEffect,
+    runtime_pending: RuntimeEffect,
+}
+
+impl PortSnapshot {
+    fn new(
+        workspace: WorkspaceSnapshot,
+        rules: Vec<PortRuleView>,
+        dirty_files: Vec<FileDiff>,
+        unsaved_hint: RuntimeEffect,
+        runtime_pending: RuntimeEffect,
+    ) -> Self {
+        Self {
+            workspace,
+            rules,
+            dirty_files,
+            unsaved_hint,
+            runtime_pending,
+        }
+    }
+
+    pub fn workspace(&self) -> &WorkspaceSnapshot {
+        &self.workspace
+    }
+
+    pub fn rules(&self) -> &[PortRuleView] {
+        &self.rules
+    }
+
+    pub fn rule(&self, rule_id: NodeId) -> Option<&PortRuleView> {
+        self.rules.iter().find(|rule| rule.rule_id == rule_id)
+    }
+
+    pub fn dirty_files(&self) -> &[FileDiff] {
+        &self.dirty_files
+    }
+
+    pub fn unsaved_hint(&self) -> RuntimeEffect {
+        self.unsaved_hint
+    }
+
+    pub fn runtime_pending(&self) -> RuntimeEffect {
+        self.runtime_pending
+    }
+
+    /// Discards canonical rule state and condition identity. Migration-only.
+    pub fn into_legacy_workspace(self) -> WorkspaceSnapshot {
+        self.workspace
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SaveOutcome {
-    pub snapshot: WorkspaceSnapshot,
+    pub snapshot: PortSnapshot,
     pub written_files: Vec<WorkspaceRelativePath>,
     pub diffs: Vec<FileDiff>,
     pub unsaved_hint: RuntimeEffect,
@@ -719,7 +847,7 @@ impl SaveError {
 pub struct SaveFailure {
     /// Owned post-attempt snapshot, boxed to keep the port's `Result` error
     /// representation small without weakening the mandatory snapshot contract.
-    pub snapshot: Box<WorkspaceSnapshot>,
+    pub snapshot: Box<PortSnapshot>,
     pub written_files: Vec<WorkspaceRelativePath>,
     pub diffs: Vec<FileDiff>,
     pub failed_file: WorkspaceRelativePath,
@@ -729,8 +857,10 @@ pub struct SaveFailure {
 }
 
 pub trait WorkspacePort {
-    fn snapshot(&self) -> WorkspaceSnapshot;
+    fn snapshot(&self) -> PortSnapshot;
     fn apply(&mut self, transaction: EditTransaction) -> Result<EditOutcome, ApplyFailure>;
     fn validate(&self) -> ValidationReport;
     fn save(&mut self) -> Result<SaveOutcome, SaveFailure>;
+    fn acknowledge_reload(&mut self) -> PortSnapshot;
+    fn acknowledge_restart(&mut self) -> PortSnapshot;
 }

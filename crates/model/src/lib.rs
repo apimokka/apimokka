@@ -48,9 +48,10 @@ pub use trace::{MatchTraceEvent, RequestSummary, TraceOutcome};
 pub use validation::{Diagnostic, NodeValidation, Severity, ValidationIssue, ValidationReport};
 pub use workspace_port::{
     ApplyFailure, ArchivedNode, ArchivedNodePayload, ArchivedSubtree, BodyCondition,
-    CollectionEdit, ConditionWithId, CreationReceipt, EditIntent, EditOutcome, EditTransaction,
-    FieldError, HeaderCondition, NodeRebind, RespondDefinition, ResponseMode, RestorePlacement,
-    RootSettingEdit, RuleConditionsView, RuleEditPayload, RuleMatch, RuleSetPath, RuntimeEffect,
-    SaveError, SaveErrorKind, SaveFailure, SaveOutcome, SemanticCreationKey, WorkspaceEditValue,
+    CollectionEdit, ConditionEdit, ConditionWithId, CreationReceipt, EditIntent, EditOutcome,
+    EditTransaction, FieldError, FileDiff, HeaderCondition, MemoryWorkspace, NodeRebind,
+    PortRuleView, PortSnapshot, RespondDefinition, ResponseMode, RestorePlacement, RootSettingEdit,
+    RuleConditionsView, RuleEditPayload, RuleMatch, RuleSetPath, RuntimeEffect, SaveError,
+    SaveErrorKind, SaveFailure, SaveOutcome, SemanticCreationKey, WorkspaceEditValue,
     WorkspaceNodeKind, WorkspacePort, WorkspaceRelativePath, WorkspaceRootKey,
 };
