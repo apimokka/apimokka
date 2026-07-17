@@ -11,8 +11,7 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-
-No RFCs are currently proposed.
+| [MK-053](./proposed/MK-053-integration-boundary-and-workspace-adapter.md) | Integration boundary and workspace adapter | M3 — Integration boundary |
 
 ---
 
