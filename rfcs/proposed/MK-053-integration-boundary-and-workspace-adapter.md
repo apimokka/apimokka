@@ -495,7 +495,8 @@ External edits never mutate the current in-memory snapshot behind the port.
 Before behavior implementation:
 
 1. move all `#[cfg(test)]` modules out of `app.rs` into
-   `crates/app/src/app/tests.rs` and cohesive files below `app/tests/`;
+   `crates/app/src/app/tests.rs` and descriptively named sibling files below
+   `crates/app/src/app/`;
 2. preserve test names/behavior and observe the full gates;
 3. add only the reducer dispatch seam needed to call the port; and
 4. do not move screens, fixtures, routes, or unrelated helpers.
@@ -509,13 +510,16 @@ crates/model/src/workspace_port/memory.rs
 crates/model/src/workspace_port/history.rs
 crates/model/src/workspace_port/tests.rs
 crates/app/src/app/tests.rs
-crates/app/src/app/tests/*.rs
+crates/app/src/app/{density,trace,strategy,drawers,history,navigation}.rs
+crates/app/src/app/{workspace_creation,rule_set_creation,rule_duplication,themes}.rs
 ```
 
 Exact filenames may consolidate after implementation inspection, but any new
 tracked file must be disclosed before review. Model code owns pure boundary
 types and in-memory semantics; app code owns messages, drafts, selection, and
-presentation state.
+presentation state. Historical milestone numbers may remain in test module
+identifiers when required to preserve test paths, but filenames describe the
+behavior under test.
 
 ## Contract tests and evidence
 
