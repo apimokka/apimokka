@@ -91,14 +91,14 @@ The app-facing contract uses UI concepts deliberately:
 
 ```rust
 pub trait WorkspacePort {
-    fn snapshot(&self) -> WorkspaceSnapshot;
+    fn snapshot(&self) -> PortSnapshot;
     fn apply(&mut self, transaction: EditTransaction) -> Result<EditOutcome, ApplyFailure>;
     fn validate(&self) -> ValidationReport;
     fn save(&mut self) -> Result<SaveOutcome, SaveFailure>;
 }
 
 pub struct EditOutcome {
-    pub snapshot: WorkspaceSnapshot,
+    pub snapshot: PortSnapshot,
     pub changed_nodes: Vec<NodeId>,
     pub creations: Vec<CreationReceipt>,
     pub rebound_nodes: Vec<NodeRebind>,
@@ -145,6 +145,91 @@ by structural equality alone.
 The port is object-safe or enum-dispatched and owned by one `WorkspaceSession`.
 Screens never receive mutable workspace state. `App` may cache the latest
 snapshot for rendering, but only the port can replace it after apply/save/load.
+
+#### 1.1 Port snapshot and condition identity amendment (2026-07-17)
+
+Implementation inspection after the boundary-types checkpoint found that the
+legacy render `WorkspaceSnapshot` embeds header/body payloads without condition
+IDs. Returning it directly from `WorkspacePort` makes the accepted ID-based
+condition update/remove intents unusable for conditions present at session
+load. The separately defined `RuleConditionsView` was not reachable through
+the committed trait.
+
+The port therefore returns a sealed transition wrapper rather than changing or
+duplicating fields inside the legacy render types:
+
+```rust
+pub struct PortSnapshot {
+    workspace: WorkspaceSnapshot,
+    rule_conditions: Vec<RuleConditionsEntry>,
+}
+
+pub struct RuleConditionsEntry {
+    rule_id: NodeId,
+    conditions: RuleConditionsView,
+}
+```
+
+Read-only accessors expose the render workspace, the ordered condition entries,
+and lookup by rule ID. `into_legacy_workspace` may be used only where ownership
+of the legacy render snapshot is required during migration; its name documents
+that condition identity is deliberately discarded. Callers cannot construct or
+mutate wrapper entries. The in-memory port builds both views from one private
+canonical state; the legacy payload vectors are projections for existing
+screens, not a second mutable source of truth.
+
+There is exactly one entry per rule, in rule-set/rule presentation order. No
+entry names an absent rule. Condition IDs are unique across the entire session
+node domain and the canonical values in each entry project to the corresponding
+legacy payload order according to the normalization contract below. One private
+snapshot-construction routine creates both views and makes consistency true by
+construction; contract tests independently verify the invariants. Later reducer
+slices cache `PortSnapshot`, render through `workspace()`, and address condition
+edits through `conditions(rule_id)`. This additive transition seam avoids
+rewriting screens in the adapter slice and can disappear when the legacy render
+payload is retired.
+
+Canonical condition state does not retain the user's original draft bytes.
+Legacy render payloads use these two exhaustive projection functions:
+
+```rust
+fn project_header_condition(value: &HeaderCondition) -> HeaderConditionPayload;
+fn project_body_condition(value: &BodyCondition) -> BodyConditionPayload;
+```
+
+The projection is deterministic and operator-specific:
+
+| Canonical field/family | Legacy projection |
+|---|---|
+| header name | canonical lowercase `HeaderName::as_str()` |
+| header operation | unchanged operation |
+| value-bearing header expected value | stored string, including empty |
+| header Exists / Absent | empty string |
+| body path and operation | unchanged path and operation |
+| Equal, EqualString, Contains, StartsWith, EndsWith, Regex | underlying JSON string without JSON quoting |
+| EqualTyped, ArrayContains | canonical compact JSON defined below |
+| EqualNumber, GreaterThan, LessThan, GreaterOrEqual, LessOrEqual | stored `serde_json::Number::to_string()` |
+| EqualInteger | stored signed JSON integer `Number::to_string()` |
+| ArrayLengthEqual, ArrayLengthAtLeast | stored unsigned JSON integer `Number::to_string()` |
+| body Exists / Absent | empty string |
+
+Canonical compact JSON is serialized recursively with no insignificant
+whitespace: null/booleans use JSON literals, strings use `serde_json` JSON
+escaping, arrays preserve element order, object keys are sorted by their UTF-8
+byte sequences at every nesting level, and numbers use
+`serde_json::Number::to_string()`. Sorting is explicit and does not depend on
+the map implementation or enabled `serde_json` features. Canonical values
+exclude non-finite numbers, so this projection is total.
+
+Projection followed by the accepted draft-to-canonical mapping must reproduce
+the same canonical condition for every operator. It need not reproduce the
+original draft bytes. For example, `X-Request-ID` projects as `x-request-id`,
+`1.5e2` projects as the exact stored `Number::to_string()` result rather than
+retaining exponent spelling, formatted or differently key-ordered typed JSON
+projects as sorted compact JSON, and every presence value projects as an empty
+string. If exact draft preservation is later required for an active editor,
+the draft is app-owned presentation state and is never inferred from canonical
+workspace data.
 
 ### 2. Boundary types, provenance, and conversion contract
 
@@ -261,7 +346,7 @@ any field through a free-form string key is forbidden.
 
 ### 3. Stable identity and rule-set path contract
 
-Snapshot rule views contain:
+Port snapshots expose per-rule condition views containing:
 
 ```rust
 pub struct ConditionWithId<T> {
@@ -337,7 +422,8 @@ before the history entry changes stacks.
 
 ### 5. Diagnostics, save, dirty state, and runtime hints
 
-`WorkspaceSnapshot.diagnostics` is the sole durable workspace-diagnostic source.
+`PortSnapshot::workspace().diagnostics` is the sole durable
+workspace-diagnostic source.
 `EditOutcome` has no duplicate diagnostics field. `validate()` returns the same
 diagnostic set that the next snapshot will expose and may be used for an
 explicit refresh; an `ApplyFailure` carries only a transient failure diagnostic
@@ -347,7 +433,7 @@ Save results always carry the post-attempt snapshot:
 
 ```rust
 pub struct SaveOutcome {
-    pub snapshot: WorkspaceSnapshot,
+    pub snapshot: PortSnapshot,
     pub written_files: Vec<WorkspacePath>,
     pub diffs: Vec<FileDiff>,
     pub unsaved_hint: ReloadHint,
@@ -355,7 +441,7 @@ pub struct SaveOutcome {
 }
 
 pub struct SaveFailure {
-    pub snapshot: WorkspaceSnapshot,
+    pub snapshot: PortSnapshot,
     pub written_files: Vec<WorkspacePath>,
     pub diffs: Vec<FileDiff>,
     pub failed_file: WorkspacePath,
@@ -532,6 +618,14 @@ Required tests cover:
   fourteen root keys with value-shape/range and hint assertions;
 - invalid URL/path-op pairing, dotted body paths, header names, exact JSON and
   numeric lexical boundaries, response status/delay, and text/file combinations;
+- exhaustive canonical-to-legacy projection and projection/remapping equality
+  for all nine header and eighteen body operators, including lowercase header
+  names, value-bearing empty strings, presence operations, exponent-form
+  numeric input, integer/length values, and typed JSON with differing
+  whitespace and object-key order at multiple nesting levels;
+- `PortSnapshot` construction proving exactly one ordered condition entry per
+  rule, no absent-rule entries, global editable-node ID uniqueness, matching
+  canonical/render condition order, and equality to the defined projections;
 - stable/unique rule and condition IDs across update, move, snapshot, and save;
 - typed creation receipts for duplicate-equal conditions, fresh IDs, and
   complete history rebinding after recreation;
