@@ -502,6 +502,179 @@ uses the requested semantic key and its typed receipt. Restore selection and
 every older history binding are updated from the complete `NodeRebind` map
 before the history entry changes stacks.
 
+#### 4.1 App session, draft, and dispatch amendment (2026-07-17)
+
+Implementation inspection before reducer migration found that the existing
+screens use controlled text inputs backed directly by the legacy render
+snapshot. Several ordinary editor states are temporarily noncanonical: a new
+header or body row starts blank, and a user may type only part of an IP address,
+port, body path, response file, status, delay, JSON value, or integer. Sending
+each such intermediate string directly to the fail-closed port would either
+make the field snap back or make a blank condition row impossible to create.
+Admitting those strings into `PortSnapshot` would instead violate the accepted
+canonical-state boundary.
+
+One open app workspace therefore owns this session shape:
+
+```text
+WorkspaceSession
+├── WorkspacePort
+├── latest PortSnapshot
+├── RuleEditorDrafts
+├── RootSettingDrafts
+├── PrototypeState
+├── HistoryStack
+└── immutable WorkspaceIdentity
+```
+
+Screens read canonical render data through
+`latest PortSnapshot::workspace()`. The app does not retain a separately
+mutable legacy workspace cache. `PortRuleView` supplies canonical before-values
+and condition bindings for edit and history preparation. Only session
+construction, successful apply, save, acknowledgement, or explicit validation
+refresh may replace the latest `PortSnapshot`.
+
+Session construction is fallible. The in-memory app seed is a dedicated
+canonical fixture; the deliberately invalid `$.user.id` validation-demonstration
+fixture is not passed to `MemoryWorkspace::new`. Opening, creating, reloading,
+or switching a workspace must handle constructor failure without `unwrap`:
+surface a friendly technical problem and leave any existing session, render
+snapshot, selection, history, drafts, and prototype state unchanged. A
+successful new session performs the reset rules in section 7.
+
+`WorkspaceMeta.name` and `WorkspaceMeta.path` are immutable session identity in
+M3. The wizard chooses the name before session construction; open/reload reads
+both values from the admitted seed. `SettingsSetName` is removed, and General
+Settings renders the name as read-only text rather than an editable input.
+Renaming a workspace would require a separately designed persistence operation
+and is not simulated by mutating render metadata. Window title, top bar, and
+workspace menu read the immutable admitted identity.
+
+Text editor state is app-owned and identity-bearing:
+
+```rust
+pub enum DraftBinding {
+    Existing(NodeId),
+    Pending(SemanticCreationKey),
+}
+
+pub struct ConditionDraft<T> {
+    pub binding: DraftBinding,
+    pub value: T,
+}
+
+pub struct RuleEditorDraft {
+    pub rule_id: NodeId,
+    // rule-match and response widget strings
+    // ordered header/body ConditionDraft rows
+}
+```
+
+`RuleEditorDrafts` is a `HashMap<NodeId, RuleEditorDraft>`. Selection lazily
+initializes only an absent entry from the latest canonical/render pair;
+select-away/select-back does not rebuild an existing entry or discard invalid
+text. An existing condition row carries its canonical condition ID. A blank new
+row exists only as a keyed `Pending` draft and does not call the port. Editing
+or removing a pending row remains local until its complete value maps
+successfully. Its first successful add uses that stable semantic key; the
+returned typed receipt replaces `Pending(key)` with `Existing(new_id)`.
+Existing-row edits and removals always address the bound ID, never a vector
+index. Clear-all removes every existing bound row in one transaction and drops
+pending rows only after that transaction succeeds; with no existing rows it is
+a draft-only no-op.
+
+An unrelated successful apply or snapshot refresh retains every draft entry and
+merges canonical success into only the affected fields/bindings. Removing a
+rule prunes its live draft only after successful apply; deletion history owns
+the semantic values needed for restoration. Session replacement discards all
+drafts. Tests cover invalid text surviving select-away/select-back and an
+unrelated snapshot refresh.
+
+For rule-match, response, and root text controls, each message first updates
+the corresponding draft string and then attempts the typed mapping. A mapping
+failure retains the draft for correction, leaves the port, latest snapshot,
+selection, dirty/runtime phases, and history unchanged, and exposes the typed
+failure as transient presentation feedback. A successful mapping dispatches
+one transaction, adopts its returned full snapshot, and synchronizes the
+affected draft and bindings. Before dispatch, the helper compares the mapped
+value with its canonical `PortRuleView` or root value. A semantic no-op
+synchronizes the affected draft to the accepted projection and clears its
+transient field feedback, but does not call `apply`, dirty a file, create a
+runtime hint, clear redo, or record history. History preparation always uses
+canonical before/after values. Empty URL input clears its operator in the same
+semantic edit. Pick-list and checkbox values still use this helper even when
+their mapping is infallible.
+
+Reference-gap controls never use these workspace drafts. Weight, priority, and
+trace controls move to `PrototypeState` before the latest `PortSnapshot`
+becomes the render authority. Their screens read prototype state, their edits
+do not call the port or alter workspace dirty/runtime phases, and the immutable
+legacy values retained by the in-memory adapter are not treated as current
+prototype values.
+
+The reducer migration removes `auto_save_rules`: a successful configuration
+apply remains dirty until an explicit workspace save. No helper may clear
+render dirty flags directly. During the migration, Global Save must call the
+port and adopt its returned snapshot before committing fallback drafts, while
+the complete typed `GlobalSaveReport` UI remains the later save-integration
+slice described in section 5.
+
+Both `SaveOutcome` and `SaveFailure` replace the latest snapshot and phase
+values. On `SaveFailure`, fallback drafts are not committed even when the
+workspace failure contains a successfully written prefix. On success, fallback
+keys are committed in canonical byte order. Tests inject a middle workspace
+failure and prove prefix snapshot/phase adoption, remaining workspace
+dirtiness, and unchanged fallback baselines.
+
+The session validates every expected creation receipt and rebind correlation
+before moving history or binding a draft. Missing, duplicate, wrong-kind,
+wrong-parent, unexpected, or non-bijective results are internal port-contract
+faults, not field failures. Because the port has already committed, the app
+adopts the returned snapshot to remain aligned, clears drafts and history whose
+bindings can no longer be trusted, reconciles selection to a safe surviving
+scope, marks the session read-only/faulted, and surfaces a technical problem
+requiring reload. No later edit, save, undo, or redo is dispatched through that
+session. The in-memory adapter is expected never to enter this path; a fake-port
+test proves the fail-closed app policy.
+
+Because a port-backed session cannot safely coexist with the lossy four-command
+`UndoCommand`, the reducer/session slice replaces it with the semantic history
+model from section 6 rather than creating a temporary bridge. Every entry owns
+typed semantic values and mutable identity bindings:
+
+| History family | Stored semantic state | Undo / redo |
+|---|---|---|
+| Add rule set | path, creation key, current root binding | remove current root / add path and bind receipt |
+| Remove rule set | complete canonical archive, original root index, current bindings | restore at index and apply all rebinds / rearchive current subtree then remove |
+| Add or duplicate rule | parent binding, payload, insertion index, creation keys, current rule/condition bindings | delete current subtree / add at exact index and bind all receipts |
+| Delete rule | complete canonical archive, parent binding, insertion index, current bindings | restore at index and apply all rebinds / rearchive current subtree then delete |
+| Move rule | mutable rule binding, exact before index, exact after index | move to before / move to after |
+| Rule match or response | mutable rule binding, canonical before, canonical after | apply before / apply after |
+| Root setting | key plus typed canonical before and after values | apply before / apply after |
+| Add condition | family, parent binding, semantic value/key, current condition binding | remove current ID / add and bind receipt |
+| Update condition | family, mutable condition binding, canonical before and after | apply before / apply after |
+| Remove or clear conditions | family, parent binding, ordered former positions/values/bindings | identity-bearing replacement recreates exact order and binds receipts / remove rebound IDs |
+| Prototype edit | prototype binding and typed before/after value | app-local before / app-local after |
+
+`HistoryEntry` may contain a compound ordered action so one user message such
+as Clear All remains one undo step. Delete preparation reads the complete
+canonical subtree, all condition IDs, presentation indices, and prototype
+extras before dispatch; a legacy `RuleView` alone is never archived.
+Compensation failure leaves the entry on its original stack and changes no
+binding or selection. A successful new user edit clears redo; mapping failure,
+semantic no-op, and contract fault do not. Undo/redo moves an entry only after
+successful apply and complete receipt/rebind validation. The depth cap becomes
+the section-6 value of 50 successful user edits.
+
+Exact placement is part of the port contract needed by current Add, Duplicate,
+Delete, and history behavior. `EditIntent::AddRule` therefore carries an
+`insertion_index` validated in `0..=rules.len()` rather than always appending.
+Normal Add supplies `rules.len()` and Duplicate supplies the original index
+plus one. `RestorePlacement::RuleSetRoot` likewise carries the former root
+index, validated in `0..=rule_sets.len()`. Rule restoration already carries its
+parent insertion index. These are model-boundary amendments and must be
+implemented and reviewed before the app session slice.
+
 ### 5. Diagnostics, save, dirty state, and runtime hints
 
 `PortSnapshot::workspace().diagnostics` is the sole durable
@@ -750,7 +923,29 @@ Required tests cover:
 - exhaustive-match compile coverage so new operators/keys require a decision;
   and
 - reducer tests proving configuration messages no longer mutate snapshots
-  directly.
+  directly;
+- fallible session admission preserving an existing session on failure and
+  canonical admission of the rich app seed;
+- invalid text drafts remaining visible while port snapshot, selection,
+  dirty/runtime phases, and history stay unchanged;
+- blank pending header/body rows becoming ID-bound only from their matching
+  semantic receipts, including duplicate-equal rows and removal before apply;
+- existing condition draft rows continuing to target IDs after reordering or
+  snapshot refresh;
+- invalid drafts surviving select-away/select-back and unrelated snapshot
+  refresh, while affected successful fields alone synchronize;
+- semantic no-ops producing no apply, dirty/runtime effect, redo clearing, or
+  history entry;
+- explicit save replacing simulated rule autosave, with success and partial
+  failure snapshots/phases adopted and fallback drafts skipped after workspace
+  failure;
+- missing or malformed receipt/rebind results faulting the session after
+  snapshot adoption rather than leaving a detached pending binding;
+- exact-position Add/Duplicate/Delete/restore behavior for rules and rule sets;
+- complete semantic undo/redo for every history-table family, including
+  failure stack ownership and all receipt/rebind updates; and
+- immutable workspace name/path across settings interaction, snapshot refresh,
+  save, reload, and failed session replacement.
 
 Tests must assert the local contract, not claim execution against unavailable
 5.10.1 code. When a real artifact is adopted, the same behavior suite becomes
@@ -763,10 +958,17 @@ the production-adapter contract suite plus source/version/checksum evidence.
 3. Add boundary types, stable condition views, mapping functions, and contract
    tests without changing screens.
 4. Implement the in-memory port and transactional apply/save behavior.
-5. Replace configuration direct mutations family by family through one reducer
-   dispatch helper.
-6. Replace undo/redo snapshot mutation with compensating port transactions.
-7. Reconcile selection, dirty state, diagnostics, and runtime hints.
+5. Add and independently review the exact insertion index on `AddRule` and
+   rule-set-root restore before app migration.
+6. Add the app `WorkspaceSession`, canonical seed, identity-bearing editor
+   drafts, immutable identity and prototype read seams, and complete semantic
+   history model; then replace configuration direct mutations family by family
+   through one reducer dispatch helper. Adopt every returned snapshot, perform
+   the minimum selection fallback required after removal, and derive
+   dirty/runtime presentation from the session.
+7. Complete selection reconciliation, diagnostics presentation, runtime
+   acknowledgement, and typed Global Save reporting beyond the minimum seams
+   required by step 6.
 8. Correct model/architecture documentation and disclose reference gaps.
 9. Run focused, stable, MSRV, lint, audit-cadence, RFC, oracle, inventory, and
    whitespace gates; submit independent implementation review.
