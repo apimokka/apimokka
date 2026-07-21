@@ -630,12 +630,12 @@ The session validates every expected creation receipt and rebind correlation
 before moving history or binding a draft. Missing, duplicate, wrong-kind,
 wrong-parent, unexpected, or non-bijective results are internal port-contract
 faults, not field failures. Because the port has already committed, the app
-adopts the returned snapshot to remain aligned, clears drafts and history whose
-bindings can no longer be trusted, reconciles selection to a safe surviving
-scope, marks the session read-only/faulted, and surfaces a technical problem
-requiring reload. No later edit, save, undo, or redo is dispatched through that
-session. The in-memory adapter is expected never to enter this path; a fake-port
-test proves the fail-closed app policy.
+adopts the returned snapshot to remain aligned, clears all workspace editor
+drafts and both binding-dependent undo/redo stacks, reconciles selection to a
+safe surviving scope, marks the session read-only/faulted, and surfaces a
+technical problem requiring reload. No later edit, save, undo, or redo is
+dispatched through that session. The in-memory adapter is expected never to
+enter this path; a fake-port test proves the fail-closed app policy.
 
 Because a port-backed session cannot safely coexist with the lossy four-command
 `UndoCommand`, the reducer/session slice replaces it with the semantic history
@@ -660,11 +660,14 @@ typed semantic values and mutable identity bindings:
 as Clear All remains one undo step. Delete preparation reads the complete
 canonical subtree, all condition IDs, presentation indices, and prototype
 extras before dispatch; a legacy `RuleView` alone is never archived.
-Compensation failure leaves the entry on its original stack and changes no
-binding or selection. A successful new user edit clears redo; mapping failure,
-semantic no-op, and contract fault do not. Undo/redo moves an entry only after
-successful apply and complete receipt/rebind validation. The depth cap becomes
-the section-6 value of 50 successful user edits.
+An `ApplyFailure` during compensation leaves the entry on its original stack
+and changes no binding or selection. A successful new user edit clears redo;
+mapping failure and semantic no-op do not. A malformed successful outcome
+instead performs the exceptional fail-closed transition above and clears both
+binding-dependent stacks; it is not processed as an ordinary new edit.
+Undo/redo moves an entry only after successful apply and complete
+receipt/rebind validation. The depth cap becomes the section-6 value of 50
+successful user edits.
 
 Exact placement is part of the port contract needed by current Add, Duplicate,
 Delete, and history behavior. `EditIntent::AddRule` therefore carries an
@@ -766,11 +769,15 @@ intents; it never mutates snapshots.
 
 Rules:
 
-- record history only after successful apply;
-- clear redo after a new successful user edit, not after validation failure;
-- undo applies a compensating transaction and moves the entry only on success;
-- redo reapplies the forward semantic transaction and moves it only on success;
-- failures leave the entry on its original stack and surface diagnostics;
+- record history only after successful apply and complete outcome validation;
+- clear redo after a new successful, fully validated user edit, not after
+  mapping or `ApplyFailure` rejection;
+- undo applies a compensating transaction and moves the entry only after
+  successful apply and complete outcome validation;
+- redo reapplies the forward semantic transaction and moves the entry only
+  after successful apply and complete outcome validation;
+- `ApplyFailure` leaves the entry on its original stack and surfaces
+  diagnostics;
 - recreated rules/conditions/rule sets receive new `NodeId`s and every affected
   mutable history binding is updated from the typed `NodeRebind` map;
 - selection follows the rebound ID when undo recreates a selected entity; and
@@ -778,9 +785,12 @@ Rules:
 
 Removing a rule or rule set archives its complete semantic subtree plus old IDs
 in the history entry. Its inverse is one atomic restore transaction. If any
-intent or correlation fails, no candidate state becomes visible, no binding is
-updated, and no history entry moves. Ordinary adds use creation keys rather
-than old-ID rebinds.
+transaction construction, adapter-side correlation, or apply validation fails
+before commit, no candidate state becomes visible, no binding is updated, and
+no history entry moves. A malformed nominally successful `EditOutcome` is a
+post-commit contract fault and follows section 4.1 instead: its snapshot becomes
+visible and all workspace drafts and both history stacks are cleared before the
+session is faulted. Ordinary adds use creation keys rather than old-ID rebinds.
 
 The supported set must include Add/Delete/Move Rule, Add/Remove Rule Set,
 rule-core edits, response edits, root-setting edits, and header/body condition
@@ -939,8 +949,10 @@ Required tests cover:
 - explicit save replacing simulated rule autosave, with success and partial
   failure snapshots/phases adopted and fallback drafts skipped after workspace
   failure;
-- missing or malformed receipt/rebind results faulting the session after
-  snapshot adoption rather than leaving a detached pending binding;
+- fake-port missing or malformed receipt/rebind results proving returned
+  snapshot adoption, clearing of all workspace drafts and both history stacks,
+  safe selection reconciliation, read-only fault state, and rejection of every
+  later edit, save, undo, and redo dispatch;
 - exact-position Add/Duplicate/Delete/restore behavior for rules and rule sets;
 - complete semantic undo/redo for every history-table family, including
   failure stack ownership and all receipt/rebind updates; and
