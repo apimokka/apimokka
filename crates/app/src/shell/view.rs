@@ -177,7 +177,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
     }
 
     // 2. Undo (after a reversible action) — driven by the top of the stack
-    if let Some(cmd) = app.undo_stack.last() {
+    if let Some(cmd) = app.undo_stack().last() {
         let label = app.t(cmd.banner_key());
         let r = row![
             text(label).size(size::BODY).width(Length::Fill),

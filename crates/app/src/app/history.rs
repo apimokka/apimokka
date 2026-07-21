@@ -27,10 +27,13 @@ fn delete_rule_uses_stack_and_undo_restores() {
         before - 1
     );
     assert!(
-        matches!(a.undo_stack.last(), Some(UndoCommand::DeleteRule { .. })),
-        "undo stack should have DeleteRule"
+        matches!(
+            a.undo_stack().last(),
+            Some(HistoryEntry::RemovedSubtree { .. })
+        ),
+        "undo stack should have RemovedSubtree"
     );
-    assert!(a.redo_stack.is_empty());
+    assert!(a.redo_stack().is_empty());
 
     a.update(Message::Undo);
     assert_eq!(
@@ -38,9 +41,12 @@ fn delete_rule_uses_stack_and_undo_restores() {
         before,
         "undo restores the rule"
     );
-    assert!(a.undo_stack.is_empty(), "undo stack is empty after undo");
+    assert!(a.undo_stack().is_empty(), "undo stack is empty after undo");
     assert!(
-        matches!(a.redo_stack.last(), Some(UndoCommand::DeleteRule { .. })),
+        matches!(
+            a.redo_stack().last(),
+            Some(HistoryEntry::RemovedSubtree { .. })
+        ),
         "redo stack has the forward command"
     );
 
@@ -78,8 +84,8 @@ fn add_rule_is_undoable() {
         before + 1
     );
     assert!(matches!(
-        a.undo_stack.last(),
-        Some(UndoCommand::AddRule { .. })
+        a.undo_stack().last(),
+        Some(HistoryEntry::AddedSubtree { .. })
     ));
 
     a.update(Message::Undo);
@@ -96,14 +102,14 @@ fn move_rule_is_undoable() {
     let snap = a.snapshot.as_ref().unwrap();
     let rule_id = snap.rule_sets[0].rules[0].id;
     let rule_1_id = snap.rule_sets[0].rules[1].id;
-    drop(snap);
+    let _ = snap;
 
     a.update(Message::MoveRuleDown(rule_id));
     // rule[0] and rule[1] should be swapped
     let snap = a.snapshot.as_ref().unwrap();
     assert_eq!(snap.rule_sets[0].rules[1].id, rule_id);
     assert_eq!(snap.rule_sets[0].rules[0].id, rule_1_id);
-    drop(snap);
+    let _ = snap;
 
     a.update(Message::Undo);
     let snap = a.snapshot.as_ref().unwrap();
@@ -146,14 +152,14 @@ fn new_edit_clears_redo_stack() {
     a.update(Message::DeleteRule(rule_id));
     a.update(Message::Undo);
     assert!(
-        !a.redo_stack.is_empty(),
+        !a.redo_stack().is_empty(),
         "redo should be available after undo"
     );
 
     // New edit should clear redo
     let rs_id = a.snapshot.as_ref().unwrap().rule_sets[0].id;
     a.update(Message::AddRule(rs_id));
-    assert!(a.redo_stack.is_empty(), "new edit must clear redo stack");
+    assert!(a.redo_stack().is_empty(), "new edit must clear redo stack");
 }
 
 #[test]
@@ -173,20 +179,20 @@ fn dismiss_notice_does_not_clear_undo_stack() {
     let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
     a.update(Message::DeleteRule(rule_id));
     assert!(
-        !a.undo_stack.is_empty(),
+        !a.undo_stack().is_empty(),
         "undo stack should have entry after delete"
     );
 
     a.update(Message::DismissNotice);
     assert!(
-        !a.undo_stack.is_empty(),
+        !a.undo_stack().is_empty(),
         "dismissing the notice banner must NOT clear the undo stack"
     );
 
     // ⌘Z should still work after dismissal
     a.update(Message::Undo);
     assert!(
-        a.undo_stack.is_empty(),
+        a.undo_stack().is_empty(),
         "stack consumed by undo after dismissal"
     );
 }

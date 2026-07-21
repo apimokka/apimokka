@@ -43,13 +43,19 @@ fn weight_changed_updates_rule_payload() {
     let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
     a.update(Message::SelectRule(rule_id));
     a.update(Message::RuleWeightChanged("7".into()));
-    let snap = a.snapshot.as_ref().unwrap();
-    let rule = snap.rule_sets[0]
-        .rules
-        .iter()
-        .find(|r| r.id == rule_id)
-        .unwrap();
-    assert_eq!(rule.payload.weight, Some(7));
+    let prototype = &a.snapshot.as_ref().unwrap().prototype.rule_extras[&rule_id];
+    assert_eq!(prototype.weight, Some(7));
+    assert_eq!(
+        a.snapshot
+            .as_ref()
+            .unwrap()
+            .find_rule(rule_id)
+            .unwrap()
+            .1
+            .payload
+            .weight,
+        None
+    );
 }
 
 #[test]
@@ -59,13 +65,19 @@ fn priority_changed_updates_rule_payload() {
     let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
     a.update(Message::SelectRule(rule_id));
     a.update(Message::RulePriorityChanged("-5".into()));
-    let snap = a.snapshot.as_ref().unwrap();
-    let rule = snap.rule_sets[0]
-        .rules
-        .iter()
-        .find(|r| r.id == rule_id)
-        .unwrap();
-    assert_eq!(rule.payload.priority, Some(-5));
+    let prototype = &a.snapshot.as_ref().unwrap().prototype.rule_extras[&rule_id];
+    assert_eq!(prototype.priority, Some(-5));
+    assert_eq!(
+        a.snapshot
+            .as_ref()
+            .unwrap()
+            .find_rule(rule_id)
+            .unwrap()
+            .1
+            .payload
+            .priority,
+        None
+    );
 }
 
 #[test]
@@ -75,14 +87,9 @@ fn invalid_weight_input_leaves_none() {
     let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
     a.update(Message::SelectRule(rule_id));
     a.update(Message::RuleWeightChanged("not-a-number".into()));
-    let snap = a.snapshot.as_ref().unwrap();
-    let rule = snap.rule_sets[0]
-        .rules
-        .iter()
-        .find(|r| r.id == rule_id)
-        .unwrap();
+    let prototype = &a.snapshot.as_ref().unwrap().prototype.rule_extras[&rule_id];
     assert_eq!(
-        rule.payload.weight, None,
+        prototype.weight, None,
         "non-numeric input should leave weight as None"
     );
 }

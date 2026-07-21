@@ -16,6 +16,16 @@ fn expert_app() -> App {
     app
 }
 
+fn expert_app_with_payload(payload: apimokka_model::RulePayload) -> App {
+    let mut app = App::new().0;
+    app.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    let mut seed = apimokka_model::mock::shop_api_canonical_seed();
+    seed.rule_sets[0].rules[0].payload = payload;
+    assert!(app.install_workspace(seed));
+    app.update(Message::TestRuleOpen);
+    app
+}
+
 #[test]
 fn dialog_renders_all_outcomes_in_both_locales() {
     for locale in [Locale::En, Locale::Ja] {
@@ -168,18 +178,11 @@ fn every_request_input_edit_invalidates_a_stored_result() {
 
 #[test]
 fn pre_run_limitation_and_reducer_result_are_disclosed() {
-    let mut app = expert_app();
-    let rule_id = app.selection.rule.unwrap();
-    app.snapshot
-        .as_mut()
-        .unwrap()
-        .find_rule_mut(rule_id)
-        .unwrap()
-        .payload = apimokka_model::RulePayload {
+    let mut app = expert_app_with_payload(apimokka_model::RulePayload {
         url_path: "end".into(),
         url_path_op: Some(apimokka_model::UrlPathOp::EndsWith),
         ..apimokka_model::RulePayload::default()
-    };
+    });
     app.test_rule.method = "GET".into();
     app.test_rule.url_path = "the-end".into();
     app.test_rule.result = None;
@@ -200,15 +203,8 @@ fn pre_run_limitation_and_reducer_result_are_disclosed() {
 
 #[test]
 fn reducer_renders_multiple_issues_in_diagnostic_then_condition_order() {
-    let mut app = expert_app();
-    let rule_id = app.selection.rule.unwrap();
-    app.snapshot
-        .as_mut()
-        .unwrap()
-        .find_rule_mut(rule_id)
-        .unwrap()
-        .payload = apimokka_model::RulePayload {
-        method: "bad method".into(),
+    let mut app = expert_app_with_payload(apimokka_model::RulePayload {
+        method: "GET".into(),
         url_path: "/expected".into(),
         url_path_op: Some(apimokka_model::UrlPathOp::Equal),
         headers: vec![apimokka_model::HeaderConditionPayload {
@@ -222,7 +218,7 @@ fn reducer_renders_multiple_issues_in_diagnostic_then_condition_order() {
             value: "^a".into(),
         }],
         ..apimokka_model::RulePayload::default()
-    };
+    });
     app.update(Message::TestRuleSetMethod("also bad".into()));
     app.update(Message::TestRuleSetPath("/failed".into()));
     app.update(Message::TestRuleSetHeaders(
@@ -234,13 +230,12 @@ fn reducer_renders_multiple_issues_in_diagnostic_then_condition_order() {
     let result = app.test_rule.result.as_ref().unwrap();
     assert_eq!(result.outcome, TestRuleOutcome::Error);
     let lines = crate::screens::test_rule::result_lines(&app, result);
-    assert_eq!(lines.len(), 8);
+    assert_eq!(lines.len(), 7);
     for (line, expected) in lines.iter().zip([
         "Request method",
         "Header line 1",
         "Header line 2",
         "Request body",
-        "Method",
         "Path",
         "Headers",
         "Body",
@@ -250,8 +245,7 @@ fn reducer_renders_multiple_issues_in_diagnostic_then_condition_order() {
             "{line:?} must start with {expected:?}"
         );
     }
-    assert!(lines[4].contains("invalid"));
-    assert!(lines[5].contains("failed"));
-    assert!(lines[7].contains("unsupported"));
+    assert!(lines[4].contains("failed"));
+    assert!(lines[6].contains("unsupported"));
     let _ = crate::screens::test_rule::view(&app);
 }

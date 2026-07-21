@@ -16,6 +16,8 @@ pub enum ConfirmAction {
     DeleteRuleSet(RuleSetId),
     DiscardChanges,
     SwitchWorkspace(String),
+    LeaveWorkspace,
+    CreateWorkspace,
     /// Revert a fallback file's draft to its saved baseline (MK-038).
     RevertFile(String),
 }
@@ -183,7 +185,6 @@ pub enum Message {
     PaletteQuery(String),
 
     // ── Settings ──────────────────────────────────────────────────────────
-    SettingsSetName(String),
     SettingsSetHost(String),
     SettingsSetPort(String),
     SettingsSetTls(bool),

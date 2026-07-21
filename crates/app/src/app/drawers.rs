@@ -63,12 +63,7 @@ fn save_diff_drawer_builds_with_dirty_and_clean() {
 fn save_diff_drawer_builds_with_no_changes() {
     let mut a = expert();
     a.drawer = Some(DrawerMode::SaveDiff);
-    // Mark everything clean.
-    if let Some(snap) = &mut a.snapshot {
-        for rs in &mut snap.rule_sets {
-            rs.file.dirty = false;
-        }
-    }
+    a.update(Message::Save);
     let _ = crate::shell::view::view(&a);
 }
 
@@ -76,14 +71,13 @@ fn save_diff_drawer_builds_with_no_changes() {
 fn validation_drawer_builds_when_all_clean() {
     let mut a = expert();
     a.drawer = Some(DrawerMode::Validation);
-    // Clear all validation issues.
-    if let Some(snap) = &mut a.snapshot {
-        for rs in &mut snap.rule_sets {
-            for rule in &mut rs.rules {
-                rule.validation.issues.clear();
-            }
+    let mut seed = apimokka_model::mock::shop_api_canonical_seed();
+    for rs in &mut seed.rule_sets {
+        for rule in &mut rs.rules {
+            rule.validation.issues.clear();
         }
-        snap.diagnostics.clear();
     }
+    seed.diagnostics.clear();
+    assert!(a.install_workspace(seed));
     let _ = crate::shell::view::view(&a);
 }

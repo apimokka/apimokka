@@ -12,12 +12,12 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let ws_name = app
         .snapshot
         .as_ref()
-        .map(|s| s.meta.name.as_str())
+        .map(|s| s.identity.name.as_str())
         .unwrap_or("—");
     let ws_path = app
         .snapshot
         .as_ref()
-        .map(|s| s.meta.path.as_str())
+        .map(|s| s.identity.path.as_str())
         .unwrap_or("");
 
     let current = container(
@@ -41,7 +41,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             let is_cur = app
                 .snapshot
                 .as_ref()
-                .map(|s| s.meta.name == ws.name)
+                .map(|s| s.identity.name == ws.name)
                 .unwrap_or(false);
             button(
                 container(

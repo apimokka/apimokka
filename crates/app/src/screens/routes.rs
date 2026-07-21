@@ -329,7 +329,11 @@ fn centre_panel(app: &App) -> Element<'_, Message> {
     // Priority 1: rule selected → rule editor
     if let Some(rule_id) = app.selection.rule {
         if let Some((_, rule)) = snap.find_rule(rule_id) {
-            return rule_editor(app, rule);
+            let payload = snap
+                .rule_draft(rule_id)
+                .map(|draft| &draft.payload)
+                .unwrap_or(&rule.payload);
+            return rule_editor(app, rule, payload);
         }
     }
 
@@ -566,10 +570,19 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
 fn rule_editor<'a>(
     app: &'a App,
     rule: &'a apimokka_model::snapshot::RuleView,
+    p: &'a apimokka_model::RulePayload,
 ) -> Element<'a, Message> {
-    let p = &rule.payload;
     let t = |k| app.t(k);
     let rule_id = rule.id;
+    let response_delay = app
+        .snapshot
+        .as_ref()
+        .and_then(|session| session.rule_draft(rule_id))
+        .map(|draft| draft.response_delay.as_str());
+    let rule_prototype = app
+        .snapshot
+        .as_ref()
+        .and_then(|session| session.prototype.rule_extras.get(&rule_id));
 
     // MK-043: active strategy drives conditional per-rule field visibility.
     let active_strategy = app
@@ -773,7 +786,10 @@ fn rule_editor<'a>(
         // Build each variant directly so the compiler has unambiguous types.
         let (label_key, hint_key, field_el): (Key, Key, Element<Message>) = match active_strategy {
             Strategy::WeightedRandom => {
-                let current = p.weight.map(|w| w.to_string()).unwrap_or_default();
+                let current = rule_prototype
+                    .and_then(|prototype| prototype.weight)
+                    .map(|w| w.to_string())
+                    .unwrap_or_default();
                 let inp = text_input("", &current)
                     .on_input(Message::RuleWeightChanged)
                     .size(size::BODY)
@@ -782,7 +798,10 @@ fn rule_editor<'a>(
                 (Key::RuleWeightLabel, Key::RuleWeightHint, inp.into())
             }
             Strategy::Priority => {
-                let current = p.priority.map(|pr| pr.to_string()).unwrap_or_default();
+                let current = rule_prototype
+                    .and_then(|prototype| prototype.priority)
+                    .map(|pr| pr.to_string())
+                    .unwrap_or_default();
                 let inp = text_input("", &current)
                     .on_input(Message::RulePriorityChanged)
                     .size(size::BODY)
@@ -811,7 +830,10 @@ fn rule_editor<'a>(
 
     let respond_col = container(
         scrollable({
-            let mut col = column![section_head(t(Key::RespondLabel)), respond_card(app, p),];
+            let mut col = column![
+                section_head(t(Key::RespondLabel)),
+                respond_card(app, p, response_delay),
+            ];
             if let Some(prf) = per_rule_field {
                 col = col.push(prf);
             }
@@ -1430,7 +1452,11 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
     )
 }
 
-fn respond_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
+fn respond_card<'a>(
+    app: &'a App,
+    p: &'a apimokka_model::RulePayload,
+    response_delay: Option<&'a str>,
+) -> Element<'a, Message> {
     let is_inline = p.respond.mode == RespondMode::InlineText;
     let mode_btns: Element<Message> = row![
         mode_tab(
@@ -1463,7 +1489,9 @@ fn respond_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
             .into()
     };
 
-    let delay_str = p.respond.delay_milliseconds.to_string();
+    let delay_str = response_delay
+        .map(str::to_owned)
+        .unwrap_or_else(|| p.respond.delay_milliseconds.to_string());
 
     card(
         app.t(Key::RespondCardTitle),

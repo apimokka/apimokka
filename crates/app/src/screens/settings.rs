@@ -13,6 +13,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         None => return widgets::empty_state("No workspace open."),
     };
     let s = &snap.root_settings;
+    let drafts = &snap.root_drafts;
 
     // ── Appearance section controls ───────────────────────────────────────
     let theme_btns: Element<Message> = {
@@ -72,6 +73,11 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
     page = page.push(text(app.t(Key::SettingsTitle)).size(size::TITLE));
 
+    page = page.push(widgets::field(
+        app.t(Key::SettingsWorkspaceName),
+        text(snap.identity.name.as_str()).size(size::BODY).into(),
+    ));
+
     // Always visible: Appearance + Server
     page = page.push(section(
         app,
@@ -114,7 +120,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             row![
                 widgets::field(
                     app.t(Key::SettingsHost),
-                    text_input("127.0.0.1", &s.listener_ip)
+                    text_input("127.0.0.1", &drafts.listener_ip)
                         .on_input(Message::SettingsSetHost)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
@@ -124,7 +130,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 Space::new().width(space::S3),
                 widgets::field(
                     app.t(Key::SettingsPort),
-                    text_input("8080", &s.listener_port.to_string())
+                    text_input("8080", &drafts.listener_port)
                         .on_input(Message::SettingsSetPort)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
@@ -215,6 +221,10 @@ fn push_logs_trace_sections<'a>(
     use apimokka_i18n::Key;
     use iced::widget::{Space, checkbox, column, text_input};
     use iced::{Length, Padding};
+    let trace = app
+        .snapshot
+        .as_ref()
+        .and_then(|session| session.prototype.trace.as_ref());
 
     page = page.push(section(
         app,
@@ -234,17 +244,23 @@ fn push_logs_trace_sections<'a>(
         Key::SettingsSectionTrace,
         Key::SettingsImpactReload,
         column![
-            checkbox(s.trace_enabled)
+            checkbox(trace.map(|trace| trace.enabled).unwrap_or(false))
                 .label(app.t(Key::SettingsTraceEnable))
                 .on_toggle(crate::message::Message::SettingsSetTraceEnabled)
                 .size(size::BODY),
             widgets::field(
                 app.t(Key::SettingsTraceQueueSize),
-                text_input("1024", &s.trace_queue_size.to_string())
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fixed(120.0))
-                    .into()
+                text_input(
+                    "1024",
+                    &trace
+                        .map(|trace| trace.queue_size)
+                        .unwrap_or_default()
+                        .to_string()
+                )
+                .size(size::BODY)
+                .padding(Padding::from([space::S2, space::S3]))
+                .width(Length::Fixed(120.0))
+                .into()
             ),
             Space::new().height(0.0),
         ]

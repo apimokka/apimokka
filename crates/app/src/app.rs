@@ -1,9 +1,14 @@
 //! Central app state and update (MK-021, MK-035).
 
 use apimokka_i18n::{Key, Locale};
+use apimokka_model::workspace_port::{
+    map_body_condition, map_header_condition, map_response, map_root_setting, map_rule_match,
+    parse_rule_set_path,
+};
 use apimokka_model::{
-    BodyConditionPayload, BodyOp, HeaderConditionPayload, HeaderOp, mock,
-    snapshot::WorkspaceSnapshot,
+    BodyConditionPayload, CollectionEdit, ConditionEdit, EditIntent, EditOutcome, EditTransaction,
+    HeaderConditionPayload, NodeId, ResponseMode, RuleEditPayload, RuleSetId, RuntimeEffect,
+    WorkspaceEditValue, WorkspaceNodeKind, WorkspaceRootKey, mock,
 };
 use iced::{Element, Subscription, Theme};
 
@@ -13,6 +18,9 @@ use crate::screens;
 use crate::selection::{DrawerMode, RouteSelection, WorkspaceTab};
 use crate::shell;
 use crate::shell::top_bar::ServerState;
+
+mod workspace_session;
+pub use workspace_session::{DraftBinding, WorkspaceSession};
 
 // ── Theme choice ──────────────────────────────────────────────────────────────
 
@@ -198,46 +206,146 @@ pub struct PathAssistantState {
 
 // ── MK-045: typed undo/redo command log ───────────────────────────────────────
 
-pub const UNDO_STACK_DEPTH: usize = 25;
+pub const UNDO_STACK_DEPTH: usize = 50;
+
+#[derive(Debug, Clone, Copy)]
+pub enum RuleMatchDraftField {
+    UrlPath,
+    UrlPathOp,
+    Method,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum RespondDraftField {
+    Mode,
+    Text,
+    FilePath,
+    Status,
+    Delay,
+}
 
 /// A reversible operation. Pushed to undo_stack before each edit; applied
 /// in reverse on undo; pushed to redo_stack so redo re-applies it.
 #[derive(Debug, Clone)]
-pub enum UndoCommand {
-    /// A rule was deleted; undo re-inserts it at the same position.
-    DeleteRule {
-        rule_set: apimokka_model::RuleSetId,
-        index: usize,
-        #[allow(dead_code)]
-        rule_id: apimokka_model::NodeId, // for forward redo (accessible via rule.id)
-        rule: apimokka_model::snapshot::RuleView,
-    },
-    /// A rule was added; undo removes it.
-    AddRule {
-        rule_set: apimokka_model::RuleSetId,
-        rule_id: apimokka_model::NodeId,
-    },
-    /// A rule was moved; undo moves it back to `from_index`.
+pub enum HistoryEntry {
+    /// A rule was moved between exact presentation indices.
     MoveRule {
-        rule_set: apimokka_model::RuleSetId,
         rule_id: apimokka_model::NodeId,
-        from_index: usize,
+        before_index: usize,
+        after_index: usize,
     },
-    /// The URL path field was edited; undo restores `old_value`.
-    EditUrlPath {
-        rule_id: apimokka_model::NodeId,
-        old_value: String, // value before the edit
-        new_value: String, // value after the edit (for redo)
+    RuleMatch {
+        rule_id: NodeId,
+        field: RuleMatchDraftField,
+        before: apimokka_model::RuleMatch,
+        after: apimokka_model::RuleMatch,
+    },
+    Respond {
+        rule_id: NodeId,
+        field: RespondDraftField,
+        before: apimokka_model::RespondDefinition,
+        after: apimokka_model::RespondDefinition,
+    },
+    RootSetting {
+        before: apimokka_model::RootSettingEdit,
+        after: apimokka_model::RootSettingEdit,
+    },
+    RulePrototype {
+        rule_id: NodeId,
+        before: workspace_session::RulePrototype,
+        after: workspace_session::RulePrototype,
+    },
+    TracePrototype {
+        before: workspace_session::TracePrototypeSettings,
+        after: workspace_session::TracePrototypeSettings,
+    },
+    HeaderAdd {
+        rule_id: NodeId,
+        key: apimokka_model::SemanticCreationKey,
+        condition: apimokka_model::HeaderCondition,
+        current_id: NodeId,
+    },
+    HeaderUpdate {
+        current_id: NodeId,
+        before: apimokka_model::HeaderCondition,
+        after: apimokka_model::HeaderCondition,
+    },
+    HeaderRemove {
+        rule_id: NodeId,
+        index: usize,
+        key: apimokka_model::SemanticCreationKey,
+        condition: apimokka_model::HeaderCondition,
+        current_id: NodeId,
+    },
+    HeadersClear {
+        rule_id: NodeId,
+        entries: Vec<(
+            usize,
+            apimokka_model::SemanticCreationKey,
+            apimokka_model::HeaderCondition,
+            NodeId,
+        )>,
+    },
+    BodyAdd {
+        rule_id: NodeId,
+        key: apimokka_model::SemanticCreationKey,
+        condition: apimokka_model::BodyCondition,
+        current_id: NodeId,
+    },
+    BodyUpdate {
+        current_id: NodeId,
+        before: apimokka_model::BodyCondition,
+        after: apimokka_model::BodyCondition,
+    },
+    BodyRemove {
+        rule_id: NodeId,
+        index: usize,
+        key: apimokka_model::SemanticCreationKey,
+        condition: apimokka_model::BodyCondition,
+        current_id: NodeId,
+    },
+    BodiesClear {
+        rule_id: NodeId,
+        entries: Vec<(
+            usize,
+            apimokka_model::SemanticCreationKey,
+            apimokka_model::BodyCondition,
+            NodeId,
+        )>,
+    },
+    AddedSubtree {
+        archive: apimokka_model::ArchivedSubtree,
+        current_root: NodeId,
+        bindings: Vec<(NodeId, NodeId)>,
+        prototypes: Vec<(NodeId, workspace_session::RulePrototype)>,
+    },
+    RemovedSubtree {
+        archive: apimokka_model::ArchivedSubtree,
+        current_root: NodeId,
+        bindings: Vec<(NodeId, NodeId)>,
+        prototypes: Vec<(NodeId, workspace_session::RulePrototype)>,
     },
 }
 
-impl UndoCommand {
+impl HistoryEntry {
     pub fn banner_key(&self) -> apimokka_i18n::Key {
         match self {
-            Self::DeleteRule { .. } => apimokka_i18n::Key::UndoRuleDeleted,
-            Self::AddRule { .. } => apimokka_i18n::Key::UndoRuleAdded,
             Self::MoveRule { .. } => apimokka_i18n::Key::UndoRuleMoved,
-            Self::EditUrlPath { .. } => apimokka_i18n::Key::UndoUrlPathEdited,
+            Self::RuleMatch { .. } => apimokka_i18n::Key::UndoUrlPathEdited,
+            Self::Respond { .. } => apimokka_i18n::Key::UndoUrlPathEdited,
+            Self::RootSetting { .. } | Self::RulePrototype { .. } | Self::TracePrototype { .. } => {
+                apimokka_i18n::Key::UndoRuleMoved
+            }
+            Self::HeaderAdd { .. }
+            | Self::HeaderUpdate { .. }
+            | Self::HeaderRemove { .. }
+            | Self::HeadersClear { .. }
+            | Self::BodyAdd { .. }
+            | Self::BodyUpdate { .. }
+            | Self::BodyRemove { .. }
+            | Self::BodiesClear { .. } => apimokka_i18n::Key::UndoRuleMoved,
+            Self::AddedSubtree { .. } => apimokka_i18n::Key::UndoRuleAdded,
+            Self::RemovedSubtree { .. } => apimokka_i18n::Key::UndoRuleDeleted,
         }
     }
 }
@@ -253,7 +361,9 @@ pub struct App {
     pub dash_search: String,
 
     pub tab: WorkspaceTab,
-    pub snapshot: Option<WorkspaceSnapshot>,
+    /// Transitional field name retained for screen/test compatibility. The
+    /// value is the complete MK-053 session, not a mutable render snapshot.
+    pub snapshot: Option<WorkspaceSession>,
     pub selection: RouteSelection,
     pub server_state: ServerState,
 
@@ -301,11 +411,6 @@ pub struct App {
     pub rule_when_more: bool,
     pub settings_advanced_more: bool,
     pub rule_set_config_more: bool,
-    // ── MK-045: undo / redo stacks ────────────────────────────────────────
-    /// Undoable commands, most-recent last. Capped at UNDO_STACK_DEPTH.
-    pub undo_stack: Vec<UndoCommand>,
-    /// Redoable commands. Cleared on any new edit.
-    pub redo_stack: Vec<UndoCommand>,
     /// Transient success / info notice.
     pub notice: Option<String>,
 }
@@ -313,7 +418,7 @@ pub struct App {
 impl App {
     pub fn new() -> (Self, iced::Task<Message>) {
         // MK-046: no snapshot on first launch — Welcome screen shows first.
-        let snapshot: Option<apimokka_model::snapshot::WorkspaceSnapshot> = None;
+        let snapshot: Option<WorkspaceSession> = None;
         let sel = RouteSelection::default();
         let initial_rule_set_open = None;
 
@@ -343,7 +448,7 @@ impl App {
             rule_set_open: initial_rule_set_open,
             fallback_section_open: false,
             middleware_section_open: false,
-            fallback_saved: mock_fallback_content(),
+            fallback_saved: std::collections::HashMap::new(),
             fallback_drafts: std::collections::HashMap::new(),
             fallback_status_saved: std::collections::HashMap::new(),
             fallback_status_draft: std::collections::HashMap::new(),
@@ -354,15 +459,13 @@ impl App {
             settings_advanced_more: false,
             rule_set_config_more: false,
             notice: None,
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
         };
         (app, iced::Task::none())
     }
 
     pub fn title(&self) -> String {
         match &self.snapshot {
-            Some(s) => format!("{} — apimokka", s.meta.name),
+            Some(s) => format!("{} — apimokka", s.identity.name),
             None => "apimokka".into(),
         }
     }
@@ -390,6 +493,20 @@ impl App {
     // ─────────────────────────────────────────────────────────────────────────
 
     pub fn update(&mut self, msg: Message) {
+        if self
+            .snapshot
+            .as_ref()
+            .is_some_and(|session| session.faulted)
+            && is_workspace_mutation(&msg)
+        {
+            let technical = self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.contract_fault.clone())
+                .unwrap_or_else(|| "workspace session is faulted".into());
+            self.present_workspace_problem("Workspace reload required", technical);
+            return;
+        }
         match msg {
             Message::Noop => {}
 
@@ -451,37 +568,16 @@ impl App {
 
             // MK-043: strategy / weight / priority
             Message::RuleSetSetStrategy(strategy) => {
-                if let Some(snap) = &mut self.snapshot {
-                    snap.root_settings.strategy = strategy;
-                }
+                self.update_root_setting(
+                    WorkspaceRootKey::ServiceStrategy,
+                    WorkspaceEditValue::Enum(strategy.label().into()),
+                );
             }
             Message::RuleWeightChanged(s) => {
-                if let Some(id) = self.selection.rule {
-                    if let Some(snap) = &mut self.snapshot {
-                        for rs in &mut snap.rule_sets {
-                            if let Some(rule) = rs.rules.iter_mut().find(|r| r.id == id) {
-                                rule.payload.weight = s.parse::<u32>().ok();
-                                rs.file.dirty = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                self.auto_save_rules();
+                self.update_rule_prototype(|prototype| prototype.weight = s.parse::<u32>().ok());
             }
             Message::RulePriorityChanged(s) => {
-                if let Some(id) = self.selection.rule {
-                    if let Some(snap) = &mut self.snapshot {
-                        for rs in &mut snap.rule_sets {
-                            if let Some(rule) = rs.rules.iter_mut().find(|r| r.id == id) {
-                                rule.payload.priority = s.parse::<i32>().ok();
-                                rs.file.dirty = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                self.auto_save_rules();
+                self.update_rule_prototype(|prototype| prototype.priority = s.parse::<i32>().ok());
             }
             Message::ToggleSettingsAdvancedMore => {
                 self.settings_advanced_more = !self.settings_advanced_more;
@@ -489,8 +585,11 @@ impl App {
 
             // Navigation
             Message::GoWelcome => {
-                self.view = AppView::Welcome;
-                self.snapshot = None;
+                if self.requires_workspace_confirmation() {
+                    self.update(Message::ConfirmRequest(ConfirmAction::LeaveWorkspace));
+                } else {
+                    self.leave_workspace();
+                }
             }
             Message::GoDashboard => {
                 self.view = AppView::Dashboard;
@@ -500,19 +599,14 @@ impl App {
                 self.view = AppView::Wizard;
             }
             Message::OpenWorkspace(name) => {
-                let _ = name;
                 self.workspace_menu_open = false;
-                self.snapshot = Some(mock::shop_api_mock());
-                if let Some(s) = &self.snapshot {
-                    self.selection.rule_set = s.rule_sets.first().map(|rs| rs.id);
-                    self.selection.rule = s
-                        .rule_sets
-                        .first()
-                        .and_then(|rs| rs.rules.first())
-                        .map(|r| r.id);
+                if self.requires_workspace_confirmation() {
+                    self.update(Message::ConfirmRequest(ConfirmAction::SwitchWorkspace(
+                        name,
+                    )));
+                } else {
+                    self.open_workspace(name);
                 }
-                self.view = AppView::Workspace;
-                self.tab = WorkspaceTab::Routes;
             }
             Message::SwitchTab(t) => {
                 self.tab = t;
@@ -570,18 +664,31 @@ impl App {
             }
             Message::ReloadConfig => {
                 if self.server_state == ServerState::ReloadPending {
+                    if let Some(session) = self.snapshot.as_mut() {
+                        session.acknowledge_reload();
+                    }
+                    if self.present_session_contract_fault_if_any() {
+                        return;
+                    }
                     self.server_state = ServerState::Running;
                 }
             }
             Message::RestartServer => {
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.acknowledge_restart();
+                }
+                if self.present_session_contract_fault_if_any() {
+                    return;
+                }
                 self.server_state = ServerState::Running;
                 self.save_pending_restart = false;
             }
 
             // Save
             Message::Save | Message::SaveAll => {
-                self.simulate_save();
-                self.notice = Some(self.t(Key::FallbackSavedHint).to_string());
+                if self.save_workspace_and_fallbacks() {
+                    self.notice = Some(self.t(Key::FallbackSavedHint).to_string());
+                }
             }
             Message::DiscardChanges => {
                 self.discard_all_changes();
@@ -632,62 +739,18 @@ impl App {
                 }
             }
             Message::WizardCreate => {
-                let name = if self.wizard.name.trim().is_empty() {
-                    "my-mock".to_string()
+                if self.requires_workspace_confirmation() {
+                    self.update(Message::ConfirmRequest(ConfirmAction::CreateWorkspace));
                 } else {
-                    self.wizard.name.trim().to_string()
-                };
-                let host = if self.wizard.host.trim().is_empty() {
-                    "127.0.0.1".to_string()
-                } else {
-                    self.wizard.host.trim().to_string()
-                };
-                let port = self.wizard.port.trim().parse::<u16>().unwrap_or(8080);
-                let tls = self.wizard.tls;
-
-                // MK-048: starter choice drives the initial content.
-                self.snapshot = Some(match self.wizard.starter {
-                    WizardStarter::Empty => mock::blank_workspace(&name, &host, port, tls),
-                    WizardStarter::Minimal => mock::minimal_workspace(&name, &host, port, tls),
-                    WizardStarter::ShopApi => {
-                        let mut ws = mock::shop_api_mock();
-                        ws.meta.name = name.clone();
-                        ws.meta.path = format!("~/{name}/apimock.toml");
-                        ws.root_settings.listener_ip = host;
-                        ws.root_settings.listener_port = port;
-                        ws.root_settings.tls_enabled = tls;
-                        ws
-                    }
-                });
-                // Select the first rule / rule set if the starter provided them.
-                if let Some(s) = &self.snapshot {
-                    self.selection.rule_set = s.rule_sets.first().map(|rs| rs.id);
-                    self.rule_set_open = self.selection.rule_set;
-                    self.selection.rule = s
-                        .rule_sets
-                        .first()
-                        .and_then(|rs| rs.rules.first())
-                        .map(|r| r.id);
+                    self.create_workspace_from_wizard();
                 }
-                self.view = AppView::Workspace;
-                self.tab = WorkspaceTab::Routes;
-                self.server_state = crate::shell::top_bar::ServerState::Stopped;
-                let notice_name = if self.wizard.name.trim().is_empty() {
-                    "my-mock".to_string()
-                } else {
-                    self.wizard.name.trim().to_string()
-                };
-                self.notice = Some(format!(
-                    "Workspace \"{notice_name}\" created. {}",
-                    match self.wizard.starter {
-                        WizardStarter::Empty => "Add a rule set to get started.",
-                        WizardStarter::Minimal => "A starter GET /health rule is ready.",
-                        WizardStarter::ShopApi => "Shop API example rules are loaded.",
-                    }
-                ));
             }
             Message::WizardCancel => {
-                self.view = AppView::Welcome;
+                self.view = if self.snapshot.is_some() {
+                    AppView::Workspace
+                } else {
+                    AppView::Welcome
+                };
             }
 
             // Selection
@@ -742,288 +805,301 @@ impl App {
                 self.selection.file_route = None;
             }
             Message::AddRuleSet => {
-                // MK-048: create a real RuleSetView with a generated filename.
-                let mut undo_cmd: Option<UndoCommand> = None;
-                if let Some(snap) = &mut self.snapshot {
-                    use apimokka_model::{
-                        NodeValidation, RuleSetId,
-                        node::{ConfigFileKind, ConfigFileView},
-                        snapshot::RuleSetView,
-                    };
-                    let n = snap.rule_sets.len() + 1;
-                    let path = format!("rules/rule-set-{n}.toml");
-                    let rs_id = RuleSetId(apimokka_model::NodeId::new());
-                    let rs = RuleSetView {
-                        id: rs_id,
-                        file: ConfigFileView {
-                            kind: ConfigFileKind::RuleSet,
-                            path: path.clone(),
-                            dirty: true,
-                        },
-                        rules: vec![],
-                        validation: NodeValidation::default(),
-                    };
-                    snap.rule_sets.push(rs);
-                    self.selection.rule_set = Some(rs_id);
-                    self.rule_set_open = Some(rs_id);
-                    self.selection.rule = None;
-                    undo_cmd = Some(UndoCommand::AddRule {
-                        // repurpose for rule-set undo stub
-                        rule_set: rs_id,
-                        rule_id: apimokka_model::NodeId::new(),
-                    });
+                let Some(session) = self.snapshot.as_mut() else {
+                    return;
+                };
+                let n = session.rule_sets.len() + 1;
+                let path = format!("rules/rule-set-{n}.toml");
+                let key = session.creation_key("rule-set");
+                let path = match parse_rule_set_path(&path) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        self.present_workspace_problem(
+                            "Rule-set creation rejected",
+                            error.to_string(),
+                        );
+                        return;
+                    }
+                };
+                if let Some(outcome) =
+                    self.apply_workspace_intent(EditIntent::AddRuleSet { path, key })
+                {
+                    if let Some(receipt) = outcome
+                        .creations
+                        .iter()
+                        .find(|receipt| receipt.kind == WorkspaceNodeKind::RuleSet)
+                    {
+                        let id = RuleSetId(receipt.new_id);
+                        self.selection.rule_set = Some(id);
+                        self.rule_set_open = Some(id);
+                        self.selection.rule = None;
+                        if let Some(archive) = self.archive_rule_set(id) {
+                            let prototypes = self.subtree_prototypes(&archive);
+                            let bindings = subtree_bindings(&archive);
+                            self.push_undo(HistoryEntry::AddedSubtree {
+                                archive,
+                                current_root: id.0,
+                                bindings,
+                                prototypes,
+                            });
+                        }
+                    }
                 }
-                let _ = undo_cmd; // TODO: UndoCommand::AddRuleSet in future RFC
-                self.recompute_dirty();
             }
             Message::AddRule(rs_id) => {
-                // MK-045: adding a rule is undoable (undo removes the new rule).
-                // Stub adds a placeholder rule and records it on the stack.
-                let mut undo_cmd: Option<UndoCommand> = None;
-                if let Some(snap) = &mut self.snapshot {
-                    if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == rs_id) {
-                        use apimokka_model::{
-                            NodeId, NodeValidation, rule::RulePayload, snapshot::RuleView,
-                        };
-                        let new_id = NodeId::new();
-                        let new_rule = RuleView {
-                            id: new_id,
-                            payload: RulePayload::default(),
-                            validation: NodeValidation::default(),
-                            matched_by_latest_trace: false,
-                        };
-                        rs.rules.push(new_rule);
-                        rs.file.dirty = true;
-                        self.selection.rule = Some(new_id);
+                let Some(session) = self.snapshot.as_mut() else {
+                    return;
+                };
+                let Some(insertion_index) = session
+                    .rule_sets
+                    .iter()
+                    .find(|rs| rs.id == rs_id)
+                    .map(|rs| rs.rules.len())
+                else {
+                    return;
+                };
+                let key = session.creation_key("rule");
+                let rule = RuleEditPayload {
+                    rule_match: map_rule_match("", None, "").expect("blank rule is valid"),
+                    headers: CollectionEdit::Preserve,
+                    body: CollectionEdit::Preserve,
+                    respond: map_response(ResponseMode::Inline, "", "", "", "")
+                        .expect("blank response is valid"),
+                };
+                if let Some(outcome) = self.apply_workspace_intent(EditIntent::AddRule {
+                    parent: rs_id,
+                    insertion_index,
+                    rule,
+                    key,
+                }) {
+                    if let Some(receipt) = outcome
+                        .creations
+                        .iter()
+                        .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
+                    {
+                        let new_id = receipt.new_id;
+                        self.selection.rule = Some(receipt.new_id);
                         self.selection.rule_set = Some(rs_id);
                         self.rule_set_open = Some(rs_id);
-                        undo_cmd = Some(UndoCommand::AddRule {
-                            rule_set: rs_id,
-                            rule_id: new_id,
+                        if let Some(archive) = self.archive_rule(new_id) {
+                            let prototypes = self.subtree_prototypes(&archive);
+                            let bindings = subtree_bindings(&archive);
+                            self.push_undo(HistoryEntry::AddedSubtree {
+                                archive,
+                                current_root: new_id,
+                                bindings,
+                                prototypes,
+                            });
+                        }
+                    }
+                }
+            }
+            Message::MoveRuleUp(id) => {
+                let index = self
+                    .snapshot
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.find_rule(id))
+                    .and_then(|(set, _)| set.rules.iter().position(|rule| rule.id == id));
+                if let Some(index) = index.filter(|index| *index > 0) {
+                    if self
+                        .apply_workspace_intent(EditIntent::MoveRule {
+                            id,
+                            new_index: index - 1,
+                        })
+                        .is_some()
+                    {
+                        self.push_undo(HistoryEntry::MoveRule {
+                            rule_id: id,
+                            before_index: index,
+                            after_index: index - 1,
                         });
                     }
                 }
-                if let Some(cmd) = undo_cmd {
-                    self.push_undo(cmd);
-                }
-                self.auto_save_rules();
-            }
-            Message::MoveRuleUp(id) => {
-                let mut undo_cmd: Option<UndoCommand> = None;
-                if let Some(snap) = &mut self.snapshot {
-                    for rs in &mut snap.rule_sets {
-                        if let Some(i) = rs.rules.iter().position(|r| r.id == id) {
-                            if i > 0 {
-                                rs.rules.swap(i, i - 1);
-                                rs.file.dirty = true;
-                                undo_cmd = Some(UndoCommand::MoveRule {
-                                    rule_set: rs.id,
-                                    rule_id: id,
-                                    from_index: i,
-                                });
-                            }
-                            break;
-                        }
-                    }
-                }
-                if let Some(cmd) = undo_cmd {
-                    self.push_undo(cmd);
-                }
-                self.auto_save_rules();
             }
             Message::MoveRuleDown(id) => {
-                let mut undo_cmd: Option<UndoCommand> = None;
-                if let Some(snap) = &mut self.snapshot {
-                    for rs in &mut snap.rule_sets {
-                        if let Some(i) = rs.rules.iter().position(|r| r.id == id) {
-                            if i + 1 < rs.rules.len() {
-                                rs.rules.swap(i, i + 1);
-                                rs.file.dirty = true;
-                                undo_cmd = Some(UndoCommand::MoveRule {
-                                    rule_set: rs.id,
-                                    rule_id: id,
-                                    from_index: i,
-                                });
-                            }
-                            break;
-                        }
+                let target = self
+                    .snapshot
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.find_rule(id))
+                    .and_then(|(set, _)| {
+                        let index = set.rules.iter().position(|rule| rule.id == id)?;
+                        (index + 1 < set.rules.len()).then_some(index + 1)
+                    });
+                if let Some(new_index) = target {
+                    if self
+                        .apply_workspace_intent(EditIntent::MoveRule { id, new_index })
+                        .is_some()
+                    {
+                        self.push_undo(HistoryEntry::MoveRule {
+                            rule_id: id,
+                            before_index: new_index - 1,
+                            after_index: new_index,
+                        });
                     }
                 }
-                if let Some(cmd) = undo_cmd {
-                    self.push_undo(cmd);
-                }
-                self.auto_save_rules();
             }
             Message::DeleteRuleSet(id) => {
                 self.update(Message::ConfirmRequest(ConfirmAction::DeleteRuleSet(id)));
             }
             Message::DeleteRule(id) => {
-                // MK-045: push to undo stack before removing.
-                let mut undo_cmd: Option<UndoCommand> = None;
-                if let Some(snap) = &mut self.snapshot {
-                    for rs in &mut snap.rule_sets {
-                        if let Some(index) = rs.rules.iter().position(|r| r.id == id) {
-                            let rule = rs.rules.remove(index);
-                            rs.file.dirty = true;
-                            let rid = rule.id;
-                            undo_cmd = Some(UndoCommand::DeleteRule {
-                                rule_set: rs.id,
-                                index,
-                                rule_id: rid,
-                                rule,
-                            });
-                            break;
-                        }
-                    }
-                }
-                if let Some(cmd) = undo_cmd {
-                    self.push_undo(cmd);
-                }
-                if self.selection.rule == Some(id) {
-                    self.selection.rule = None;
-                }
-                self.auto_save_rules();
-            }
-            Message::DuplicateRule(id) => {
-                // MK-049: clone the rule with a fresh NodeId, insert after original.
-                let mut undo_cmd: Option<UndoCommand> = None;
-                if let Some(snap) = &mut self.snapshot {
-                    for rs in &mut snap.rule_sets {
-                        if let Some(pos) = rs.rules.iter().position(|r| r.id == id) {
-                            use apimokka_model::NodeId;
-                            let new_id = NodeId::new();
-                            let mut copy = rs.rules[pos].clone();
-                            copy.id = new_id;
-                            copy.matched_by_latest_trace = false;
-                            let insert_at = pos + 1;
-                            rs.rules.insert(insert_at, copy);
-                            rs.file.dirty = true;
-                            self.selection.rule = Some(new_id);
-                            undo_cmd = Some(UndoCommand::AddRule {
-                                rule_set: rs.id,
-                                rule_id: new_id,
-                            });
-                            break;
-                        }
-                    }
-                }
-                if let Some(cmd) = undo_cmd {
-                    self.push_undo(cmd);
-                }
-                self.auto_save_rules();
-            }
-            // Rule edits — auto-save via with_rule
-            Message::RuleSetUrlPath(v) => {
-                // MK-045: capture old URL path before overwriting.
-                if let Some(id) = self.selection.rule {
-                    let old = self
-                        .snapshot
-                        .as_ref()
-                        .and_then(|s| s.find_rule(id).map(|(_, r)| r.payload.url_path.clone()))
-                        .unwrap_or_default();
-                    if old != v {
-                        self.push_undo(UndoCommand::EditUrlPath {
-                            rule_id: id,
-                            old_value: old,
-                            new_value: v.clone(),
+                let archive = self.archive_rule(id);
+                let prototypes = archive
+                    .as_ref()
+                    .map(|archive| self.subtree_prototypes(archive))
+                    .unwrap_or_default();
+                let deleted = self
+                    .apply_workspace_intent(EditIntent::DeleteRule { id })
+                    .is_some();
+                if deleted {
+                    if let Some(archive) = archive {
+                        self.push_undo(HistoryEntry::RemovedSubtree {
+                            bindings: subtree_bindings(&archive),
+                            archive,
+                            current_root: id,
+                            prototypes,
                         });
                     }
+                    if self.selection.rule == Some(id) {
+                        self.selection.rule = None;
+                    }
                 }
-                self.with_rule(|r| r.payload.url_path = v);
+            }
+            Message::DuplicateRule(id) => {
+                let Some(session) = self.snapshot.as_mut() else {
+                    return;
+                };
+                let Some((parent, insertion_index, source)) =
+                    session.find_rule(id).and_then(|(set, _)| {
+                        let index = set.rules.iter().position(|rule| rule.id == id)?;
+                        let source = session.latest().rule(id)?.clone();
+                        Some((set.id, index + 1, source))
+                    })
+                else {
+                    return;
+                };
+                let headers = source
+                    .conditions()
+                    .headers
+                    .iter()
+                    .map(|condition| ConditionEdit::Create {
+                        key: session.creation_key("header"),
+                        condition: condition.condition.clone(),
+                    })
+                    .collect();
+                let body = source
+                    .conditions()
+                    .body
+                    .iter()
+                    .map(|condition| ConditionEdit::Create {
+                        key: session.creation_key("body"),
+                        condition: condition.condition.clone(),
+                    })
+                    .collect();
+                let key = session.creation_key("rule");
+                let rule = RuleEditPayload {
+                    rule_match: source.rule_match().clone(),
+                    headers: CollectionEdit::Replace(headers),
+                    body: CollectionEdit::Replace(body),
+                    respond: source.respond().clone(),
+                };
+                if let Some(outcome) = self.apply_workspace_intent(EditIntent::AddRule {
+                    parent,
+                    insertion_index,
+                    rule,
+                    key,
+                }) {
+                    if let Some(receipt) = outcome
+                        .creations
+                        .iter()
+                        .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
+                    {
+                        let new_id = receipt.new_id;
+                        self.selection.rule = Some(new_id);
+                        if let Some(extra) = self
+                            .snapshot
+                            .as_ref()
+                            .and_then(|session| session.prototype.rule_extras.get(&id))
+                            .cloned()
+                        {
+                            if let Some(session) = self.snapshot.as_mut() {
+                                session.prototype.rule_extras.insert(new_id, extra);
+                            }
+                        }
+                        if let Some(archive) = self.archive_rule(new_id) {
+                            let prototypes = self.subtree_prototypes(&archive);
+                            let bindings = subtree_bindings(&archive);
+                            self.push_undo(HistoryEntry::AddedSubtree {
+                                archive,
+                                current_root: new_id,
+                                bindings,
+                                prototypes,
+                            });
+                        }
+                    }
+                }
+            }
+            // Rule edits are draft-first and port-backed.
+            Message::RuleSetUrlPath(v) => {
+                self.update_rule_core(RuleMatchDraftField::UrlPath, |payload| {
+                    payload.url_path = v;
+                    if payload.url_path.is_empty() {
+                        payload.url_path_op = None;
+                    } else if payload.url_path_op.is_none() {
+                        payload.url_path_op = Some(apimokka_model::UrlPathOp::Equal);
+                    }
+                });
             }
             Message::RuleSetUrlPathOp(op) => {
-                self.with_rule(|r| r.payload.url_path_op = Some(op));
+                self.update_rule_core(RuleMatchDraftField::UrlPathOp, |payload| {
+                    payload.url_path_op = Some(op);
+                });
             }
             Message::RuleSetUrlPathEnabled(v) => {
-                self.with_rule(|r| {
+                self.update_rule_core(RuleMatchDraftField::UrlPathOp, |r| {
                     if !v {
-                        r.payload.url_path.clear();
-                        r.payload.url_path_op = None;
+                        r.url_path.clear();
+                        r.url_path_op = None;
                     }
                 });
             }
             Message::RuleSetMethod(m) => {
-                self.with_rule(|r| r.payload.method = m);
+                self.update_rule_core(RuleMatchDraftField::Method, |payload| payload.method = m);
             }
             Message::HeaderAdd => {
-                self.with_rule(|r| {
-                    r.payload.headers.push(HeaderConditionPayload {
-                        name: String::new(),
-                        op: HeaderOp::Equal,
-                        value: String::new(),
-                    })
-                });
+                self.add_header_draft();
             }
             Message::HeaderRemove(i) => {
-                self.with_rule(|r| {
-                    if i < r.payload.headers.len() {
-                        r.payload.headers.remove(i);
-                    }
-                });
+                self.remove_header_draft(i);
             }
             Message::HeaderSetName { index, value } => {
-                self.with_rule(|r| {
-                    if index < r.payload.headers.len() {
-                        r.payload.headers[index].name = value;
-                    }
-                });
+                self.update_header_draft(index, |condition| condition.name = value);
             }
             Message::HeaderSetOp { index, op } => {
-                self.with_rule(|r| {
-                    if index < r.payload.headers.len() {
-                        r.payload.headers[index].op = op;
-                    }
-                });
+                self.update_header_draft(index, |condition| condition.op = op);
             }
             Message::HeaderSetValue { index, value } => {
-                self.with_rule(|r| {
-                    if index < r.payload.headers.len() {
-                        r.payload.headers[index].value = value;
-                    }
-                });
+                self.update_header_draft(index, |condition| condition.value = value);
             }
             Message::HeaderClearAll => {
-                self.with_rule(|r| r.payload.headers.clear());
+                self.clear_header_drafts();
             }
             Message::BodyAdd => {
-                self.with_rule(|r| {
-                    r.payload.body.push(BodyConditionPayload {
-                        path: String::new(),
-                        op: BodyOp::Equal,
-                        value: String::new(),
-                    })
-                });
+                self.add_body_draft();
             }
             Message::BodyRemove(i) => {
-                self.with_rule(|r| {
-                    if i < r.payload.body.len() {
-                        r.payload.body.remove(i);
-                    }
-                });
+                self.remove_body_draft(i);
             }
             Message::BodySetPath { index, value } => {
-                self.with_rule(|r| {
-                    if index < r.payload.body.len() {
-                        r.payload.body[index].path = value;
-                    }
-                });
+                self.update_body_draft(index, |condition| condition.path = value);
             }
             Message::BodySetOp { index, op } => {
-                self.with_rule(|r| {
-                    if index < r.payload.body.len() {
-                        r.payload.body[index].op = op;
-                    }
-                });
+                self.update_body_draft(index, |condition| condition.op = op);
             }
             Message::BodySetValue { index, value } => {
-                self.with_rule(|r| {
-                    if index < r.payload.body.len() {
-                        r.payload.body[index].value = value;
-                    }
-                });
+                self.update_body_draft(index, |condition| condition.value = value);
             }
             Message::BodyClearAll => {
-                self.with_rule(|r| r.payload.body.clear());
+                self.clear_body_drafts();
             }
             Message::BodyOpenPathAssistant(i) => {
                 self.path_assistant.open = true;
@@ -1032,25 +1108,27 @@ impl App {
                 self.path_assistant.selected_path = String::new();
             }
             Message::RespondSetMode(m) => {
-                self.with_rule(|r| r.payload.respond.mode = m);
+                self.update_response_draft(RespondDraftField::Mode, |respond| respond.mode = m);
             }
             Message::RespondSetText(v) => {
-                self.with_rule(|r| r.payload.respond.text = v);
+                self.update_response_draft(RespondDraftField::Text, |respond| respond.text = v);
             }
             Message::RespondSetFilePath(v) => {
-                self.with_rule(|r| r.payload.respond.file_path = v);
+                self.update_response_draft(RespondDraftField::FilePath, |respond| {
+                    respond.file_path = v;
+                });
             }
             Message::RespondSetStatus(v) => {
-                self.with_rule(|r| r.payload.respond.status = v);
+                self.update_response_draft(RespondDraftField::Status, |respond| respond.status = v);
             }
             Message::RespondSetDelay(v) => {
-                self.with_rule(|r| r.payload.respond.delay_milliseconds = v.parse().unwrap_or(0));
+                self.update_response_delay_draft(v);
             }
             Message::RuleSetWeight(v) => {
-                self.with_rule(|r| r.payload.weight = v.parse().ok());
+                self.update_rule_prototype(|prototype| prototype.weight = v.parse().ok());
             }
             Message::RuleSetPriority(v) => {
-                self.with_rule(|r| r.payload.priority = v.parse().ok());
+                self.update_rule_prototype(|prototype| prototype.priority = v.parse().ok());
             }
 
             // Trace
@@ -1169,7 +1247,7 @@ impl App {
             }
             Message::TestRuleRun => {
                 self.test_rule.result = Some(crate::match_test::evaluate(
-                    self.selected_rule().map(|rule| &rule.payload),
+                    self.selected_rule_payload(),
                     TestRequest {
                         method: &self.test_rule.method,
                         url_path: &self.test_rule.url_path,
@@ -1214,6 +1292,12 @@ impl App {
                     ConfirmAction::SwitchWorkspace(_) => {
                         (Key::ConfirmSwitchWorkspace, Key::ConfirmSwitchWorkspaceBody)
                     }
+                    ConfirmAction::LeaveWorkspace => {
+                        (Key::ConfirmSwitchWorkspace, Key::ConfirmSwitchWorkspaceBody)
+                    }
+                    ConfirmAction::CreateWorkspace => {
+                        (Key::ConfirmSwitchWorkspace, Key::ConfirmSwitchWorkspaceBody)
+                    }
                     ConfirmAction::RevertFile(_) => {
                         (Key::ConfirmRevertFile, Key::ConfirmRevertFileBody)
                     }
@@ -1231,20 +1315,44 @@ impl App {
                 if let Some(d) = self.confirm_dialog.take() {
                     match d.action {
                         ConfirmAction::DeleteRuleSet(id) => {
-                            if let Some(s) = &mut self.snapshot {
-                                s.rule_sets.retain(|rs| rs.id != id);
+                            let archive = self.archive_rule_set(id);
+                            let prototypes = archive
+                                .as_ref()
+                                .map(|archive| self.subtree_prototypes(archive))
+                                .unwrap_or_default();
+                            let removed = self
+                                .apply_workspace_intent(EditIntent::RemoveRuleSet { id })
+                                .is_some();
+                            if removed {
                                 if self.selection.rule_set == Some(id) {
-                                    self.selection.rule_set = s.rule_sets.first().map(|rs| rs.id);
+                                    self.selection.rule_set = self
+                                        .snapshot
+                                        .as_ref()
+                                        .and_then(|s| s.rule_sets.first())
+                                        .map(|rs| rs.id);
                                     self.selection.rule = None;
                                 }
+                                if let Some(archive) = archive {
+                                    self.push_undo(HistoryEntry::RemovedSubtree {
+                                        bindings: subtree_bindings(&archive),
+                                        archive,
+                                        current_root: id.0,
+                                        prototypes,
+                                    });
+                                }
                             }
-                            self.auto_save_rules();
                         }
                         ConfirmAction::DiscardChanges => {
                             self.discard_all_changes();
                         }
                         ConfirmAction::SwitchWorkspace(name) => {
-                            self.update(Message::OpenWorkspace(name));
+                            self.open_workspace(name);
+                        }
+                        ConfirmAction::LeaveWorkspace => {
+                            self.leave_workspace();
+                        }
+                        ConfirmAction::CreateWorkspace => {
+                            self.create_workspace_from_wizard();
                         }
                         ConfirmAction::RevertFile(path) => {
                             // MK-038: draft ← saved (Dirty → Clean)
@@ -1266,46 +1374,59 @@ impl App {
             }
 
             // Settings
-            Message::SettingsSetName(v) => {
-                if let Some(s) = &mut self.snapshot {
-                    s.meta.name = v;
-                }
-            }
             Message::SettingsSetHost(v) => {
-                if let Some(s) = &mut self.snapshot {
-                    s.root_settings.listener_ip = v;
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.root_drafts.listener_ip = v.clone();
                 }
-                self.trigger_restart();
+                self.update_root_setting(
+                    WorkspaceRootKey::ListenerIpAddress,
+                    WorkspaceEditValue::String(v),
+                );
             }
             Message::SettingsSetPort(v) => {
-                if let Some(s) = &mut self.snapshot {
-                    s.root_settings.listener_port = v.parse().unwrap_or(8080);
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.root_drafts.listener_port = v.clone();
                 }
-                self.trigger_restart();
+                let value = match v.parse::<i64>() {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.present_workspace_problem("Listener port rejected", error.to_string());
+                        return;
+                    }
+                };
+                self.update_root_setting(
+                    WorkspaceRootKey::ListenerPort,
+                    WorkspaceEditValue::Integer(value),
+                );
             }
             Message::SettingsSetTls(v) => {
-                if let Some(s) = &mut self.snapshot {
-                    s.root_settings.tls_enabled = v;
-                }
-                self.trigger_restart();
+                self.update_root_setting(
+                    WorkspaceRootKey::TlsEnabled,
+                    WorkspaceEditValue::Boolean(v),
+                );
             }
             Message::SettingsSetLogLevel(v) => {
-                if let Some(s) = &mut self.snapshot {
-                    s.root_settings.log_level = v;
-                }
-                self.trigger_reload();
+                self.update_root_setting(WorkspaceRootKey::LogLevel, WorkspaceEditValue::Enum(v));
             }
             Message::SettingsSetStrategy(st) => {
-                if let Some(s) = &mut self.snapshot {
-                    s.root_settings.strategy = st;
-                }
-                self.trigger_reload();
+                self.update_root_setting(
+                    WorkspaceRootKey::ServiceStrategy,
+                    WorkspaceEditValue::Enum(st.label().into()),
+                );
             }
             Message::SettingsSetTraceEnabled(v) => {
-                if let Some(s) = &mut self.snapshot {
-                    s.root_settings.trace_enabled = v;
+                if let Some(trace) = self
+                    .snapshot
+                    .as_mut()
+                    .and_then(|session| session.prototype.trace.as_mut())
+                {
+                    let before = trace.clone();
+                    trace.enabled = v;
+                    let after = trace.clone();
+                    if before != after {
+                        self.push_undo(HistoryEntry::TracePrototype { before, after });
+                    }
                 }
-                self.trigger_reload();
             }
 
             // ── Fallback file editor (MK-038) ─────────────────────────────────
@@ -1362,208 +1483,1963 @@ impl App {
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    // ── MK-045: undo / redo helpers ───────────────────────────────────────────
+    fn apply_workspace_intent(&mut self, intent: EditIntent) -> Option<EditOutcome> {
+        self.apply_workspace_transaction(vec![intent])
+    }
 
-    /// Push a command to the undo stack. Clears the redo stack.
-    fn push_undo(&mut self, cmd: UndoCommand) {
-        self.redo_stack.clear();
-        self.undo_stack.push(cmd);
-        if self.undo_stack.len() > UNDO_STACK_DEPTH {
-            self.undo_stack.remove(0);
+    fn apply_workspace_transaction(&mut self, intents: Vec<EditIntent>) -> Option<EditOutcome> {
+        if self
+            .snapshot
+            .as_ref()
+            .is_some_and(|session| session.faulted)
+        {
+            let technical = self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.contract_fault.clone())
+                .unwrap_or_else(|| "workspace session is faulted".into());
+            self.present_workspace_problem("Workspace reload required", technical);
+            return None;
+        }
+        let transaction = match EditTransaction::new(intents) {
+            Ok(transaction) => transaction,
+            Err(error) => {
+                self.present_workspace_problem("Configuration edit rejected", error.to_string());
+                return None;
+            }
+        };
+        let result = self.snapshot.as_mut()?.apply(transaction);
+        match result {
+            workspace_session::SessionApplyResult::Validated(outcome) => {
+                self.last_problem = None;
+                self.recompute_dirty();
+                Some(*outcome)
+            }
+            workspace_session::SessionApplyResult::ApplyFailure(failure) => {
+                self.present_workspace_problem(
+                    "Configuration edit rejected",
+                    failure.diagnostic.message,
+                );
+                None
+            }
+            workspace_session::SessionApplyResult::ContractFault => {
+                let technical = self
+                    .snapshot
+                    .as_ref()
+                    .and_then(|session| session.contract_fault.clone())
+                    .unwrap_or_else(|| "workspace port contract fault".into());
+                self.present_adopted_workspace_problem("Workspace reload required", technical);
+                self.reconcile_selection();
+                self.recompute_dirty();
+                None
+            }
         }
     }
 
-    /// Undo the top command: apply its INVERSE, push the command to redo_stack.
+    fn reconcile_selection(&mut self) {
+        let rule_survives = self.selection.rule.is_some_and(|id| {
+            self.snapshot
+                .as_ref()
+                .is_some_and(|session| session.find_rule(id).is_some())
+        });
+        if !rule_survives {
+            self.selection.rule = None;
+        }
+        let set_survives = self.selection.rule_set.is_some_and(|id| {
+            self.snapshot
+                .as_ref()
+                .is_some_and(|session| session.find_rule_set(id).is_some())
+        });
+        if !set_survives {
+            self.selection.rule_set = self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.rule_sets.first())
+                .map(|set| set.id);
+        }
+    }
+
+    fn present_workspace_problem(&mut self, title: &str, technical: String) {
+        self.last_problem = Some(
+            apimokka_model::FriendlyProblem::new(
+                title,
+                "The canonical workspace was not changed. Correct the field and try again.",
+                None,
+            )
+            .with_technical(technical),
+        );
+    }
+
+    fn present_adopted_workspace_problem(&mut self, title: &str, technical: String) {
+        self.last_problem = Some(
+            apimokka_model::FriendlyProblem::new(
+                title,
+                "The workspace returned changed canonical state, but its result violated the editing contract. Reload the workspace before editing again.",
+                None,
+            )
+            .with_technical(technical),
+        );
+    }
+
+    fn present_session_contract_fault_if_any(&mut self) -> bool {
+        let technical = self.snapshot.as_ref().and_then(|session| {
+            session
+                .faulted
+                .then(|| session.contract_fault.clone())
+                .flatten()
+        });
+        if let Some(technical) = technical {
+            self.present_adopted_workspace_problem("Workspace reload required", technical);
+            self.reconcile_selection();
+            self.recompute_dirty();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn update_root_setting(&mut self, key: WorkspaceRootKey, value: WorkspaceEditValue) {
+        let before = self.current_root_edit(key);
+        let edit = match map_root_setting(key, value) {
+            Ok(edit) => edit,
+            Err(error) => {
+                self.present_workspace_problem("Workspace setting rejected", error.to_string());
+                return;
+            }
+        };
+        if before.as_ref().is_some_and(|before| before == &edit) {
+            self.sync_root_setting_draft(key);
+            self.last_problem = None;
+            return;
+        }
+        let effect = edit.effect();
+        let history_after = edit.clone();
+        if self
+            .apply_workspace_intent(EditIntent::UpdateRootSetting(edit))
+            .is_some()
+        {
+            self.sync_root_setting_draft(key);
+            if let Some(before) = before {
+                self.push_undo(HistoryEntry::RootSetting {
+                    before,
+                    after: history_after,
+                });
+            }
+            match effect {
+                RuntimeEffect::None => {}
+                RuntimeEffect::Reload => self.trigger_reload(),
+                RuntimeEffect::Restart => self.trigger_restart(),
+            }
+        }
+    }
+
+    fn current_root_edit(&self, key: WorkspaceRootKey) -> Option<apimokka_model::RootSettingEdit> {
+        let root = &self.snapshot.as_ref()?.root_settings;
+        let value = match key {
+            WorkspaceRootKey::ListenerIpAddress => {
+                WorkspaceEditValue::String(root.listener_ip.clone())
+            }
+            WorkspaceRootKey::ListenerPort => {
+                WorkspaceEditValue::Integer(i64::from(root.listener_port))
+            }
+            WorkspaceRootKey::ServiceStrategy => {
+                WorkspaceEditValue::Enum(root.strategy.label().into())
+            }
+            WorkspaceRootKey::TlsEnabled => WorkspaceEditValue::Boolean(root.tls_enabled),
+            WorkspaceRootKey::LogLevel => WorkspaceEditValue::Enum(root.log_level.clone()),
+            _ => return None,
+        };
+        map_root_setting(key, value).ok()
+    }
+
+    fn update_rule_prototype(
+        &mut self,
+        mutate: impl FnOnce(&mut workspace_session::RulePrototype),
+    ) {
+        let Some(rule_id) = self.selection.rule else {
+            return;
+        };
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let prototype = session.prototype.rule_extras.entry(rule_id).or_default();
+        let before = prototype.clone();
+        mutate(prototype);
+        let after = prototype.clone();
+        if before != after {
+            self.push_undo(HistoryEntry::RulePrototype {
+                rule_id,
+                before,
+                after,
+            });
+        }
+    }
+
+    fn selected_rule_id(&self) -> Option<NodeId> {
+        self.selection.rule
+    }
+
+    fn current_rule_edit(&self, id: NodeId) -> Option<RuleEditPayload> {
+        let rule = self.snapshot.as_ref()?.latest().rule(id)?;
+        Some(RuleEditPayload {
+            rule_match: rule.rule_match().clone(),
+            headers: CollectionEdit::Preserve,
+            body: CollectionEdit::Preserve,
+            respond: rule.respond().clone(),
+        })
+    }
+
+    fn update_rule_core(
+        &mut self,
+        field: RuleMatchDraftField,
+        mutate: impl FnOnce(&mut apimokka_model::RulePayload),
+    ) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let before = self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(id))
+            .map(|rule| rule.rule_match().clone());
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let Some(draft) = session.ensure_rule_draft(id) else {
+            return;
+        };
+        mutate(&mut draft.payload);
+        let draft = draft.payload.clone();
+        let rule_match = match map_rule_match(&draft.url_path, draft.url_path_op, &draft.method) {
+            Ok(value) => value,
+            Err(error) => {
+                self.present_workspace_problem("Rule edit rejected", error.to_string());
+                return;
+            }
+        };
+        let Some(mut rule) = self.current_rule_edit(id) else {
+            return;
+        };
+        if rule.rule_match == rule_match {
+            self.sync_rule_match_draft(id, field);
+            self.last_problem = None;
+            return;
+        }
+        rule.rule_match = rule_match.clone();
+        if self
+            .apply_workspace_intent(EditIntent::UpdateRule { id, rule })
+            .is_some()
+        {
+            self.sync_rule_match_draft(id, field);
+            if let Some(before) = before {
+                self.push_undo(HistoryEntry::RuleMatch {
+                    rule_id: id,
+                    field,
+                    before,
+                    after: rule_match,
+                });
+            }
+        }
+    }
+
+    fn update_response_draft(
+        &mut self,
+        field: RespondDraftField,
+        mutate: impl FnOnce(&mut apimokka_model::respond::RespondPayload),
+    ) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let before = self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(id))
+            .map(|rule| rule.respond().clone());
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let Some(draft) = session.ensure_rule_draft(id) else {
+            return;
+        };
+        mutate(&mut draft.payload.respond);
+        let response = draft.payload.respond.clone();
+        let delay = draft.response_delay.clone();
+        let mode = match response.mode {
+            apimokka_model::snapshot::RespondMode::InlineText => ResponseMode::Inline,
+            apimokka_model::snapshot::RespondMode::ServeFile => ResponseMode::File,
+        };
+        let mapped = match map_response(
+            mode,
+            &response.text,
+            &response.file_path,
+            &response.status,
+            &delay,
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                self.present_workspace_problem("Response edit rejected", error.to_string());
+                return;
+            }
+        };
+        if self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(id))
+            .is_some_and(|rule| rule.respond() == &mapped)
+        {
+            self.sync_respond_draft(id, field);
+            self.last_problem = None;
+            return;
+        }
+        if self
+            .apply_workspace_intent(EditIntent::UpdateRespond {
+                id,
+                respond: mapped.clone(),
+            })
+            .is_some()
+        {
+            self.sync_respond_draft(id, field);
+            if let Some(before) = before {
+                self.push_undo(HistoryEntry::Respond {
+                    rule_id: id,
+                    field,
+                    before,
+                    after: mapped,
+                });
+            }
+        }
+    }
+
+    fn update_response_delay_draft(&mut self, value: String) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let before = self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(id))
+            .map(|rule| rule.respond().clone());
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let Some(draft) = session.ensure_rule_draft(id) else {
+            return;
+        };
+        draft.response_delay = value;
+        let response = draft.payload.respond.clone();
+        let delay = draft.response_delay.clone();
+        let mode = match response.mode {
+            apimokka_model::snapshot::RespondMode::InlineText => ResponseMode::Inline,
+            apimokka_model::snapshot::RespondMode::ServeFile => ResponseMode::File,
+        };
+        let mapped = match map_response(
+            mode,
+            &response.text,
+            &response.file_path,
+            &response.status,
+            &delay,
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                self.present_workspace_problem("Response edit rejected", error.to_string());
+                return;
+            }
+        };
+        if before.as_ref().is_some_and(|before| before == &mapped) {
+            self.sync_respond_draft(id, RespondDraftField::Delay);
+            self.last_problem = None;
+            return;
+        }
+        if self
+            .apply_workspace_intent(EditIntent::UpdateRespond {
+                id,
+                respond: mapped.clone(),
+            })
+            .is_some()
+        {
+            self.sync_respond_draft(id, RespondDraftField::Delay);
+            if let Some(before) = before {
+                self.push_undo(HistoryEntry::Respond {
+                    rule_id: id,
+                    field: RespondDraftField::Delay,
+                    before,
+                    after: mapped,
+                });
+            }
+        }
+    }
+
+    fn add_header_draft(&mut self) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let key = session.creation_key("header");
+        if let Some(draft) = session.ensure_rule_draft(id) {
+            draft.push_header(key);
+        }
+    }
+
+    fn update_header_draft(
+        &mut self,
+        index: usize,
+        mutate: impl FnOnce(&mut HeaderConditionPayload),
+    ) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let Some(draft) = session.ensure_rule_draft(id) else {
+            return;
+        };
+        let (Some(condition), Some(binding)) = (
+            draft.payload.headers.get_mut(index),
+            draft.header_bindings.get(index).cloned(),
+        ) else {
+            return;
+        };
+        mutate(condition);
+        let condition = condition.clone();
+        let mapped = match map_header_condition(&condition.name, condition.op, &condition.value) {
+            Ok(value) => value,
+            Err(error) => {
+                self.present_workspace_problem("Header condition rejected", error.to_string());
+                return;
+            }
+        };
+        let before = match &binding {
+            DraftBinding::Existing(condition_id) => self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.latest().rule(id))
+                .and_then(|rule| {
+                    rule.conditions()
+                        .headers
+                        .iter()
+                        .find(|candidate| candidate.id == *condition_id)
+                })
+                .map(|candidate| candidate.condition.clone()),
+            DraftBinding::Pending(_) => None,
+        };
+        if before.as_ref().is_some_and(|before| before == &mapped) {
+            if let DraftBinding::Existing(condition_id) = binding {
+                self.sync_header_draft_condition(id, index, condition_id);
+            }
+            self.last_problem = None;
+            return;
+        }
+        let intent = match &binding {
+            DraftBinding::Existing(id) => EditIntent::UpdateHeaderCondition {
+                id: *id,
+                condition: mapped.clone(),
+            },
+            DraftBinding::Pending(key) => EditIntent::AddHeaderCondition {
+                rule_id: id,
+                condition: mapped.clone(),
+                key: key.clone(),
+            },
+        };
+        let Some(outcome) = self.apply_workspace_intent(intent) else {
+            return;
+        };
+        if matches!(binding, DraftBinding::Pending(_)) {
+            if let Some(receipt) = outcome
+                .creations
+                .iter()
+                .find(|receipt| receipt.kind == WorkspaceNodeKind::HeaderCondition)
+            {
+                if let Some(draft) = self
+                    .snapshot
+                    .as_mut()
+                    .and_then(|session| session.rule_drafts.get_mut(&id))
+                {
+                    draft.header_bindings[index] = DraftBinding::Existing(receipt.new_id);
+                }
+                self.sync_header_draft_condition(id, index, receipt.new_id);
+                if let DraftBinding::Pending(key) = binding {
+                    self.push_undo(HistoryEntry::HeaderAdd {
+                        rule_id: id,
+                        key,
+                        condition: mapped,
+                        current_id: receipt.new_id,
+                    });
+                }
+            }
+        } else if let (DraftBinding::Existing(current_id), Some(before)) = (binding, before) {
+            self.sync_header_draft_condition(id, index, current_id);
+            self.push_undo(HistoryEntry::HeaderUpdate {
+                current_id,
+                before,
+                after: mapped,
+            });
+        }
+    }
+
+    fn remove_header_draft(&mut self, index: usize) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let binding = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.ensure_rule_draft(id))
+            .and_then(|draft| draft.header_bindings.get(index).cloned());
+        let Some(binding) = binding else { return };
+        let canonical = match binding {
+            DraftBinding::Existing(condition_id) => self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.latest().rule(id))
+                .and_then(|rule| {
+                    rule.conditions()
+                        .headers
+                        .iter()
+                        .find(|candidate| candidate.id == condition_id)
+                })
+                .map(|candidate| (condition_id, candidate.condition.clone())),
+            DraftBinding::Pending(_) => None,
+        };
+        let removed = match &binding {
+            DraftBinding::Existing(condition_id) => self
+                .apply_workspace_intent(EditIntent::RemoveHeaderCondition { id: *condition_id })
+                .is_some(),
+            DraftBinding::Pending(_) => true,
+        };
+        if removed {
+            if let Some(draft) = self
+                .snapshot
+                .as_mut()
+                .and_then(|session| session.rule_drafts.get_mut(&id))
+            {
+                draft.payload.headers.remove(index);
+                draft.header_bindings.remove(index);
+            }
+            if let Some((current_id, condition)) = canonical {
+                let key = self
+                    .snapshot
+                    .as_mut()
+                    .unwrap()
+                    .creation_key("history-header");
+                self.push_undo(HistoryEntry::HeaderRemove {
+                    rule_id: id,
+                    index,
+                    key,
+                    condition,
+                    current_id,
+                });
+            }
+        }
+    }
+
+    fn sync_header_draft_condition(
+        &mut self,
+        rule_id: NodeId,
+        draft_index: usize,
+        condition_id: NodeId,
+    ) {
+        let projected = self.snapshot.as_ref().and_then(|session| {
+            let canonical = session.latest().rule(rule_id)?;
+            let position = canonical
+                .conditions()
+                .headers
+                .iter()
+                .position(|condition| condition.id == condition_id)?;
+            session
+                .find_rule(rule_id)?
+                .1
+                .payload
+                .headers
+                .get(position)
+                .cloned()
+        });
+        if let (Some(projected), Some(draft)) = (
+            projected,
+            self.snapshot
+                .as_mut()
+                .and_then(|session| session.rule_drafts.get_mut(&rule_id)),
+        ) {
+            if let Some(condition) = draft.payload.headers.get_mut(draft_index) {
+                *condition = projected;
+            }
+        }
+    }
+
+    fn clear_header_drafts(&mut self) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let bindings = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.ensure_rule_draft(id))
+            .map(|draft| draft.header_bindings.clone())
+            .unwrap_or_default();
+        let removed = self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(id))
+            .map(|rule| {
+                rule.conditions()
+                    .headers
+                    .iter()
+                    .enumerate()
+                    .map(|(index, condition)| (index, condition.id, condition.condition.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let intents = bindings
+            .iter()
+            .filter_map(|binding| match binding {
+                DraftBinding::Existing(id) => Some(EditIntent::RemoveHeaderCondition { id: *id }),
+                DraftBinding::Pending(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !intents.is_empty() && self.apply_workspace_transaction(intents).is_none() {
+            return;
+        }
+        if let Some(draft) = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.rule_drafts.get_mut(&id))
+        {
+            draft.payload.headers.clear();
+            draft.header_bindings.clear();
+        }
+        if !removed.is_empty() {
+            let entries = removed
+                .into_iter()
+                .map(|(index, current_id, condition)| {
+                    let key = self
+                        .snapshot
+                        .as_mut()
+                        .unwrap()
+                        .creation_key("history-header");
+                    (index, key, condition, current_id)
+                })
+                .collect();
+            self.push_undo(HistoryEntry::HeadersClear {
+                rule_id: id,
+                entries,
+            });
+        }
+    }
+
+    fn add_body_draft(&mut self) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let key = session.creation_key("body");
+        if let Some(draft) = session.ensure_rule_draft(id) {
+            draft.push_body(key);
+        }
+    }
+
+    fn update_body_draft(&mut self, index: usize, mutate: impl FnOnce(&mut BodyConditionPayload)) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        let Some(draft) = session.ensure_rule_draft(id) else {
+            return;
+        };
+        let (Some(condition), Some(binding)) = (
+            draft.payload.body.get_mut(index),
+            draft.body_bindings.get(index).cloned(),
+        ) else {
+            return;
+        };
+        mutate(condition);
+        let condition = condition.clone();
+        let mapped = match map_body_condition(&condition.path, condition.op, &condition.value) {
+            Ok(value) => value,
+            Err(error) => {
+                self.present_workspace_problem("Body condition rejected", error.to_string());
+                return;
+            }
+        };
+        let before = match &binding {
+            DraftBinding::Existing(condition_id) => self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.latest().rule(id))
+                .and_then(|rule| {
+                    rule.conditions()
+                        .body
+                        .iter()
+                        .find(|candidate| candidate.id == *condition_id)
+                })
+                .map(|candidate| candidate.condition.clone()),
+            DraftBinding::Pending(_) => None,
+        };
+        if before.as_ref().is_some_and(|before| before == &mapped) {
+            if let DraftBinding::Existing(condition_id) = binding {
+                self.sync_body_draft_condition(id, index, condition_id);
+            }
+            self.last_problem = None;
+            return;
+        }
+        let intent = match &binding {
+            DraftBinding::Existing(id) => EditIntent::UpdateBodyCondition {
+                id: *id,
+                condition: mapped.clone(),
+            },
+            DraftBinding::Pending(key) => EditIntent::AddBodyCondition {
+                rule_id: id,
+                condition: mapped.clone(),
+                key: key.clone(),
+            },
+        };
+        let Some(outcome) = self.apply_workspace_intent(intent) else {
+            return;
+        };
+        if matches!(binding, DraftBinding::Pending(_)) {
+            if let Some(receipt) = outcome
+                .creations
+                .iter()
+                .find(|receipt| receipt.kind == WorkspaceNodeKind::BodyCondition)
+            {
+                if let Some(draft) = self
+                    .snapshot
+                    .as_mut()
+                    .and_then(|session| session.rule_drafts.get_mut(&id))
+                {
+                    draft.body_bindings[index] = DraftBinding::Existing(receipt.new_id);
+                }
+                self.sync_body_draft_condition(id, index, receipt.new_id);
+                if let DraftBinding::Pending(key) = binding {
+                    self.push_undo(HistoryEntry::BodyAdd {
+                        rule_id: id,
+                        key,
+                        condition: mapped,
+                        current_id: receipt.new_id,
+                    });
+                }
+            }
+        } else if let (DraftBinding::Existing(current_id), Some(before)) = (binding, before) {
+            self.sync_body_draft_condition(id, index, current_id);
+            self.push_undo(HistoryEntry::BodyUpdate {
+                current_id,
+                before,
+                after: mapped,
+            });
+        }
+    }
+
+    fn remove_body_draft(&mut self, index: usize) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let binding = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.ensure_rule_draft(id))
+            .and_then(|draft| draft.body_bindings.get(index).cloned());
+        let Some(binding) = binding else { return };
+        let canonical = match binding {
+            DraftBinding::Existing(condition_id) => self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.latest().rule(id))
+                .and_then(|rule| {
+                    rule.conditions()
+                        .body
+                        .iter()
+                        .find(|candidate| candidate.id == condition_id)
+                })
+                .map(|candidate| (condition_id, candidate.condition.clone())),
+            DraftBinding::Pending(_) => None,
+        };
+        let removed = match &binding {
+            DraftBinding::Existing(condition_id) => self
+                .apply_workspace_intent(EditIntent::RemoveBodyCondition { id: *condition_id })
+                .is_some(),
+            DraftBinding::Pending(_) => true,
+        };
+        if removed {
+            if let Some(draft) = self
+                .snapshot
+                .as_mut()
+                .and_then(|session| session.rule_drafts.get_mut(&id))
+            {
+                draft.payload.body.remove(index);
+                draft.body_bindings.remove(index);
+            }
+            if let Some((current_id, condition)) = canonical {
+                let key = self.snapshot.as_mut().unwrap().creation_key("history-body");
+                self.push_undo(HistoryEntry::BodyRemove {
+                    rule_id: id,
+                    index,
+                    key,
+                    condition,
+                    current_id,
+                });
+            }
+        }
+    }
+
+    fn sync_body_draft_condition(
+        &mut self,
+        rule_id: NodeId,
+        draft_index: usize,
+        condition_id: NodeId,
+    ) {
+        let projected = self.snapshot.as_ref().and_then(|session| {
+            let canonical = session.latest().rule(rule_id)?;
+            let position = canonical
+                .conditions()
+                .body
+                .iter()
+                .position(|condition| condition.id == condition_id)?;
+            session
+                .find_rule(rule_id)?
+                .1
+                .payload
+                .body
+                .get(position)
+                .cloned()
+        });
+        if let (Some(projected), Some(draft)) = (
+            projected,
+            self.snapshot
+                .as_mut()
+                .and_then(|session| session.rule_drafts.get_mut(&rule_id)),
+        ) {
+            if let Some(condition) = draft.payload.body.get_mut(draft_index) {
+                *condition = projected;
+            }
+        }
+    }
+
+    fn clear_body_drafts(&mut self) {
+        let Some(id) = self.selected_rule_id() else {
+            return;
+        };
+        let bindings = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.ensure_rule_draft(id))
+            .map(|draft| draft.body_bindings.clone())
+            .unwrap_or_default();
+        let removed = self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(id))
+            .map(|rule| {
+                rule.conditions()
+                    .body
+                    .iter()
+                    .enumerate()
+                    .map(|(index, condition)| (index, condition.id, condition.condition.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let intents = bindings
+            .iter()
+            .filter_map(|binding| match binding {
+                DraftBinding::Existing(id) => Some(EditIntent::RemoveBodyCondition { id: *id }),
+                DraftBinding::Pending(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !intents.is_empty() && self.apply_workspace_transaction(intents).is_none() {
+            return;
+        }
+        if let Some(draft) = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.rule_drafts.get_mut(&id))
+        {
+            draft.payload.body.clear();
+            draft.body_bindings.clear();
+        }
+        if !removed.is_empty() {
+            let entries = removed
+                .into_iter()
+                .map(|(index, current_id, condition)| {
+                    let key = self.snapshot.as_mut().unwrap().creation_key("history-body");
+                    (index, key, condition, current_id)
+                })
+                .collect();
+            self.push_undo(HistoryEntry::BodiesClear {
+                rule_id: id,
+                entries,
+            });
+        }
+    }
+
+    // Semantic history compensation is implemented through the workspace port.
+    fn push_undo(&mut self, command: HistoryEntry) {
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        session.redo_stack.clear();
+        session.undo_stack.push(command);
+        if session.undo_stack.len() > UNDO_STACK_DEPTH {
+            session.undo_stack.remove(0);
+        }
+    }
+
     fn apply_undo(&mut self) {
-        let Some(cmd) = self.undo_stack.pop() else {
+        let Some(mut command) = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.undo_stack.pop())
+        else {
             return;
         };
-        self.apply_inverse(&cmd);
-        self.redo_stack.push(cmd);
-        self.auto_save_rules();
-    }
-
-    /// Redo the top command: apply it FORWARD, push the command back to undo_stack.
-    fn apply_redo(&mut self) {
-        let Some(cmd) = self.redo_stack.pop() else {
-            return;
-        };
-        self.apply_forward(&cmd);
-        self.undo_stack.push(cmd);
-        self.auto_save_rules();
-    }
-
-    /// Apply the INVERSE of `cmd` (what undo does).
-    fn apply_inverse(&mut self, cmd: &UndoCommand) {
-        let Some(snap) = &mut self.snapshot else {
-            return;
-        };
-        match cmd {
-            // Undo delete → re-insert the rule
-            UndoCommand::DeleteRule {
-                rule_set,
+        let success = match &mut command {
+            HistoryEntry::MoveRule {
+                rule_id,
+                before_index,
+                ..
+            } => self
+                .apply_workspace_intent(EditIntent::MoveRule {
+                    id: *rule_id,
+                    new_index: *before_index,
+                })
+                .is_some(),
+            HistoryEntry::RuleMatch {
+                rule_id, before, ..
+            } => self.apply_rule_match_compensation(*rule_id, before.clone()),
+            HistoryEntry::Respond {
+                rule_id, before, ..
+            } => self
+                .apply_workspace_intent(EditIntent::UpdateRespond {
+                    id: *rule_id,
+                    respond: before.clone(),
+                })
+                .is_some(),
+            HistoryEntry::RootSetting { before, .. } => self
+                .apply_workspace_intent(EditIntent::UpdateRootSetting(before.clone()))
+                .is_some(),
+            HistoryEntry::RulePrototype {
+                rule_id, before, ..
+            } => {
+                if let Some(session) = self.snapshot.as_mut() {
+                    session
+                        .prototype
+                        .rule_extras
+                        .insert(*rule_id, before.clone());
+                    true
+                } else {
+                    false
+                }
+            }
+            HistoryEntry::TracePrototype { before, .. } => {
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.prototype.trace = Some(before.clone());
+                    true
+                } else {
+                    false
+                }
+            }
+            HistoryEntry::HeaderAdd { current_id, .. } => self
+                .apply_workspace_intent(EditIntent::RemoveHeaderCondition { id: *current_id })
+                .is_some(),
+            HistoryEntry::HeaderUpdate {
+                current_id, before, ..
+            } => self
+                .apply_workspace_intent(EditIntent::UpdateHeaderCondition {
+                    id: *current_id,
+                    condition: before.clone(),
+                })
+                .is_some(),
+            HistoryEntry::HeaderRemove {
+                rule_id,
                 index,
-                rule,
+                key,
+                condition,
+                current_id,
+            } => {
+                let mut entries = vec![(*index, key.clone(), condition.clone(), *current_id)];
+                let success = self.restore_headers(*rule_id, &mut entries);
+                *current_id = entries[0].3;
+                success
+            }
+            HistoryEntry::HeadersClear { rule_id, entries } => {
+                self.restore_headers(*rule_id, entries)
+            }
+            HistoryEntry::BodyAdd { current_id, .. } => self
+                .apply_workspace_intent(EditIntent::RemoveBodyCondition { id: *current_id })
+                .is_some(),
+            HistoryEntry::BodyUpdate {
+                current_id, before, ..
+            } => self
+                .apply_workspace_intent(EditIntent::UpdateBodyCondition {
+                    id: *current_id,
+                    condition: before.clone(),
+                })
+                .is_some(),
+            HistoryEntry::BodyRemove {
+                rule_id,
+                index,
+                key,
+                condition,
+                current_id,
+            } => {
+                let mut entries = vec![(*index, key.clone(), condition.clone(), *current_id)];
+                let success = self.restore_bodies(*rule_id, &mut entries);
+                *current_id = entries[0].3;
+                success
+            }
+            HistoryEntry::BodiesClear { rule_id, entries } => {
+                self.restore_bodies(*rule_id, entries)
+            }
+            HistoryEntry::AddedSubtree {
+                archive,
+                current_root,
                 ..
             } => {
-                if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
-                    let at = (*index).min(rs.rules.len());
-                    rs.rules.insert(at, rule.clone());
-                    rs.file.dirty = true;
-                    self.selection.rule = Some(rule.id);
-                }
+                let intent = match archive
+                    .nodes()
+                    .iter()
+                    .find(|node| node.old_id == archive.former_root())
+                    .map(|node| node.payload.kind())
+                {
+                    Some(WorkspaceNodeKind::RuleSet) => EditIntent::RemoveRuleSet {
+                        id: RuleSetId(*current_root),
+                    },
+                    Some(WorkspaceNodeKind::Rule) => EditIntent::DeleteRule { id: *current_root },
+                    _ => return,
+                };
+                self.apply_workspace_intent(intent).is_some()
             }
-            // Undo add → remove the rule by id
-            UndoCommand::AddRule { rule_set, rule_id } => {
-                if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
-                    if let Some(i) = rs.rules.iter().position(|r| r.id == *rule_id) {
-                        rs.rules.remove(i);
-                        rs.file.dirty = true;
-                        if self.selection.rule == Some(*rule_id) {
-                            self.selection.rule = None;
-                        }
-                    }
-                }
-            }
-            // Undo move → move the rule back to `from_index`
-            UndoCommand::MoveRule {
-                rule_set,
-                rule_id,
-                from_index,
-            } => {
-                if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
-                    if let Some(cur) = rs.rules.iter().position(|r| r.id == *rule_id) {
-                        let rule = rs.rules.remove(cur);
-                        let at = (*from_index).min(rs.rules.len());
-                        rs.rules.insert(at, rule);
-                        rs.file.dirty = true;
-                    }
-                }
-            }
-            // Undo url-path edit → restore old_value
-            UndoCommand::EditUrlPath {
-                rule_id, old_value, ..
-            } => {
-                for rs in &mut snap.rule_sets {
-                    if let Some(r) = rs.rules.iter_mut().find(|r| r.id == *rule_id) {
-                        r.payload.url_path = old_value.clone();
-                        rs.file.dirty = true;
-                        break;
-                    }
-                }
+            HistoryEntry::RemovedSubtree {
+                archive,
+                current_root,
+                bindings,
+                prototypes,
+            } => self.restore_history_subtree(archive.clone(), current_root, bindings, prototypes),
+        };
+        if success {
+            self.sync_history_drafts(&command);
+        }
+        if let Some(session) = self.snapshot.as_mut() {
+            if success {
+                session.redo_stack.push(command);
+            } else if !session.faulted {
+                session.undo_stack.push(command);
             }
         }
     }
 
-    /// Apply `cmd` in the FORWARD direction (what redo does).
-    fn apply_forward(&mut self, cmd: &UndoCommand) {
-        let Some(snap) = &mut self.snapshot else {
+    fn apply_redo(&mut self) {
+        let Some(mut command) = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.redo_stack.pop())
+        else {
             return;
         };
-        match cmd {
-            // Redo delete → remove the rule by id
-            UndoCommand::DeleteRule { rule_set, rule, .. } => {
-                if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
-                    if let Some(i) = rs.rules.iter().position(|r| r.id == rule.id) {
-                        rs.rules.remove(i);
-                        rs.file.dirty = true;
-                        if self.selection.rule == Some(rule.id) {
-                            self.selection.rule = None;
-                        }
-                    }
-                }
-            }
-            // Redo add → re-insert the rule (we need the payload on the AddRule command)
-            // Since AddRule only has rule_id we can't fully redo — skip silently.
-            UndoCommand::AddRule { .. } => {
-                // AddRule redo is not fully supported in this iteration.
-                // (Would require storing the full RuleView on AddRule.)
-            }
-            // Redo move → move the rule FROM from_index to where it was moved TO
-            // We store from_index (before move); after swap it's at from_index ± 1.
-            // Re-doing = calling MoveRuleDown/Up again — infer from position.
-            UndoCommand::MoveRule {
-                rule_set,
+        let success = match &mut command {
+            HistoryEntry::MoveRule {
                 rule_id,
-                from_index,
+                after_index,
+                ..
+            } => self
+                .apply_workspace_intent(EditIntent::MoveRule {
+                    id: *rule_id,
+                    new_index: *after_index,
+                })
+                .is_some(),
+            HistoryEntry::RuleMatch { rule_id, after, .. } => {
+                self.apply_rule_match_compensation(*rule_id, after.clone())
+            }
+            HistoryEntry::Respond { rule_id, after, .. } => self
+                .apply_workspace_intent(EditIntent::UpdateRespond {
+                    id: *rule_id,
+                    respond: after.clone(),
+                })
+                .is_some(),
+            HistoryEntry::RootSetting { after, .. } => self
+                .apply_workspace_intent(EditIntent::UpdateRootSetting(after.clone()))
+                .is_some(),
+            HistoryEntry::RulePrototype { rule_id, after, .. } => {
+                if let Some(session) = self.snapshot.as_mut() {
+                    session
+                        .prototype
+                        .rule_extras
+                        .insert(*rule_id, after.clone());
+                    true
+                } else {
+                    false
+                }
+            }
+            HistoryEntry::TracePrototype { after, .. } => {
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.prototype.trace = Some(after.clone());
+                    true
+                } else {
+                    false
+                }
+            }
+            HistoryEntry::HeaderAdd {
+                rule_id,
+                key,
+                condition,
+                current_id,
             } => {
-                if let Some(rs) = snap.rule_sets.iter_mut().find(|rs| rs.id == *rule_set) {
-                    if let Some(cur) = rs.rules.iter().position(|r| r.id == *rule_id) {
-                        // The rule is currently at `from_index` (restored by undo).
-                        // Move it back where it was after the original operation.
-                        let target = if cur + 1 <= rs.rules.len() - 1 {
-                            cur + 1
-                        } else {
-                            cur
-                        };
-                        if target != cur {
-                            rs.rules.swap(cur, target);
-                            rs.file.dirty = true;
+                let outcome = self.apply_workspace_intent(EditIntent::AddHeaderCondition {
+                    rule_id: *rule_id,
+                    condition: condition.clone(),
+                    key: key.clone(),
+                });
+                if let Some(receipt) = outcome.and_then(|outcome| {
+                    outcome
+                        .creations
+                        .into_iter()
+                        .find(|receipt| receipt.kind == WorkspaceNodeKind::HeaderCondition)
+                }) {
+                    let old_id = *current_id;
+                    *current_id = receipt.new_id;
+                    self.apply_history_id_map(&std::collections::HashMap::from([(
+                        old_id,
+                        receipt.new_id,
+                    )]));
+                    true
+                } else {
+                    false
+                }
+            }
+            HistoryEntry::HeaderUpdate {
+                current_id, after, ..
+            } => self
+                .apply_workspace_intent(EditIntent::UpdateHeaderCondition {
+                    id: *current_id,
+                    condition: after.clone(),
+                })
+                .is_some(),
+            HistoryEntry::HeaderRemove { current_id, .. } => self
+                .apply_workspace_intent(EditIntent::RemoveHeaderCondition { id: *current_id })
+                .is_some(),
+            HistoryEntry::HeadersClear { entries, .. } => self
+                .apply_workspace_transaction(
+                    entries
+                        .iter()
+                        .map(|entry| EditIntent::RemoveHeaderCondition { id: entry.3 })
+                        .collect(),
+                )
+                .is_some(),
+            HistoryEntry::BodyAdd {
+                rule_id,
+                key,
+                condition,
+                current_id,
+            } => {
+                let outcome = self.apply_workspace_intent(EditIntent::AddBodyCondition {
+                    rule_id: *rule_id,
+                    condition: condition.clone(),
+                    key: key.clone(),
+                });
+                if let Some(receipt) = outcome.and_then(|outcome| {
+                    outcome
+                        .creations
+                        .into_iter()
+                        .find(|receipt| receipt.kind == WorkspaceNodeKind::BodyCondition)
+                }) {
+                    let old_id = *current_id;
+                    *current_id = receipt.new_id;
+                    self.apply_history_id_map(&std::collections::HashMap::from([(
+                        old_id,
+                        receipt.new_id,
+                    )]));
+                    true
+                } else {
+                    false
+                }
+            }
+            HistoryEntry::BodyUpdate {
+                current_id, after, ..
+            } => self
+                .apply_workspace_intent(EditIntent::UpdateBodyCondition {
+                    id: *current_id,
+                    condition: after.clone(),
+                })
+                .is_some(),
+            HistoryEntry::BodyRemove { current_id, .. } => self
+                .apply_workspace_intent(EditIntent::RemoveBodyCondition { id: *current_id })
+                .is_some(),
+            HistoryEntry::BodiesClear { entries, .. } => self
+                .apply_workspace_transaction(
+                    entries
+                        .iter()
+                        .map(|entry| EditIntent::RemoveBodyCondition { id: entry.3 })
+                        .collect(),
+                )
+                .is_some(),
+            HistoryEntry::AddedSubtree {
+                archive,
+                current_root,
+                bindings,
+                prototypes,
+            } => self.restore_history_subtree(archive.clone(), current_root, bindings, prototypes),
+            HistoryEntry::RemovedSubtree {
+                archive,
+                current_root,
+                ..
+            } => {
+                let intent = match archive
+                    .nodes()
+                    .iter()
+                    .find(|node| node.old_id == archive.former_root())
+                    .map(|node| node.payload.kind())
+                {
+                    Some(WorkspaceNodeKind::RuleSet) => EditIntent::RemoveRuleSet {
+                        id: RuleSetId(*current_root),
+                    },
+                    Some(WorkspaceNodeKind::Rule) => EditIntent::DeleteRule { id: *current_root },
+                    _ => return,
+                };
+                self.apply_workspace_intent(intent).is_some()
+            }
+        };
+        if success {
+            self.sync_history_drafts(&command);
+        }
+        if let Some(session) = self.snapshot.as_mut() {
+            if success {
+                session.undo_stack.push(command);
+            } else if !session.faulted {
+                session.redo_stack.push(command);
+            }
+        }
+    }
+
+    fn apply_rule_match_compensation(
+        &mut self,
+        id: NodeId,
+        rule_match: apimokka_model::RuleMatch,
+    ) -> bool {
+        let Some(mut rule) = self.current_rule_edit(id) else {
+            return false;
+        };
+        rule.rule_match = rule_match;
+        self.apply_workspace_intent(EditIntent::UpdateRule { id, rule })
+            .is_some()
+    }
+
+    fn sync_root_setting_draft(&mut self, key: WorkspaceRootKey) {
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        match key {
+            WorkspaceRootKey::ListenerIpAddress => {
+                session.root_drafts.listener_ip = session.root_settings.listener_ip.clone();
+            }
+            WorkspaceRootKey::ListenerPort => {
+                session.root_drafts.listener_port = session.root_settings.listener_port.to_string();
+            }
+            _ => {}
+        }
+    }
+
+    fn sync_rule_match_draft(&mut self, rule_id: NodeId, field: RuleMatchDraftField) {
+        let projected = self.snapshot.as_ref().and_then(|session| {
+            let canonical = session.latest().rule(rule_id)?.rule_match();
+            Some((
+                canonical.url_path().unwrap_or_default().to_owned(),
+                canonical.url_path_op(),
+                canonical.method().unwrap_or_default().to_owned(),
+            ))
+        });
+        if let (Some((url_path, url_path_op, method)), Some(draft)) = (
+            projected,
+            self.snapshot
+                .as_mut()
+                .and_then(|session| session.rule_drafts.get_mut(&rule_id)),
+        ) {
+            match field {
+                RuleMatchDraftField::UrlPath => {
+                    draft.payload.url_path = url_path;
+                    draft.payload.url_path_op = url_path_op;
+                }
+                RuleMatchDraftField::UrlPathOp => draft.payload.url_path_op = url_path_op,
+                RuleMatchDraftField::Method => draft.payload.method = method,
+            }
+        }
+    }
+
+    fn sync_respond_draft(&mut self, rule_id: NodeId, field: RespondDraftField) {
+        let projected = self.snapshot.as_ref().and_then(|session| {
+            let respond = session.latest().rule(rule_id)?.respond();
+            let mode = if respond.file_path().is_some() {
+                apimokka_model::snapshot::RespondMode::ServeFile
+            } else {
+                apimokka_model::snapshot::RespondMode::InlineText
+            };
+            Some((
+                apimokka_model::respond::RespondPayload {
+                    mode,
+                    text: respond.text().unwrap_or_default().to_owned(),
+                    file_path: respond
+                        .file_path()
+                        .map(|path| path.as_str().to_owned())
+                        .unwrap_or_default(),
+                    status: respond.status().unwrap_or_default().to_owned(),
+                    delay_milliseconds: respond.delay_milliseconds().unwrap_or_default(),
+                },
+                respond
+                    .delay_milliseconds()
+                    .map(|delay| delay.to_string())
+                    .unwrap_or_default(),
+            ))
+        });
+        if let (Some((respond, delay)), Some(draft)) = (
+            projected,
+            self.snapshot
+                .as_mut()
+                .and_then(|session| session.rule_drafts.get_mut(&rule_id)),
+        ) {
+            match field {
+                RespondDraftField::Mode => draft.payload.respond.mode = respond.mode,
+                RespondDraftField::Text => draft.payload.respond.text = respond.text,
+                RespondDraftField::FilePath => {
+                    draft.payload.respond.file_path = respond.file_path;
+                }
+                RespondDraftField::Status => draft.payload.respond.status = respond.status,
+                RespondDraftField::Delay => {
+                    draft.payload.respond.delay_milliseconds = respond.delay_milliseconds;
+                    draft.response_delay = delay;
+                }
+            }
+        }
+    }
+
+    fn header_parent(&self, condition_id: NodeId) -> Option<NodeId> {
+        self.snapshot
+            .as_ref()?
+            .latest()
+            .rules()
+            .iter()
+            .find_map(|rule| {
+                rule.conditions()
+                    .headers
+                    .iter()
+                    .any(|condition| condition.id == condition_id)
+                    .then_some(rule.rule_id())
+            })
+    }
+
+    fn body_parent(&self, condition_id: NodeId) -> Option<NodeId> {
+        self.snapshot
+            .as_ref()?
+            .latest()
+            .rules()
+            .iter()
+            .find_map(|rule| {
+                rule.conditions()
+                    .body
+                    .iter()
+                    .any(|condition| condition.id == condition_id)
+                    .then_some(rule.rule_id())
+            })
+    }
+
+    fn sync_header_history_item(
+        &mut self,
+        rule_id: NodeId,
+        condition_id: NodeId,
+        preferred_index: Option<usize>,
+    ) {
+        let projected = self.snapshot.as_ref().and_then(|session| {
+            let canonical = session.latest().rule(rule_id)?;
+            let position = canonical
+                .conditions()
+                .headers
+                .iter()
+                .position(|condition| condition.id == condition_id)?;
+            let payload = session
+                .find_rule(rule_id)?
+                .1
+                .payload
+                .headers
+                .get(position)?
+                .clone();
+            Some((position, payload))
+        });
+        let Some(draft) = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.rule_drafts.get_mut(&rule_id))
+        else {
+            return;
+        };
+        let draft_position = draft
+            .header_bindings
+            .iter()
+            .position(|binding| *binding == DraftBinding::Existing(condition_id));
+        match (projected, draft_position) {
+            (Some((_, payload)), Some(index)) => draft.payload.headers[index] = payload,
+            (Some((canonical_index, payload)), None) => {
+                let index = preferred_index
+                    .unwrap_or(canonical_index)
+                    .min(draft.payload.headers.len());
+                draft.payload.headers.insert(index, payload);
+                draft
+                    .header_bindings
+                    .insert(index, DraftBinding::Existing(condition_id));
+            }
+            (None, Some(index)) => {
+                draft.payload.headers.remove(index);
+                draft.header_bindings.remove(index);
+            }
+            (None, None) => {}
+        }
+    }
+
+    fn sync_body_history_item(
+        &mut self,
+        rule_id: NodeId,
+        condition_id: NodeId,
+        preferred_index: Option<usize>,
+    ) {
+        let projected = self.snapshot.as_ref().and_then(|session| {
+            let canonical = session.latest().rule(rule_id)?;
+            let position = canonical
+                .conditions()
+                .body
+                .iter()
+                .position(|condition| condition.id == condition_id)?;
+            let payload = session
+                .find_rule(rule_id)?
+                .1
+                .payload
+                .body
+                .get(position)?
+                .clone();
+            Some((position, payload))
+        });
+        let Some(draft) = self
+            .snapshot
+            .as_mut()
+            .and_then(|session| session.rule_drafts.get_mut(&rule_id))
+        else {
+            return;
+        };
+        let draft_position = draft
+            .body_bindings
+            .iter()
+            .position(|binding| *binding == DraftBinding::Existing(condition_id));
+        match (projected, draft_position) {
+            (Some((_, payload)), Some(index)) => draft.payload.body[index] = payload,
+            (Some((canonical_index, payload)), None) => {
+                let index = preferred_index
+                    .unwrap_or(canonical_index)
+                    .min(draft.payload.body.len());
+                draft.payload.body.insert(index, payload);
+                draft
+                    .body_bindings
+                    .insert(index, DraftBinding::Existing(condition_id));
+            }
+            (None, Some(index)) => {
+                draft.payload.body.remove(index);
+                draft.body_bindings.remove(index);
+            }
+            (None, None) => {}
+        }
+    }
+
+    fn sync_history_drafts(&mut self, command: &HistoryEntry) {
+        match command {
+            HistoryEntry::RuleMatch { rule_id, field, .. } => {
+                self.sync_rule_match_draft(*rule_id, *field);
+            }
+            HistoryEntry::Respond { rule_id, field, .. } => {
+                self.sync_respond_draft(*rule_id, *field);
+            }
+            HistoryEntry::RootSetting { before, .. } => {
+                self.sync_root_setting_draft(before.key());
+            }
+            HistoryEntry::HeaderAdd {
+                rule_id,
+                current_id,
+                ..
+            } => self.sync_header_history_item(*rule_id, *current_id, None),
+            HistoryEntry::HeaderUpdate { current_id, .. } => {
+                if let Some(rule_id) = self.header_parent(*current_id) {
+                    self.sync_header_history_item(rule_id, *current_id, None);
+                }
+            }
+            HistoryEntry::HeaderRemove {
+                rule_id,
+                index,
+                current_id,
+                ..
+            } => self.sync_header_history_item(*rule_id, *current_id, Some(*index)),
+            HistoryEntry::HeadersClear { rule_id, entries } => {
+                for (index, _, _, current_id) in entries {
+                    self.sync_header_history_item(*rule_id, *current_id, Some(*index));
+                }
+            }
+            HistoryEntry::BodyAdd {
+                rule_id,
+                current_id,
+                ..
+            } => self.sync_body_history_item(*rule_id, *current_id, None),
+            HistoryEntry::BodyUpdate { current_id, .. } => {
+                if let Some(rule_id) = self.body_parent(*current_id) {
+                    self.sync_body_history_item(rule_id, *current_id, None);
+                }
+            }
+            HistoryEntry::BodyRemove {
+                rule_id,
+                index,
+                current_id,
+                ..
+            } => self.sync_body_history_item(*rule_id, *current_id, Some(*index)),
+            HistoryEntry::BodiesClear { rule_id, entries } => {
+                for (index, _, _, current_id) in entries {
+                    self.sync_body_history_item(*rule_id, *current_id, Some(*index));
+                }
+            }
+            HistoryEntry::MoveRule { .. }
+            | HistoryEntry::RulePrototype { .. }
+            | HistoryEntry::TracePrototype { .. }
+            | HistoryEntry::AddedSubtree { .. }
+            | HistoryEntry::RemovedSubtree { .. } => {}
+        }
+    }
+
+    fn restore_headers(
+        &mut self,
+        rule_id: NodeId,
+        entries: &mut [(
+            usize,
+            apimokka_model::SemanticCreationKey,
+            apimokka_model::HeaderCondition,
+            NodeId,
+        )],
+    ) -> bool {
+        let Some(canonical) = self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(rule_id))
+            .cloned()
+        else {
+            return false;
+        };
+        let mut headers = canonical
+            .conditions()
+            .headers
+            .iter()
+            .map(|condition| ConditionEdit::Existing {
+                id: condition.id,
+                condition: condition.condition.clone(),
+            })
+            .collect::<Vec<_>>();
+        for (index, key, condition, _) in entries.iter() {
+            headers.insert(
+                (*index).min(headers.len()),
+                ConditionEdit::Create {
+                    key: key.clone(),
+                    condition: condition.clone(),
+                },
+            );
+        }
+        let Some(mut rule) = self.current_rule_edit(rule_id) else {
+            return false;
+        };
+        rule.headers = CollectionEdit::Replace(headers);
+        let Some(outcome) =
+            self.apply_workspace_intent(EditIntent::UpdateRule { id: rule_id, rule })
+        else {
+            return false;
+        };
+        let mut rebound = std::collections::HashMap::new();
+        for (_, key, _, current_id) in entries.iter_mut() {
+            let Some(receipt) = outcome.creations.iter().find(|receipt| {
+                receipt.key == *key && receipt.kind == WorkspaceNodeKind::HeaderCondition
+            }) else {
+                return false;
+            };
+            rebound.insert(*current_id, receipt.new_id);
+            *current_id = receipt.new_id;
+        }
+        self.apply_history_id_map(&rebound);
+        true
+    }
+
+    fn restore_history_subtree(
+        &mut self,
+        archive: apimokka_model::ArchivedSubtree,
+        current_root: &mut NodeId,
+        bindings: &mut [(NodeId, NodeId)],
+        prototypes: &[(NodeId, workspace_session::RulePrototype)],
+    ) -> bool {
+        let former_root = archive.former_root();
+        let root_kind = archive
+            .nodes()
+            .iter()
+            .find(|node| node.old_id == former_root)
+            .map(|node| node.payload.kind());
+        let Some(outcome) = self.apply_workspace_intent(EditIntent::RestoreSubtree { archive })
+        else {
+            return false;
+        };
+        let Some(root) = outcome
+            .rebound_nodes
+            .iter()
+            .find(|rebind| rebind.old_id == former_root)
+        else {
+            return false;
+        };
+        let rebound_current = bindings
+            .iter()
+            .filter_map(|(archive_id, current_id)| {
+                outcome
+                    .rebound_nodes
+                    .iter()
+                    .find(|rebind| rebind.old_id == *archive_id)
+                    .map(|rebind| (*current_id, rebind.new_id))
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        for (archive_id, current_id) in bindings.iter_mut() {
+            if let Some(new_id) = outcome
+                .rebound_nodes
+                .iter()
+                .find(|rebind| rebind.old_id == *archive_id)
+                .map(|rebind| rebind.new_id)
+            {
+                *current_id = new_id;
+            }
+        }
+        *current_root = root.new_id;
+        match root_kind {
+            Some(WorkspaceNodeKind::Rule) => self.selection.rule = Some(root.new_id),
+            Some(WorkspaceNodeKind::RuleSet) => {
+                self.selection.rule_set = Some(RuleSetId(root.new_id));
+                self.selection.rule = None;
+            }
+            _ => {}
+        }
+        self.apply_history_id_map(&rebound_current);
+        if let Some(session) = self.snapshot.as_mut() {
+            for (old_id, prototype) in prototypes {
+                if let Some(new_id) = outcome
+                    .rebound_nodes
+                    .iter()
+                    .find(|rebind| rebind.old_id == *old_id)
+                    .map(|rebind| rebind.new_id)
+                {
+                    session
+                        .prototype
+                        .rule_extras
+                        .insert(new_id, prototype.clone());
+                }
+            }
+        }
+        true
+    }
+
+    fn apply_history_id_map(&mut self, map: &std::collections::HashMap<NodeId, NodeId>) {
+        let Some(session) = self.snapshot.as_mut() else {
+            return;
+        };
+        if let Some(rule) = self.selection.rule.and_then(|id| map.get(&id).copied()) {
+            self.selection.rule = Some(rule);
+        }
+        if let Some(set) = self
+            .selection
+            .rule_set
+            .and_then(|id| map.get(&id.0).copied())
+        {
+            self.selection.rule_set = Some(RuleSetId(set));
+        }
+        let old_drafts = std::mem::take(&mut session.rule_drafts);
+        session.rule_drafts = old_drafts
+            .into_iter()
+            .map(|(id, mut draft)| {
+                for binding in draft
+                    .header_bindings
+                    .iter_mut()
+                    .chain(draft.body_bindings.iter_mut())
+                {
+                    if let DraftBinding::Existing(id) = binding {
+                        if let Some(new_id) = map.get(id) {
+                            *id = *new_id;
                         }
-                        let _ = from_index;
                     }
                 }
+                (map.get(&id).copied().unwrap_or(id), draft)
+            })
+            .collect();
+        let old_extras = std::mem::take(&mut session.prototype.rule_extras);
+        session.prototype.rule_extras = old_extras
+            .into_iter()
+            .map(|(id, value)| (map.get(&id).copied().unwrap_or(id), value))
+            .collect();
+        for command in session
+            .undo_stack
+            .iter_mut()
+            .chain(session.redo_stack.iter_mut())
+        {
+            rebind_command(command, map);
+        }
+    }
+
+    fn restore_bodies(
+        &mut self,
+        rule_id: NodeId,
+        entries: &mut [(
+            usize,
+            apimokka_model::SemanticCreationKey,
+            apimokka_model::BodyCondition,
+            NodeId,
+        )],
+    ) -> bool {
+        let Some(canonical) = self
+            .snapshot
+            .as_ref()
+            .and_then(|session| session.latest().rule(rule_id))
+            .cloned()
+        else {
+            return false;
+        };
+        let mut body = canonical
+            .conditions()
+            .body
+            .iter()
+            .map(|condition| ConditionEdit::Existing {
+                id: condition.id,
+                condition: condition.condition.clone(),
+            })
+            .collect::<Vec<_>>();
+        for (index, key, condition, _) in entries.iter() {
+            body.insert(
+                (*index).min(body.len()),
+                ConditionEdit::Create {
+                    key: key.clone(),
+                    condition: condition.clone(),
+                },
+            );
+        }
+        let Some(mut rule) = self.current_rule_edit(rule_id) else {
+            return false;
+        };
+        rule.body = CollectionEdit::Replace(body);
+        let Some(outcome) =
+            self.apply_workspace_intent(EditIntent::UpdateRule { id: rule_id, rule })
+        else {
+            return false;
+        };
+        let mut rebound = std::collections::HashMap::new();
+        for (_, key, _, current_id) in entries.iter_mut() {
+            let Some(receipt) = outcome.creations.iter().find(|receipt| {
+                receipt.key == *key && receipt.kind == WorkspaceNodeKind::BodyCondition
+            }) else {
+                return false;
+            };
+            rebound.insert(*current_id, receipt.new_id);
+            *current_id = receipt.new_id;
+        }
+        self.apply_history_id_map(&rebound);
+        true
+    }
+
+    fn archive_rule(&mut self, rule_id: NodeId) -> Option<apimokka_model::ArchivedSubtree> {
+        let (parent, insertion_index, canonical) = {
+            let session = self.snapshot.as_ref()?;
+            let (set, _) = session.find_rule(rule_id)?;
+            let index = set.rules.iter().position(|rule| rule.id == rule_id)?;
+            (set.id, index, session.latest().rule(rule_id)?.clone())
+        };
+        let session = self.snapshot.as_mut()?;
+        let mut nodes = vec![apimokka_model::ArchivedNode {
+            old_id: rule_id,
+            parent: None,
+            key: session.creation_key("archive-rule"),
+            payload: apimokka_model::ArchivedNodePayload::Rule(RuleEditPayload {
+                rule_match: canonical.rule_match().clone(),
+                headers: CollectionEdit::Preserve,
+                body: CollectionEdit::Preserve,
+                respond: canonical.respond().clone(),
+            }),
+        }];
+        nodes.extend(canonical.conditions().headers.iter().map(|condition| {
+            apimokka_model::ArchivedNode {
+                old_id: condition.id,
+                parent: Some(rule_id),
+                key: session.creation_key("archive-header"),
+                payload: apimokka_model::ArchivedNodePayload::HeaderCondition(
+                    condition.condition.clone(),
+                ),
             }
-            // Redo url-path edit → restore new_value
-            UndoCommand::EditUrlPath {
-                rule_id, new_value, ..
-            } => {
-                for rs in &mut snap.rule_sets {
-                    if let Some(r) = rs.rules.iter_mut().find(|r| r.id == *rule_id) {
-                        r.payload.url_path = new_value.clone();
-                        rs.file.dirty = true;
-                        break;
-                    }
+        }));
+        nodes.extend(canonical.conditions().body.iter().map(|condition| {
+            apimokka_model::ArchivedNode {
+                old_id: condition.id,
+                parent: Some(rule_id),
+                key: session.creation_key("archive-body"),
+                payload: apimokka_model::ArchivedNodePayload::BodyCondition(
+                    condition.condition.clone(),
+                ),
+            }
+        }));
+        apimokka_model::ArchivedSubtree::new(
+            rule_id,
+            apimokka_model::RestorePlacement::Rule {
+                parent,
+                insertion_index,
+            },
+            nodes,
+        )
+        .ok()
+    }
+
+    fn subtree_prototypes(
+        &self,
+        archive: &apimokka_model::ArchivedSubtree,
+    ) -> Vec<(NodeId, workspace_session::RulePrototype)> {
+        let Some(session) = self.snapshot.as_ref() else {
+            return Vec::new();
+        };
+        archive
+            .nodes()
+            .iter()
+            .filter(|node| node.payload.kind() == WorkspaceNodeKind::Rule)
+            .filter_map(|node| {
+                session
+                    .prototype
+                    .rule_extras
+                    .get(&node.old_id)
+                    .cloned()
+                    .map(|prototype| (node.old_id, prototype))
+            })
+            .collect()
+    }
+
+    fn archive_rule_set(&mut self, set_id: RuleSetId) -> Option<apimokka_model::ArchivedSubtree> {
+        let (insertion_index, path, rules) = {
+            let session = self.snapshot.as_ref()?;
+            let index = session.rule_sets.iter().position(|set| set.id == set_id)?;
+            let set = &session.rule_sets[index];
+            let rules = set
+                .rules
+                .iter()
+                .map(|rule| session.latest().rule(rule.id).cloned())
+                .collect::<Option<Vec<_>>>()?;
+            (index, parse_rule_set_path(&set.file.path).ok()?, rules)
+        };
+        let session = self.snapshot.as_mut()?;
+        let mut nodes = vec![apimokka_model::ArchivedNode {
+            old_id: set_id.0,
+            parent: None,
+            key: session.creation_key("archive-rule-set"),
+            payload: apimokka_model::ArchivedNodePayload::RuleSet { path },
+        }];
+        for canonical in rules {
+            let rule_id = canonical.rule_id();
+            nodes.push(apimokka_model::ArchivedNode {
+                old_id: rule_id,
+                parent: Some(set_id.0),
+                key: session.creation_key("archive-rule"),
+                payload: apimokka_model::ArchivedNodePayload::Rule(RuleEditPayload {
+                    rule_match: canonical.rule_match().clone(),
+                    headers: CollectionEdit::Preserve,
+                    body: CollectionEdit::Preserve,
+                    respond: canonical.respond().clone(),
+                }),
+            });
+            nodes.extend(canonical.conditions().headers.iter().map(|condition| {
+                apimokka_model::ArchivedNode {
+                    old_id: condition.id,
+                    parent: Some(rule_id),
+                    key: session.creation_key("archive-header"),
+                    payload: apimokka_model::ArchivedNodePayload::HeaderCondition(
+                        condition.condition.clone(),
+                    ),
                 }
-            }
-        }
-    }
-
-    fn with_rule(&mut self, f: impl FnOnce(&mut apimokka_model::snapshot::RuleView)) {
-        if let (Some(snap), Some(id)) = (self.snapshot.as_mut(), self.selection.rule) {
-            if let Some(r) = snap.find_rule_mut(id) {
-                f(r);
-            }
-            if let Some(rs_id) = self.selection.rule_set {
-                if let Some(rs) = snap.find_rule_set_mut(rs_id) {
-                    rs.file.dirty = true;
+            }));
+            nodes.extend(canonical.conditions().body.iter().map(|condition| {
+                apimokka_model::ArchivedNode {
+                    old_id: condition.id,
+                    parent: Some(rule_id),
+                    key: session.creation_key("archive-body"),
+                    payload: apimokka_model::ArchivedNodePayload::BodyCondition(
+                        condition.condition.clone(),
+                    ),
                 }
-            }
-            self.dirty_count = snap.dirty_file_count();
+            }));
         }
-        self.auto_save_rules();
+        apimokka_model::ArchivedSubtree::new(
+            set_id.0,
+            apimokka_model::RestorePlacement::RuleSetRoot { insertion_index },
+            nodes,
+        )
+        .ok()
     }
 
-    /// Rule auto-save (MK-035): clears rule dirty flags ONLY. Fallback file
-    /// drafts are explicitly saved (MK-038) and must never be committed as a
-    /// side effect of rule editing.
-    fn auto_save_rules(&mut self) {
-        if let Some(s) = &mut self.snapshot {
-            for rs in &mut s.rule_sets {
-                rs.file.dirty = false;
+    /// Global save runs the workspace port first, then commits fallback
+    /// drafts in canonical byte order only after workspace success.
+    fn save_workspace_and_fallbacks(&mut self) -> bool {
+        if self
+            .snapshot
+            .as_ref()
+            .is_some_and(|session| session.faulted)
+        {
+            let technical = self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.contract_fault.clone())
+                .unwrap_or_else(|| "workspace session is faulted".into());
+            self.present_workspace_problem("Workspace reload required", technical);
+            return false;
+        }
+        let Some(session) = self.snapshot.as_mut() else {
+            return false;
+        };
+        match session.save() {
+            workspace_session::SessionSaveResult::Saved => {}
+            workspace_session::SessionSaveResult::SaveFailure(failure) => {
+                self.last_problem = Some(
+                    apimokka_model::FriendlyProblem::new(
+                        "Workspace save failed",
+                        "The workspace adopted the saved prefix reported by the port. Remaining workspace and fallback changes are still pending.",
+                        None,
+                    )
+                    .with_technical(failure.cause.detail().to_owned()),
+                );
+                self.recompute_dirty();
+                return false;
+            }
+            workspace_session::SessionSaveResult::ContractFault => {
+                let technical = session
+                    .contract_fault
+                    .clone()
+                    .unwrap_or_else(|| "workspace session is faulted".into());
+                self.present_adopted_workspace_problem("Workspace reload required", technical);
+                self.recompute_dirty();
+                return false;
             }
         }
-        self.recompute_dirty();
-    }
-
-    /// Global save: clears rule dirty flags AND commits all dirty fallback
-    /// drafts (MK-038). Used by top-bar Save / ⌘S.
-    fn simulate_save(&mut self) {
-        if let Some(s) = &mut self.snapshot {
-            for rs in &mut s.rule_sets {
-                rs.file.dirty = false;
+        match session.latest().runtime_pending() {
+            RuntimeEffect::None => {}
+            RuntimeEffect::Reload => self.server_state = ServerState::ReloadPending,
+            RuntimeEffect::Restart => {
+                self.server_state = ServerState::RestartRequired;
+                self.save_pending_restart = true;
             }
         }
-        let dirty_paths: Vec<String> = self
+        let mut dirty_paths: Vec<String> = self
             .fallback_drafts
             .keys()
             .filter(|p| self.is_fallback_dirty(p))
             .cloned()
             .collect();
+        dirty_paths.sort_by(|left, right| left.as_bytes().cmp(right.as_bytes()));
         for p in dirty_paths {
             self.commit_fallback_draft(&p);
         }
         self.recompute_dirty();
+        true
     }
 
     // ── MK-038 fallback lifecycle helpers ─────────────────────────────────
@@ -1620,7 +3496,7 @@ impl App {
         let rule_dirty = self
             .snapshot
             .as_ref()
-            .map(|s| s.dirty_file_count())
+            .map(|s| s.latest().dirty_files().len())
             .unwrap_or(0);
         let fallback_dirty = self
             .fallback_drafts
@@ -1630,9 +3506,8 @@ impl App {
         self.dirty_count = rule_dirty + fallback_dirty;
     }
 
-    /// Discard everything (MK-038): every dirty fallback draft is reset to
-    /// its saved baseline, rule dirty flags are cleared, and the counter is
-    /// recomputed. Used by the save-diff drawer's Discard action.
+    /// Reset fallback drafts to their saved baselines. Canonical workspace
+    /// edits stay port-owned and are not mutated through this legacy drawer.
     fn discard_all_changes(&mut self) {
         let dirty_paths: Vec<String> = self
             .fallback_drafts
@@ -1653,36 +3528,321 @@ impl App {
                 .unwrap_or_else(|| "200 OK".into());
             self.fallback_status_draft.insert(path, status);
         }
-        if let Some(s) = &mut self.snapshot {
-            for rs in &mut s.rule_sets {
-                rs.file.dirty = false;
-            }
-        }
         self.recompute_dirty();
     }
 
     fn trigger_reload(&mut self) {
-        if self.server_state == ServerState::Running {
-            self.server_state = ServerState::ReloadPending;
-        }
-        self.dirty_count += 1;
+        self.recompute_dirty();
     }
 
     fn trigger_restart(&mut self) {
-        if matches!(
-            self.server_state,
-            ServerState::Running | ServerState::ReloadPending
-        ) {
-            self.server_state = ServerState::RestartRequired;
+        self.recompute_dirty();
+    }
+
+    fn create_workspace_from_wizard(&mut self) {
+        let name = if self.wizard.name.trim().is_empty() {
+            "my-mock".to_string()
+        } else {
+            self.wizard.name.trim().to_string()
+        };
+        let host = if self.wizard.host.trim().is_empty() {
+            "127.0.0.1".to_string()
+        } else {
+            self.wizard.host.trim().to_string()
+        };
+        let port = self.wizard.port.trim().parse::<u16>().unwrap_or(8080);
+        let tls = self.wizard.tls;
+        let seed = match self.wizard.starter {
+            WizardStarter::Empty => mock::blank_workspace(&name, &host, port, tls),
+            WizardStarter::Minimal => mock::minimal_workspace(&name, &host, port, tls),
+            WizardStarter::ShopApi => {
+                let mut workspace = mock::shop_api_canonical_seed();
+                workspace.meta.name = name.clone();
+                workspace.meta.path = format!("~/{name}/apimock.toml");
+                workspace.root_settings.listener_ip = host;
+                workspace.root_settings.listener_port = port;
+                workspace.root_settings.tls_enabled = tls;
+                workspace
+            }
+        };
+        if !self.install_workspace(seed) {
+            return;
         }
-        self.save_pending_restart = true;
-        self.dirty_count += 1;
+        self.view = AppView::Workspace;
+        self.tab = WorkspaceTab::Routes;
+        self.server_state = ServerState::Stopped;
+        self.notice = Some(format!(
+            "Workspace \"{name}\" created. {}",
+            match self.wizard.starter {
+                WizardStarter::Empty => "Add a rule set to get started.",
+                WizardStarter::Minimal => "A starter GET /health rule is ready.",
+                WizardStarter::ShopApi => "Shop API example rules are loaded.",
+            }
+        ));
+    }
+
+    fn requires_workspace_confirmation(&self) -> bool {
+        self.snapshot
+            .as_ref()
+            .is_some_and(|session| self.dirty_count > 0 || session.has_pending_drafts())
+    }
+
+    fn open_workspace(&mut self, _name: String) {
+        if self.install_workspace(mock::shop_api_canonical_seed()) {
+            self.view = AppView::Workspace;
+            self.tab = WorkspaceTab::Routes;
+        }
+    }
+
+    fn leave_workspace(&mut self) {
+        self.view = AppView::Welcome;
+        self.snapshot = None;
+        self.selection = RouteSelection::default();
+        self.reset_fallback_state(
+            std::collections::HashMap::new(),
+            std::collections::HashMap::new(),
+        );
+        self.dirty_count = 0;
+    }
+
+    fn reset_fallback_state(
+        &mut self,
+        saved: std::collections::HashMap<String, String>,
+        status_saved: std::collections::HashMap<String, String>,
+    ) {
+        self.fallback_saved = saved;
+        self.fallback_drafts.clear();
+        self.fallback_status_saved = status_saved;
+        self.fallback_status_draft.clear();
+        self.fallback_section_open = false;
+    }
+
+    pub(crate) fn install_workspace(&mut self, seed: apimokka_model::WorkspaceSnapshot) -> bool {
+        let session = match WorkspaceSession::new(seed) {
+            Ok(session) => session,
+            Err(error) => {
+                self.last_problem = Some(
+                    apimokka_model::FriendlyProblem::new(
+                        "The workspace could not be opened",
+                        "The workspace contains configuration that cannot be admitted. Correct it and try again.",
+                        None,
+                    )
+                    .with_technical(error.to_string()),
+                );
+                return false;
+            }
+        };
+        let rule_set = session.rule_sets.first().map(|rule_set| rule_set.id);
+        let rule = session
+            .rule_sets
+            .first()
+            .and_then(|rule_set| rule_set.rules.first())
+            .map(|rule| rule.id);
+        let content_catalog = mock_fallback_content();
+        let fallback_saved = session
+            .fallback_files
+            .iter()
+            .map(|file| {
+                (
+                    file.path.clone(),
+                    content_catalog.get(&file.path).cloned().unwrap_or_default(),
+                )
+            })
+            .collect();
+        let fallback_status_saved = session
+            .fallback_files
+            .iter()
+            .map(|file| (file.path.clone(), "200 OK".to_string()))
+            .collect();
+        self.snapshot = Some(session);
+        self.reset_fallback_state(fallback_saved, fallback_status_saved);
+        self.selection = RouteSelection {
+            rule_set,
+            rule,
+            file_route: None,
+            script: None,
+        };
+        self.rule_set_open = rule_set;
+        self.server_state = ServerState::Running;
+        self.save_pending_restart = false;
+        self.last_problem = None;
+        self.recompute_dirty();
+        true
     }
 
     pub(crate) fn selected_rule(&self) -> Option<&apimokka_model::snapshot::RuleView> {
         let id = self.selection.rule?;
         self.snapshot.as_ref()?.find_rule(id).map(|(_, r)| r)
     }
+
+    pub(crate) fn selected_rule_payload(&self) -> Option<&apimokka_model::RulePayload> {
+        let id = self.selection.rule?;
+        if let Some(draft) = self.snapshot.as_ref()?.rule_draft(id) {
+            return Some(&draft.payload);
+        }
+        self.selected_rule().map(|rule| &rule.payload)
+    }
+
+    pub(crate) fn undo_stack(&self) -> &[HistoryEntry] {
+        self.snapshot
+            .as_ref()
+            .map(|session| session.undo_stack.as_slice())
+            .unwrap_or(&[])
+    }
+
+    #[cfg(test)]
+    pub(crate) fn redo_stack(&self) -> &[HistoryEntry] {
+        self.snapshot
+            .as_ref()
+            .map(|session| session.redo_stack.as_slice())
+            .unwrap_or(&[])
+    }
+}
+
+fn rebind_command(command: &mut HistoryEntry, map: &std::collections::HashMap<NodeId, NodeId>) {
+    let rebind = |id: &mut NodeId| {
+        if let Some(new_id) = map.get(id) {
+            *id = *new_id;
+        }
+    };
+    match command {
+        HistoryEntry::MoveRule { rule_id, .. }
+        | HistoryEntry::RuleMatch { rule_id, .. }
+        | HistoryEntry::Respond { rule_id, .. }
+        | HistoryEntry::RulePrototype { rule_id, .. } => rebind(rule_id),
+        HistoryEntry::HeaderUpdate { current_id, .. }
+        | HistoryEntry::BodyUpdate { current_id, .. } => rebind(current_id),
+        HistoryEntry::HeaderAdd {
+            rule_id,
+            current_id,
+            ..
+        }
+        | HistoryEntry::HeaderRemove {
+            rule_id,
+            current_id,
+            ..
+        }
+        | HistoryEntry::BodyAdd {
+            rule_id,
+            current_id,
+            ..
+        }
+        | HistoryEntry::BodyRemove {
+            rule_id,
+            current_id,
+            ..
+        } => {
+            rebind(rule_id);
+            rebind(current_id);
+        }
+        HistoryEntry::HeadersClear { rule_id, entries } => {
+            rebind(rule_id);
+            for entry in entries {
+                rebind(&mut entry.3);
+            }
+        }
+        HistoryEntry::BodiesClear { rule_id, entries } => {
+            rebind(rule_id);
+            for entry in entries {
+                rebind(&mut entry.3);
+            }
+        }
+        HistoryEntry::AddedSubtree {
+            archive,
+            current_root,
+            bindings,
+            ..
+        }
+        | HistoryEntry::RemovedSubtree {
+            archive,
+            current_root,
+            bindings,
+            ..
+        } => {
+            rebind(current_root);
+            for (_, current_id) in bindings {
+                rebind(current_id);
+            }
+            if let apimokka_model::RestorePlacement::Rule {
+                parent,
+                insertion_index,
+            } = archive.placement()
+            {
+                if let Some(new_parent) = map.get(&parent.0) {
+                    if let Ok(rebuilt) = apimokka_model::ArchivedSubtree::new(
+                        archive.former_root(),
+                        apimokka_model::RestorePlacement::Rule {
+                            parent: RuleSetId(*new_parent),
+                            insertion_index,
+                        },
+                        archive.nodes().to_vec(),
+                    ) {
+                        *archive = rebuilt;
+                    }
+                }
+            }
+        }
+        HistoryEntry::RootSetting { .. } | HistoryEntry::TracePrototype { .. } => {}
+    }
+}
+
+fn is_workspace_mutation(message: &Message) -> bool {
+    matches!(
+        message,
+        Message::UndoLast
+            | Message::Undo
+            | Message::Redo
+            | Message::Save
+            | Message::SaveAll
+            | Message::DiscardChanges
+            | Message::AddRuleSet
+            | Message::AddRule(_)
+            | Message::MoveRuleUp(_)
+            | Message::MoveRuleDown(_)
+            | Message::DeleteRuleSet(_)
+            | Message::DeleteRule(_)
+            | Message::DuplicateRule(_)
+            | Message::RuleSetUrlPath(_)
+            | Message::RuleSetUrlPathOp(_)
+            | Message::RuleSetUrlPathEnabled(_)
+            | Message::RuleSetMethod(_)
+            | Message::HeaderAdd
+            | Message::HeaderRemove(_)
+            | Message::HeaderSetName { .. }
+            | Message::HeaderSetOp { .. }
+            | Message::HeaderSetValue { .. }
+            | Message::HeaderClearAll
+            | Message::BodyAdd
+            | Message::BodyRemove(_)
+            | Message::BodySetPath { .. }
+            | Message::BodySetOp { .. }
+            | Message::BodySetValue { .. }
+            | Message::BodyClearAll
+            | Message::RespondSetMode(_)
+            | Message::RespondSetText(_)
+            | Message::RespondSetFilePath(_)
+            | Message::RespondSetStatus(_)
+            | Message::RespondSetDelay(_)
+            | Message::RuleWeightChanged(_)
+            | Message::RulePriorityChanged(_)
+            | Message::RuleSetWeight(_)
+            | Message::RuleSetPriority(_)
+            | Message::RuleSetSetStrategy(_)
+            | Message::SettingsSetHost(_)
+            | Message::SettingsSetPort(_)
+            | Message::SettingsSetTls(_)
+            | Message::SettingsSetLogLevel(_)
+            | Message::SettingsSetStrategy(_)
+            | Message::SettingsSetTraceEnabled(_)
+    )
+}
+
+fn subtree_bindings(archive: &apimokka_model::ArchivedSubtree) -> Vec<(NodeId, NodeId)> {
+    archive
+        .nodes()
+        .iter()
+        .map(|node| (node.old_id, node.old_id))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1708,6 +3868,10 @@ mod tests_mk044;
 #[cfg(test)]
 #[path = "app/history.rs"]
 mod tests_mk045;
+
+#[cfg(test)]
+#[path = "app/workspace_session_tests.rs"]
+mod workspace_session_tests;
 
 #[cfg(test)]
 #[path = "app/navigation.rs"]

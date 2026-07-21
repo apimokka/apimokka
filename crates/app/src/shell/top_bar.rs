@@ -61,7 +61,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         };
         let ws_btn = button(
             row![
-                text(snap.meta.name.as_str()).size(size::SECTION),
+                text(snap.identity.name.as_str()).size(size::SECTION),
                 text(chevron)
                     .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),

@@ -278,6 +278,30 @@ pub fn shop_api_mock() -> WorkspaceSnapshot {
     }
 }
 
+/// Canonical rich workspace seed for the MK-053 in-memory adapter.
+///
+/// [`shop_api_mock`] deliberately contains one invalid JSONPath-style body
+/// path to demonstrate legacy validation UI. A fail-closed workspace port must
+/// not admit that draft, so app session construction uses this explicit seed
+/// with the equivalent dotted path and without the obsolete inline issue.
+pub fn shop_api_canonical_seed() -> WorkspaceSnapshot {
+    let mut workspace = shop_api_mock();
+    let legacy_rule = workspace
+        .rule_sets
+        .iter_mut()
+        .flat_map(|rule_set| &mut rule_set.rules)
+        .find(|rule| rule.payload.url_path == "/api/legacy")
+        .expect("shop API fixture retains its legacy example rule");
+    let condition = legacy_rule
+        .payload
+        .body
+        .first_mut()
+        .expect("legacy example rule retains its body condition");
+    condition.path = "user.id".into();
+    legacy_rule.validation = NodeValidation::default();
+    workspace
+}
+
 /// Four canned trace events covering matched / fallback / miss / error
 /// (external design § 36.2). Ordered newest first because the trace
 /// panel auto-scrolls to the top.

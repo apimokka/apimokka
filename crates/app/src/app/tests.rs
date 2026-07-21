@@ -125,7 +125,7 @@ fn fallback_json_validity_predicate() {
 }
 
 #[test]
-fn rule_autosave_does_not_commit_fallback_drafts() {
+fn rule_edit_does_not_commit_fallback_drafts() {
     // The load-bearing separation: editing a rule must never silently
     // commit a dirty fallback file draft.
     let mut a = fresh();
@@ -136,10 +136,19 @@ fn rule_autosave_does_not_commit_fallback_drafts() {
     assert!(a.is_fallback_dirty(&path));
 
     let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
-    a.update(Message::MoveRuleUp(rule_id)); // triggers auto_save_rules
+    a.update(Message::SelectRule(rule_id));
+    a.update(Message::RuleSetUrlPath("/dirty-rule".into()));
     assert!(
         a.is_fallback_dirty(&path),
-        "rule auto-save must not commit fallback file drafts"
+        "a rule edit must not commit fallback file drafts"
+    );
+    assert!(
+        !a.snapshot
+            .as_ref()
+            .unwrap()
+            .latest()
+            .dirty_files()
+            .is_empty()
     );
 }
 
@@ -228,7 +237,7 @@ fn delete_rule_is_reversible_without_dialog() {
         .rules
         .len();
     assert_eq!(after, before - 1);
-    assert!(!a.undo_stack.is_empty(), "an undo entry must be offered");
+    assert!(!a.undo_stack().is_empty(), "an undo entry must be offered");
 
     // Undo restores it at the same index.
     a.update(Message::UndoLast);
@@ -243,7 +252,7 @@ fn delete_rule_is_reversible_without_dialog() {
         .rules
         .len();
     assert_eq!(restored, before);
-    assert!(a.undo_stack.is_empty(), "undo stack is empty after use");
+    assert!(a.undo_stack().is_empty(), "undo stack is empty after use");
 }
 
 #[test]
@@ -258,7 +267,7 @@ fn save_sets_a_success_notice() {
     a.update(Message::Save);
     assert!(a.notice.is_some(), "save shows a success notice");
     a.update(Message::DismissNotice);
-    assert!(a.notice.is_none() && a.undo_stack.is_empty());
+    assert!(a.notice.is_none() && a.undo_stack().is_empty());
 }
 
 #[test]

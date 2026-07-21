@@ -19,7 +19,7 @@ fn duplicate_rule_creates_copy_after_original() {
     let orig = snap.rule_sets[0].rules[0].id;
     let before = snap.rule_sets[0].rules.len();
     let orig_path = snap.rule_sets[0].rules[0].payload.url_path.clone();
-    drop(snap);
+    let _ = snap;
 
     a.update(Message::DuplicateRule(orig));
 
