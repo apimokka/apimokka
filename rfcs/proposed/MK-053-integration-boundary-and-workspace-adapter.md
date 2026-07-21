@@ -634,8 +634,11 @@ adopts the returned snapshot to remain aligned, clears all workspace editor
 drafts and both binding-dependent undo/redo stacks, reconciles selection to a
 safe surviving scope, marks the session read-only/faulted, and surfaces a
 technical problem requiring reload. No later edit, save, undo, or redo is
-dispatched through that session. The in-memory adapter is expected never to
-enter this path; a fake-port test proves the fail-closed app policy.
+dispatched through that session. Fault entry uses the centralized runtime-token
+disposition invariant in section 5.1, so an active process request can finish
+lifecycle-only without acknowledging this faulted workspace. The in-memory
+adapter is expected never to enter this path; a fake-port test proves the
+fail-closed app policy.
 
 Because a port-backed session cannot safely coexist with the lossy four-command
 `UndoCommand`, the reducer/session slice replaces it with the semantic history
@@ -677,6 +680,64 @@ plus one. `RestorePlacement::RuleSetRoot` likewise carries the former root
 index, validated in `0..=rule_sets.len()`. Rule restoration already carries its
 parent insertion index. These are model-boundary amendments and must be
 implemented and reviewed before the app session slice.
+
+#### 4.2 Complete selection reconciliation amendment (2026-07-21)
+
+Sequence step 7 replaces message-specific selection cleanup with one
+post-adoption reconciliation policy. `RouteSelection` may remain the temporary
+storage shape during this milestone, but it has the invariant of one active
+route target: rule, rule set, fallback file, script, or none. A helper first
+captures the pre-dispatch target and its parent, then adopts the returned
+snapshot, applies verified creation/rebind correlations, and normalizes the
+result. No screen independently invents a fallback.
+
+The ordered policy is:
+
+1. a surviving selected rule remains selected, its actual parent rule set is
+   selected, and file/script targets are cleared;
+2. a removed selected rule falls back to its captured parent rule set only if
+   that parent survives;
+3. a surviving selected rule set remains selected and other route targets are
+   cleared;
+4. a selected fallback path or script path remains selected only while that
+   exact path exists in the adopted snapshot;
+5. removal of the selected rule set, an unavailable parent/path, session
+   replacement, or an otherwise stale/contradictory selection yields the
+   routes empty state rather than selecting the first unrelated node; and
+6. successful Add Rule Set selects the receipt-bound new set; Add Rule and
+   Duplicate Rule select the receipt-bound new rule and its parent; subtree
+   restore follows the verified `NodeRebind` for a formerly selected root.
+
+Condition-row focus is editor-local rather than a second workspace selection:
+
+```rust
+pub struct ConditionFocus {
+    pub rule_id: NodeId,
+    pub family: ConditionFamily,
+    pub binding: DraftBinding, // Existing(NodeId) or Pending(SemanticCreationKey)
+}
+```
+
+The session owns `Option<ConditionFocus>` beside its rule drafts. Changing
+route selection away from its rule, closing that draft, clearing its family,
+or removing its pending row clears focus.
+If its condition ID survives it remains bound; if that ID is removed it falls
+back to its rule editor; a restored condition follows the verified rebind.
+Pending condition focus remains keyed by `SemanticCreationKey` until receipt
+binding. Closing or invalidating a draft clears only its focus, not route
+selection. Diagnostic-row navigation uses the same reconciler: a live rule or
+condition target opens its owning rule, a live rule-set target opens that set,
+and a workspace diagnostic changes no route selection.
+
+Reconciliation runs after every adopted apply, save success, save failure,
+runtime acknowledgement, post-commit contract-fault outcome, and new-session
+installation. A successful validation refresh adopts nothing and changes no
+selection. A validation mismatch follows the separate non-adopting transition
+in section 5.1. `ApplyFailure` and runtime-action failure likewise adopt
+nothing and change no selection. Tests cover every target kind,
+parent fallback, unrelated-node non-selection, created/rebound targets,
+condition focus, file/script disappearance, contradictory legacy selection,
+and all adoption sources.
 
 ### 5. Diagnostics, save, dirty state, and runtime hints
 
@@ -760,6 +821,466 @@ participate in either save phase or synthesize hints.
 optional failed fallback key/cause, and remaining fallback keys. It is returned
 for both full and partial completion, so the UI never has to reconstruct save
 scope from counters.
+
+#### 5.1 Step-7 diagnostics, runtime, and Global Save presentation amendment (2026-07-21)
+
+Sequence step 7 completes the app-owned presentation contract. It does not add
+filesystem persistence or subprocess control. It makes existing in-memory
+results explicit and gives later production adapters a stable UI boundary.
+
+##### Diagnostics ownership and presentation
+
+There are exactly two diagnostic lifetimes:
+
+- **durable workspace diagnostics** are read only from the latest adopted
+  `PortSnapshot::workspace().diagnostics` and per-node `NodeValidation`; and
+- **transient operation problems** are typed app state produced by mapping,
+  `ApplyFailure`, save failure, runtime-action failure, admission failure, or a
+  post-commit contract fault.
+
+Transient problems are never appended to snapshot diagnostics. An
+`ApplyFailure` states that canonical state was not changed. Save failure and
+post-commit contract-fault presentation state that returned canonical state
+was adopted.
+A successful unrelated apply does not erase durable diagnostics because the
+new snapshot replaces them atomically; it may dismiss the prior transient
+field problem only when the affected operation succeeds. Session replacement
+clears transient problems and old diagnostic navigation targets.
+
+The validation drawer renders the latest durable set in one fixed cross-source
+order: every `WorkspaceSnapshot::diagnostics` entry first in stored order,
+including entries that carry a node target, then rule-set and rule
+`NodeValidation` entries in snapshot presentation order and stored issue
+order. Entries from the two sources are not regrouped by target. Severity is
+communicated by glyph and text as well as colour. A row with a live node target
+uses the section 4.2 navigation policy. Technical detail remains available in
+Expert mode and behind the existing disclosure in Guided mode. The drawer must
+not combine a stale transient failure with durable issue counts.
+
+`WorkspacePort::validate()` is an explicit consistency/read seam, not a second
+diagnostic store. Its one canonical projection is order-sensitive and preserves
+duplicates:
+
+1. project `WorkspaceSnapshot::diagnostics` in stored order to
+   `ValidationIssue`, retaining `node_id`, severity, and message and setting
+   `location` to `None`;
+2. for each rule set in presentation order, append its `NodeValidation.issues`
+   in stored order, requiring an explicit issue ID to equal the rule-set ID and
+   otherwise assigning that owner ID;
+3. for each rule in that set in presentation order, append its validation
+   issues by the same rule-owner rule; and
+4. require every resulting non-`None` target to name exactly one live editable
+   node. The current snapshot has no condition-owned `NodeValidation`; a future
+   field cannot participate until its projection is amended exhaustively.
+
+Equality compares length, order, duplicates, node ID, severity, message, and
+location exactly. `validate()` must return this projection. Exact equality
+changes no state and performs no adoption or reconciliation.
+
+A mismatch or invalid/unknown projected target is a **non-adopting read
+contract fault**, distinct from malformed post-commit success. The session
+retains its cached snapshot, immutable identity, selection, prototype state,
+dirty/runtime phases, and fallback state; clears rule/root drafts, condition
+focus, and both history stacks because further port correlation is untrusted;
+marks itself read-only/faulted; and replaces the transient problem with copy
+stating that cached canonical state was retained and reload is required. It
+must not claim returned canonical state was adopted. This transition uses the
+centralized runtime-token disposition invariant below. Tests cover exact
+equality, order-only mismatch, duplicates, workspace/rule-set/rule issues,
+owner assignment, explicit-owner mismatch, unknown targets, and every retained
+or cleared state field.
+
+##### Runtime phases and acknowledgement
+
+Server process lifecycle and saved-configuration runtime phase are separate
+state dimensions. `Stopped`, `Starting`, `Running`, and `Error` describe the
+mock server lifecycle. The top-bar configuration action is derived exclusively
+from `WorkspaceSession::latest().runtime_pending()`; action kind derives from
+the phase, while visibility, availability, and copy also depend on lifecycle
+and in-flight state.
+
+Every installed session receives an immutable monotonically increasing
+`SessionGeneration`. Every accepted runtime request receives a session-local
+monotonic `RuntimeRequestId`. The session also owns a monotonic
+`SavedConfigRevision`, initialized to zero on installation. It increments once
+when an adopted save result has a verified written prefix containing at least
+one workspace `FileDiff` whose effect is Reload or Restart. This includes a
+valid full outcome, a valid partial failure, and verified progress retained in
+a post-attempt contract fault. Edits, zero-prefix failure, no-op save,
+None-effect workspace writes, fallback writes, and runtime acknowledgement do
+not increment it. Revision never decreases or tracks content equality; the
+existing conservative false-positive phase policy remains intentional.
+
+Every Start, Reload, and Restart request captures the revision whose saved
+bytes it was asked to consume. Stop captures no consumed revision:
+
+```rust
+pub struct RuntimeRequestToken {
+    pub generation: SessionGeneration,
+    pub request_id: RuntimeRequestId,
+    pub action: RuntimeAction, // Start, Reload, Restart, Stop
+    pub consumed_revision: Option<SavedConfigRevision>, // None only for Stop
+}
+
+pub struct RuntimeInFlight {
+    pub token: RuntimeRequestToken,
+    pub disposition: RuntimeCompletionDisposition,
+}
+
+pub enum RuntimeCompletionDisposition {
+    Full,
+    LifecycleOnly,
+}
+```
+
+Runtime success/failure events carry the complete token. At most one request
+is in flight. A completion is reduced only when generation, request ID, and
+action exactly match the active token; for consuming actions the captured
+revision is part of that equality. Session replacement increments the
+generation, installs revision zero, and clears in-flight state. Stale,
+duplicate, superseded, out-of-order, and action- or revision-mismatched event
+tokens are ignored without acknowledgement, snapshot adoption, lifecycle
+change, or transient-problem replacement.
+
+Every admitted request begins with `Full`. One centralized
+`enter_session_fault` reducer helper owns the invariant for every transition of
+an installed session into read-only/faulted state, regardless of present or
+future fault source. Atomically with installing the source-specific contract
+problem and applying that source's adopting or non-adopting state policy, it
+preserves any exact active runtime token and changes its disposition to
+`LifecycleOnly`; it does not change process lifecycle at fault entry. This is
+not runtime cancellation: it preserves the one correlation needed to finish
+the independent process lifecycle while permanently forbidding workspace
+acknowledgement for that request.
+
+Malformed post-commit apply results, non-adopting validation/read mismatch,
+and verified or unverified save integrity faults all call this helper. Any
+future session-fault source must do the same. A malformed runtime
+acknowledgement snapshot occurs after its matching token has already been
+retired, so the helper has no token to downgrade in that path. Session
+replacement remains the only fault-adjacent operation that invalidates an
+active token outright, by changing generation.
+
+| `runtime_pending` | Presented action | Valid acknowledgement |
+|---|---|---|
+| `None` | no config action | none |
+| `Reload` | Reload config | `acknowledge_reload` after successful reload |
+| `Restart` | Restart server | `acknowledge_restart` after successful restart |
+
+| Lifecycle / phase / in flight | Legal user request |
+|---|---|
+| Stopped / any / none | Start |
+| Running / None / none | Stop |
+| Running / Reload / none | Reload or Stop |
+| Running / Restart / none | Restart or Stop |
+| Any / any / some | none until matching completion |
+| Error / any / none | Start (retry) |
+
+Within a runtime request/completion transition, `runtime_pending` is retained
+on request and failure and is changed only by a permitted successful
+acknowledgement. Concurrent save transitions remain the independent source
+that can add pending effects. The lifecycle transition is exhaustive:
+
+| Action and accepted pre-state | Lifecycle after request | Matching success | Matching failure |
+|---|---|---|---|
+| Start from Stopped or Error | Starting | Running; acknowledge only at captured revision | Error |
+| Reload from Running / Reload | Running | Running; acknowledge only at captured revision | Running |
+| Restart from Running / Restart | Starting | Running; acknowledge only at captured revision | Error |
+| Stop from Running / any phase | Running | Stopped; no acknowledgement | Running |
+
+Stop deliberately remains `Running` while in flight because M3 has no
+`Stopping` lifecycle and the mock server remains usable until matching stop
+success. Availability is nevertheless suppressed by the in-flight token.
+Overlapping requests are rejected locally and allocate no ID. A matching
+failure for `Full` clears in-flight state, moves to the failure lifecycle in
+the table, retains the phase, and presents a transient runtime problem; Start
+and Restart therefore have a legal Start retry from Error. A later success for
+the failed token is stale. A matching `Full` Stop success changes lifecycle
+only and preserves the phase.
+
+For a matching Start, Reload, or Restart success, the reducer first establishes
+`Running`, clears the in-flight token, and compares the current
+`SavedConfigRevision` with the token's captured revision. If equal, Reload
+calls `acknowledge_reload`, while Start and Restart call
+`acknowledge_restart`. Reload acknowledgement still cannot clear an already
+present Restart phase. If the current revision is newer, the process action
+succeeded but did not consume the latest saved configuration: the reducer does
+not call either phase-only port acknowledgement, retains the current snapshot
+and conservative pending phase, and presents transient informational copy:
+“Runtime action succeeded; newer saved configuration still needs
+reload/restart.” The last word is derived from the retained phase. A revision
+mismatch is not a process failure and does not enter Error.
+
+For Start, Reload, or Restart, process success establishes `Running` before the
+returned acknowledgement snapshot is checked. If that snapshot is malformed
+or identity-drifted, the token is cleared, lifecycle remains `Running`, and the
+session enters the existing read-only post-commit contract-fault transition;
+the UI must not claim that the process action failed. Stop has no port
+acknowledgement snapshot and therefore cannot enter that contract-fault path.
+
+A matching completion for `LifecycleOnly` retires the token and applies only
+the lifecycle cell below. It never calls a workspace port acknowledgement,
+never adopts a snapshot, never changes `runtime_pending`, and never replaces
+the existing reload-required contract-fault problem:
+
+| Lifecycle-only action | Matching success lifecycle | Matching failure lifecycle |
+|---|---|---|
+| Start | Running | Error |
+| Reload | Running | Running |
+| Restart | Running | Error |
+| Stop | Stopped | Running |
+
+The contract-fault problem remains the primary presentation even when the
+process action fails; technical detail may record the lifecycle result without
+replacing recovery guidance. A duplicate completion is stale after retirement
+and changes nothing.
+
+The user request and acknowledgement are distinct reducer events. The current
+mock runtime may complete a request immediately, but it must still pass through
+the same explicit success event that production subprocess integration will
+use. Failure presents a transient runtime problem and does not call an
+acknowledgement. Reload is unavailable for Restart and can never clear it.
+While the server is stopped, the phase remains visible as “applies on start”
+but no separate Reload/Restart CTA is dispatched. Successful server start or
+restart calls `acknowledge_restart` only at the captured saved revision because
+only then has the running process consumed the latest saved configuration.
+Stopping does not clear a pending phase.
+
+Every valid acknowledgement adopts the returned full snapshot, applies section 4.2
+selection reconciliation, replaces durable diagnostics, recomputes derived
+dirty state, and re-derives the prompt. A malformed/identity-drifted returned
+snapshot follows the existing contract-fault transition. Tests cover request
+versus every success/failure table row, retry after Start/Restart failure,
+stopped/running behavior, Reload not clearing Restart, Restart clearing either
+phase, acknowledgement snapshot/diagnostic adoption, contract fault during a
+successful acknowledgement, and session replacement preventing an old
+acknowledgement from applying. Interleaving tests dispatch a runtime action,
+then cover same-phase Reload writes, Reload-to-Restart escalation, and both
+Reload- and Restart-effect writes during Start and Restart before success.
+Each case covers a successful intervening save, a zero-prefix failed save that
+does not advance revision, and a partial failed save whose verified
+effect-bearing prefix does advance revision; assertions cover lifecycle,
+acknowledgement call count, retained phase, and the newer-configuration copy.
+An additional exhaustive matrix injects both `ProgressTrust::Verified` and
+`ProgressTrust::Unverified` save contract faults during Start, Reload, Restart,
+and Stop, followed independently by matching runtime success and failure. Each
+cell asserts the lifecycle-only table result, token retirement, zero workspace
+acknowledgement calls and zero additional completion-time snapshot adoptions,
+retained pending phase, retained contract-fault presentation, and stale
+duplicate handling.
+The same Start/Reload/Restart/Stop by success/failure matrix is required for a
+malformed post-commit apply result and for a non-adopting validation/read
+mismatch while each request is active. Assertions are identical: the
+lifecycle-only table, token retirement, zero acknowledgement and
+completion-time adoption, unchanged pending phase, preserved source-specific
+reload-required problem, and stale duplicate behavior. A direct reducer unit
+test covers `enter_session_fault` with an arbitrary synthetic future fault and
+an active `Full` token, proving the helper atomically retains token identity,
+changes only its disposition, preserves lifecycle, and installs the supplied
+primary problem.
+
+##### Typed Global Save report
+
+The app coordinator returns and stores one session-scoped typed report for
+every Global Save attempt:
+
+```rust
+pub struct GlobalSaveReport {
+    pub workspace: WorkspaceSaveReport,
+    pub fallback: FallbackSaveReport,
+}
+
+pub struct WorkspaceSaveReport {
+    pub progress: WorkspaceSaveProgress,
+    pub integrity: SaveIntegrity,
+    pub unsaved_hint: RuntimeEffect,
+    pub runtime_pending: RuntimeEffect,
+}
+
+pub enum WorkspaceSaveProgress {
+    Saved {
+        written_files: Vec<WorkspaceRelativePath>,
+        diffs: Vec<FileDiff>,
+    },
+    Failed {
+        written_files: Vec<WorkspaceRelativePath>,
+        diffs: Vec<FileDiff>,
+        failed_file: WorkspaceRelativePath,
+        cause: SaveError,
+    },
+}
+
+pub enum SaveIntegrity {
+    Valid,
+    ContractFault {
+        reason: String,
+        progress_trust: ProgressTrust,
+    },
+}
+
+pub enum ProgressTrust {
+    Verified,
+    Unverified,
+}
+
+pub enum FallbackSaveReport {
+    NotEntered { reason: FallbackSkipReason, remaining_keys: Vec<String> },
+    Completed { written_keys: Vec<String> },
+    Failed {
+        written_keys: Vec<String>,
+        failure: FallbackSaveFailure,
+        remaining_keys: Vec<String>,
+    },
+}
+
+pub enum FallbackSkipReason {
+    WorkspaceFailed,
+    WorkspaceContractFault,
+}
+
+pub struct FallbackSaveFailure {
+    pub key: String,
+    pub cause: FallbackSaveError,
+}
+```
+
+`GlobalSaveReport::completion()` derives `Complete`, `Partial`, `Failed`, or
+`Indeterminate` from typed progress and integrity; it is not stored as an
+independently mutable flag. `Indeterminate` is reserved for an integrity fault
+whose reported workspace progress cannot be verified.
+Ordinary workspace failure uses `NotEntered::WorkspaceFailed` and lists every
+dirty fallback key as remaining. A save-time post-attempt contract fault wraps
+the reported `Saved` or `Failed` progress in `SaveIntegrity::ContractFault`,
+preserving the raw port-reported zero/prefix/full written files, diffs, failure
+details when present, and attempt-time phases. It adopts the returned snapshot,
+faults the session by the accepted post-commit transition, uses
+`NotEntered::WorkspaceContractFault`, and does not attempt fallback writes.
+`SessionSaveResult` must therefore carry the complete progress envelope on its
+contract-fault variant rather than discard the outcome/failure.
+
+The coordinator captures the exact pre-attempt workspace dirty list
+`D = [d0, ..., dn)` from the cached snapshot in canonical path-byte order and
+the pre-attempt `runtime_pending`. It validates the raw port envelope before
+classifying it:
+
+- a valid `SaveOutcome` reports `written_files == paths(D)` and `diffs == D`,
+  with the same order and no omissions, duplicates, or unexpected paths; its
+  returned snapshot has an empty workspace dirty list. Therefore an outcome is
+  valid only for an exact no-op (`D` empty) or exact full success;
+- a valid `SaveFailure` has one `k < n`, reports
+  `written_files == paths(D[..k])`, `diffs == D[..k]`, names
+  `failed_file == D[k].path`, and returns exactly `D[k..]` as the snapshot
+  dirty list. The failed file is not also written, and a full-prefix failure is
+  invalid;
+- in both variants, `written_files` and `diffs` agree path-for-path and every
+  diff effect equals the captured pre-attempt value. The returned snapshot
+  must reflect exactly the reported saved prefix and retained dirty suffix;
+- expected `runtime_pending` is the pre-attempt phase combined with the
+  effects in the verified written prefix. Expected `unsaved_hint` is the worst
+  effect in the retained suffix, or None. Both top-level phase fields must
+  equal the returned snapshot fields and these expected values; and
+- immutable identity and the existing full-snapshot structural checks still
+  apply. Omission, duplication, reordering, an unexpected path,
+  path/diff disagreement, dirty-baseline or suffix disagreement, phase
+  disagreement, malformed structure, or identity drift is a contract fault.
+
+`ProgressTrust::Verified` means the path/diff lists and returned snapshot
+saved-prefix/dirty-suffix transformation passed all progress checks. It may
+still accompany a contract fault caused solely by a separate envelope check,
+such as identity or phase drift. If any progress check fails, the raw report is
+retained with `ProgressTrust::Unverified`; its paths are evidence of what the
+port reported, not proof of committed writes. Integrity validation never
+sorts, deduplicates, fills, or otherwise normalizes malformed port metadata.
+
+After validation and snapshot adoption, the reducer advances
+`SavedConfigRevision` once when the verified written prefix contains any
+Reload- or Restart-effect diff, before another queued event may be reduced.
+This applies equally to successful outcomes and non-empty prefixes of ordinary
+failures. A verified-progress contract fault advances the revision by the same
+rule and then enters fault through `enter_session_fault`. An
+unverified-progress contract fault cannot derive a revision advance and enters
+through the same helper. The later exact completion can therefore finish
+lifecycle truth but cannot acknowledge, adopt, change the pending phase, or
+replace the contract problem. Thus a save contract fault can never permit an
+older runtime completion to clear uncertain or newer saved work, and cannot
+strand process lifecycle in an in-progress state. Fallback-only progress never
+changes this workspace revision.
+
+Workspace success enters the fallback phase even when no key is dirty; that is
+`Completed` with an empty prefix. A fallback failure stops the loop, retains
+the failed key and suffix as dirty, and reports the committed prefix. `Partial`
+means at least one verified workspace file or fallback key was written before
+an ordinary failure or verified-progress integrity fault. `Failed` means no
+verified scoped write completed. `Indeterminate` means workspace progress was
+reported but could not be verified. An integrity fault is never `Complete`,
+even when the port reports every workspace file written. A valid no-op save is
+`Complete` with empty written and remaining sets.
+
+| Workspace port result | Integrity / trust | Preserved progress | Fallback | Completion |
+|---|---|---|---|---|
+| exact no-op/full `SaveOutcome` | Valid | verified empty/full writes | enter | Complete or fallback-derived |
+| exact-prefix `SaveFailure` | Valid | verified prefix plus next failed file/cause | not entered | Failed if zero, otherwise Partial |
+| progress-valid envelope with separate identity/phase/structure fault | ContractFault / Verified | raw and verified zero/prefix/full progress plus phases | not entered | Failed if zero, otherwise Partial |
+| outcome or failure with any progress-correlation fault | ContractFault / Unverified | raw reported envelope without normalization | not entered | Indeterminate |
+
+Contract-fault UI labels integrity failure separately from ordinary save
+failure and always requires reload. For `Verified`, it labels and displays the
+verified committed prefix. For `Unverified`, it labels all raw paths/diffs as
+“reported by adapter; commit status unverified” and makes no committed-prefix
+claim. Focused malformed cases cover omitted, duplicate, reordered,
+unexpected, path/diff-mismatched, dirty-baseline/suffix-mismatched, and
+phase-mismatched results across both port variants, including zero, prefix, and
+full raw reports. Full writes through `SaveFailure` are invalid at the model
+boundary and remain raw unverified evidence rather than being normalized away.
+
+The mock fallback writer remains in memory. Its coordinator accepts a narrow
+fallible write function so tests can inject first/middle/last failures without
+introducing production I/O. Each successful fallback key commits content and
+status atomically as one logical item. A failure commits neither field for that
+key. App-created fallback vectors use canonical byte order. Valid workspace
+vectors are canonical by invariant; malformed workspace vectors preserve raw
+port order as contract-fault evidence.
+
+The app stores `last_save_report: Option<GlobalSaveReport>` in the current
+workspace lifecycle. A new attempt replaces it; new-session install/leave
+clears it. Ordinary edits do not mutate the historical report. The Save Diff
+drawer gains a labelled “Last save attempt” section sourced only from this
+report, with written, failed, and remaining scopes plus the adopted
+attempt-time `unsaved_hint`/`runtime_pending` stored in the workspace report.
+The current top-bar prompt continues to read the latest session phase, so later
+edits cannot rewrite historical report meaning. Complete save may use the
+existing success notice. Partial, Failed, and Indeterminate save completion
+uses an accurate problem summary and opens or links to report detail;
+Indeterminate explicitly says workspace commit status could not be verified.
+No notice says canonical state was unchanged when a verified prefix was
+adopted.
+
+Focused tests cover workspace first/middle/last failure, fallback
+first/middle/last failure, retry of only remaining scopes, no-op save, stable
+ordering, content/status atomicity, report replacement/reset, drawer rendering
+in EN/JA and Guided/Expert modes, and equality between report progress and the
+adopted session/fallback baselines.
+
+Runtime correlation tests additionally cover replacement during a request,
+sequential requests, locally rejected overlap, out-of-order and duplicate
+completion, failure followed by late success, action mismatch, and escalation
+from Reload to Restart while Reload is in flight.
+
+##### Step-7 implementation checkpoints
+
+Implementation remains reviewable in three ordered slices:
+
+1. central selection reconciliation plus durable/transient diagnostic
+   presentation and navigation;
+2. runtime request/acknowledgement separation and phase-derived top-bar state;
+3. typed Global Save coordination, injectable in-memory fallback failure seam,
+   report presentation, and retry evidence.
+
+Each slice runs focused tests plus stable/MSRV format, test, build, Clippy,
+RFC, matcher-oracle, and whitespace gates. A slice receives independent
+implementation review before the next begins. Production persistence,
+subprocess control, file watching, merge, trace transport, and broader visual
+redesign remain non-goals.
 
 ### 6. Undo/redo ownership
 
@@ -919,6 +1440,19 @@ Required tests cover:
 - Global Save workspace-first failure, fallback partial failure, and report
   completeness;
 - selection stability and fallback for removal/recreation;
+- complete post-adoption selection normalization for rule/rule-set/fallback/
+  script/condition-focus targets, created/rebound selection, diagnostic
+  navigation, contradictory legacy state, and unrelated-node non-selection;
+- durable snapshot diagnostics versus transient apply/save/runtime/contract
+  problems, stable drawer ordering, explicit validation equality/mismatch, and
+  EN/JA Guided/Expert presentation;
+- runtime request versus acknowledgement success/failure, lifecycle/phase
+  independence, phase-derived actions, Reload/Restart precedence, and stale
+  old-session acknowledgement rejection;
+- typed Global Save reports for no-op/full/partial/failed completion,
+  workspace and fallback first/middle/last failures, exact ordered prefixes and
+  suffixes, fallback content/status atomicity, retry, report replacement/reset,
+  and drawer rendering;
 - complete undo/redo round trips for every supported edit family, depth cap,
   redo clearing, and failure stack ownership;
 - Add Rule Set positive paths and every lexical rejection, byte-exact duplicate
@@ -980,7 +1514,8 @@ the production-adapter contract suite plus source/version/checksum evidence.
    dirty/runtime presentation from the session.
 7. Complete selection reconciliation, diagnostics presentation, runtime
    acknowledgement, and typed Global Save reporting beyond the minimum seams
-   required by step 6.
+   required by step 6, in the three independently reviewed checkpoints defined
+   by section 5.1.
 8. Correct model/architecture documentation and disclose reference gaps.
 9. Run focused, stable, MSRV, lint, audit-cadence, RFC, oracle, inventory, and
    whitespace gates; submit independent implementation review.
