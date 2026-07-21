@@ -488,6 +488,7 @@ pub enum EditIntent {
     },
     AddRule {
         parent: RuleSetId,
+        insertion_index: usize,
         rule: RuleEditPayload,
         key: SemanticCreationKey,
     },
@@ -545,7 +546,9 @@ pub struct ArchivedSubtree {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RestorePlacement {
-    RuleSetRoot,
+    RuleSetRoot {
+        insertion_index: usize,
+    },
     Rule {
         parent: RuleSetId,
         insertion_index: usize,
@@ -602,8 +605,10 @@ impl ArchivedSubtree {
         };
         let valid_placement = matches!(
             (root.payload.kind(), placement),
-            (WorkspaceNodeKind::RuleSet, RestorePlacement::RuleSetRoot)
-                | (WorkspaceNodeKind::Rule, RestorePlacement::Rule { .. })
+            (
+                WorkspaceNodeKind::RuleSet,
+                RestorePlacement::RuleSetRoot { .. }
+            ) | (WorkspaceNodeKind::Rule, RestorePlacement::Rule { .. })
         );
         if !valid_placement {
             return Err(FieldError::new(

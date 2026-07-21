@@ -24,6 +24,23 @@ fn rule_payload(path: &str, method: &str) -> RuleEditPayload {
     }
 }
 
+fn rule_set_archive(path: &str, insertion_index: usize) -> ArchivedSubtree {
+    let old_id = NodeId::new();
+    ArchivedSubtree::new(
+        old_id,
+        RestorePlacement::RuleSetRoot { insertion_index },
+        vec![ArchivedNode {
+            old_id,
+            parent: None,
+            key: SemanticCreationKey::new(format!("restore/{path}")).unwrap(),
+            payload: ArchivedNodePayload::RuleSet {
+                path: parse_rule_set_path(path).unwrap(),
+            },
+        }],
+    )
+    .unwrap()
+}
+
 #[test]
 fn port_snapshot_aligns_legacy_and_canonical_rules_with_unique_ids() {
     let port = workspace();
@@ -340,6 +357,7 @@ fn add_rule_correlates_duplicate_equal_nested_conditions_by_key() {
     let outcome = port
         .apply(transaction(EditIntent::AddRule {
             parent,
+            insertion_index: 1,
             rule: payload,
             key: SemanticCreationKey::new("rule").unwrap(),
         }))
@@ -375,6 +393,7 @@ fn nested_condition_creation_keys_are_transaction_unique_with_parent_keys() {
     assert!(
         EditTransaction::new(vec![EditIntent::AddRule {
             parent,
+            insertion_index: 1,
             rule: payload,
             key: duplicate,
         }])
@@ -458,6 +477,7 @@ fn condition_replacement_rejects_cross_rule_family_and_new_rule_existing_ids() {
     let second_rule = port
         .apply(transaction(EditIntent::AddRule {
             parent,
+            insertion_index: 1,
             rule: rule_payload("/second", "GET"),
             key: SemanticCreationKey::new("second-rule").unwrap(),
         }))
@@ -524,6 +544,7 @@ fn condition_replacement_rejects_cross_rule_family_and_new_rule_existing_ids() {
     assert!(
         port.apply(transaction(EditIntent::AddRule {
             parent,
+            insertion_index: 2,
             rule: existing_on_new_rule,
             key: SemanticCreationKey::new("invalid-rule").unwrap(),
         }))
@@ -670,6 +691,7 @@ fn condition_rule_and_rule_set_mutation_families_are_supported() {
     let added_rule = port
         .apply(transaction(EditIntent::AddRule {
             parent,
+            insertion_index: 1,
             rule: rule_payload("/delete", "DELETE"),
             key: SemanticCreationKey::new("rule-delete").unwrap(),
         }))
@@ -708,6 +730,7 @@ fn stable_ids_survive_update_move_snapshot_and_save() {
     let added = port
         .apply(transaction(EditIntent::AddRule {
             parent,
+            insertion_index: 1,
             rule: rule_payload("/second", "POST"),
             key: SemanticCreationKey::new("rule[1]").unwrap(),
         }))
@@ -731,6 +754,113 @@ fn stable_ids_survive_update_move_snapshot_and_save() {
         .map(|rule| rule.id)
         .collect::<Vec<_>>();
     assert_eq!(ids, vec![added, original]);
+}
+
+#[test]
+fn add_rule_inserts_at_zero_middle_and_len_with_duplicate_placement() {
+    let mut port = workspace();
+    let parent = port.snapshot().workspace().rule_sets[0].id;
+    let original = port.snapshot().workspace().rule_sets[0].rules[0].id;
+
+    let zero = port
+        .apply(transaction(EditIntent::AddRule {
+            parent,
+            insertion_index: 0,
+            rule: rule_payload("/zero", "GET"),
+            key: SemanticCreationKey::new("zero").unwrap(),
+        }))
+        .unwrap();
+    assert_eq!(zero.creations.len(), 1);
+    assert!(zero.rebound_nodes.is_empty());
+    assert_eq!(zero.changed_nodes.len(), 2);
+    assert_eq!(zero.unsaved_hint, RuntimeEffect::Reload);
+    let zero_id = zero.creations[0].new_id;
+
+    let end_index = port.snapshot().workspace().rule_sets[0].rules.len();
+    let end = port
+        .apply(transaction(EditIntent::AddRule {
+            parent,
+            insertion_index: end_index,
+            rule: rule_payload("/end", "GET"),
+            key: SemanticCreationKey::new("end").unwrap(),
+        }))
+        .unwrap();
+    assert_eq!(end.creations.len(), 1);
+    assert!(end.rebound_nodes.is_empty());
+    let end_id = end.creations[0].new_id;
+
+    let original_index = port.snapshot().workspace().rule_sets[0]
+        .rules
+        .iter()
+        .position(|rule| rule.id == original)
+        .unwrap();
+    let duplicate = port
+        .apply(transaction(EditIntent::AddRule {
+            parent,
+            insertion_index: original_index + 1,
+            rule: rule_payload("/health", "GET"),
+            key: SemanticCreationKey::new("duplicate").unwrap(),
+        }))
+        .unwrap();
+    assert_eq!(duplicate.creations.len(), 1);
+    assert!(duplicate.rebound_nodes.is_empty());
+    let duplicate_id = duplicate.creations[0].new_id;
+
+    let ids = port.snapshot().workspace().rule_sets[0]
+        .rules
+        .iter()
+        .map(|rule| rule.id)
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec![zero_id, original, duplicate_id, end_id]);
+    assert_eq!(port.snapshot().dirty_files().len(), 1);
+    assert_eq!(port.snapshot().unsaved_hint(), RuntimeEffect::Reload);
+    assert_eq!(port.snapshot().runtime_pending(), RuntimeEffect::None);
+}
+
+#[test]
+fn add_rule_out_of_range_is_atomic() {
+    let mut port = workspace();
+    let before = port.snapshot();
+    let parent = before.workspace().rule_sets[0].id;
+    let before_ids = before.workspace().rule_sets[0]
+        .rules
+        .iter()
+        .map(|rule| rule.id)
+        .collect::<Vec<_>>();
+
+    assert!(
+        port.apply(transaction(EditIntent::AddRule {
+            parent,
+            insertion_index: before_ids.len() + 1,
+            rule: rule_payload("/invalid", "GET"),
+            key: SemanticCreationKey::new("invalid").unwrap(),
+        }))
+        .is_err()
+    );
+
+    let after = port.snapshot();
+    assert_eq!(
+        after.workspace().rule_sets[0]
+            .rules
+            .iter()
+            .map(|rule| rule.id)
+            .collect::<Vec<_>>(),
+        before_ids
+    );
+    assert_eq!(after.dirty_files(), before.dirty_files());
+    assert_eq!(after.unsaved_hint(), before.unsaved_hint());
+    assert_eq!(after.runtime_pending(), before.runtime_pending());
+
+    let valid = port
+        .apply(transaction(EditIntent::AddRule {
+            parent,
+            insertion_index: 1,
+            rule: rule_payload("/valid", "GET"),
+            key: SemanticCreationKey::new("valid").unwrap(),
+        }))
+        .unwrap();
+    assert_eq!(valid.creations.len(), 1);
+    assert!(valid.rebound_nodes.is_empty());
 }
 
 #[test]
@@ -991,6 +1121,73 @@ fn restore_returns_complete_bijective_rebinds() {
 }
 
 #[test]
+fn rule_set_root_restore_inserts_at_zero_middle_and_end() {
+    let mut port = workspace();
+    let outcomes = [("zero.toml", 0), ("middle.toml", 1), ("end.toml", 3)]
+        .into_iter()
+        .map(|(path, insertion_index)| {
+            port.apply(transaction(EditIntent::RestoreSubtree {
+                archive: rule_set_archive(path, insertion_index),
+            }))
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    for outcome in &outcomes {
+        assert_eq!(outcome.creations.len(), 1);
+        assert_eq!(outcome.rebound_nodes.len(), 1);
+        assert_eq!(outcome.changed_nodes.len(), 1);
+        assert_eq!(outcome.unsaved_hint, RuntimeEffect::Reload);
+    }
+    let paths = port
+        .snapshot()
+        .workspace()
+        .rule_sets
+        .iter()
+        .map(|rule_set| rule_set.file.path.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        paths,
+        vec!["zero.toml", "middle.toml", "rules/main.toml", "end.toml"]
+    );
+    assert_eq!(port.snapshot().dirty_files().len(), 3);
+    assert_eq!(port.snapshot().runtime_pending(), RuntimeEffect::None);
+}
+
+#[test]
+fn rule_set_root_restore_out_of_range_is_atomic() {
+    let mut port = workspace();
+    let before = port.snapshot();
+    let before_paths = before
+        .workspace()
+        .rule_sets
+        .iter()
+        .map(|rule_set| rule_set.file.path.clone())
+        .collect::<Vec<_>>();
+
+    assert!(
+        port.apply(transaction(EditIntent::RestoreSubtree {
+            archive: rule_set_archive("invalid.toml", before_paths.len() + 1),
+        }))
+        .is_err()
+    );
+
+    let after = port.snapshot();
+    assert_eq!(
+        after
+            .workspace()
+            .rule_sets
+            .iter()
+            .map(|rule_set| rule_set.file.path.clone())
+            .collect::<Vec<_>>(),
+        before_paths
+    );
+    assert_eq!(after.dirty_files(), before.dirty_files());
+    assert_eq!(after.unsaved_hint(), before.unsaved_hint());
+    assert_eq!(after.runtime_pending(), before.runtime_pending());
+}
+
+#[test]
 fn restore_rejects_live_rule_set_rule_and_condition_old_ids_atomically() {
     let mut port = workspace();
     let initial = port.snapshot();
@@ -999,7 +1196,7 @@ fn restore_rejects_live_rule_set_rule_and_condition_old_ids_atomically() {
 
     let set_archive = ArchivedSubtree::new(
         live_set.0,
-        RestorePlacement::RuleSetRoot,
+        RestorePlacement::RuleSetRoot { insertion_index: 0 },
         vec![ArchivedNode {
             old_id: live_set.0,
             parent: None,
@@ -1098,7 +1295,7 @@ fn nonempty_rule_set_restore_rebinds_rules_and_equal_conditions() {
     let equal = map_body_condition("a", BodyOp::Equal, "same").unwrap();
     let archive = ArchivedSubtree::new(
         old_set,
-        RestorePlacement::RuleSetRoot,
+        RestorePlacement::RuleSetRoot { insertion_index: 1 },
         vec![
             ArchivedNode {
                 old_id: old_set,

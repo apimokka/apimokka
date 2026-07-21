@@ -384,8 +384,17 @@ fn archived_subtree_requires_and_types_its_former_root() {
             path: parse_rule_set_path("routes.toml").unwrap(),
         },
     };
-    let archive = ArchivedSubtree::new(old_id, RestorePlacement::RuleSetRoot, vec![node]).unwrap();
+    let archive = ArchivedSubtree::new(
+        old_id,
+        RestorePlacement::RuleSetRoot { insertion_index: 0 },
+        vec![node],
+    )
+    .unwrap();
     assert_eq!(archive.former_root(), old_id);
+    assert_eq!(
+        archive.placement(),
+        RestorePlacement::RuleSetRoot { insertion_index: 0 }
+    );
     assert_eq!(
         archive.nodes()[0].payload.kind(),
         WorkspaceNodeKind::RuleSet
@@ -393,7 +402,7 @@ fn archived_subtree_requires_and_types_its_former_root() {
     assert!(
         ArchivedSubtree::new(
             NodeId::new(),
-            RestorePlacement::RuleSetRoot,
+            RestorePlacement::RuleSetRoot { insertion_index: 0 },
             archive.nodes().to_vec()
         )
         .is_err()
@@ -452,7 +461,12 @@ fn archive_rejects_duplicate_ids_invalid_placement_and_invalid_topology() {
         .is_err()
     );
     assert!(
-        ArchivedSubtree::new(old_id, RestorePlacement::RuleSetRoot, vec![node.clone()]).is_err()
+        ArchivedSubtree::new(
+            old_id,
+            RestorePlacement::RuleSetRoot { insertion_index: 0 },
+            vec![node.clone()]
+        )
+        .is_err()
     );
     let rule_set_id = NodeId::new();
     let rule_set = ArchivedNode {

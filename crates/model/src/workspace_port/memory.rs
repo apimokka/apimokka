@@ -322,13 +322,19 @@ impl MemoryWorkspace {
                     changed.extend(rule.body.into_iter().map(|value| value.id));
                 }
             }
-            EditIntent::AddRule { parent, rule, key } => {
-                if !candidate
+            EditIntent::AddRule {
+                parent,
+                insertion_index,
+                rule,
+                key,
+            } => {
+                let rule_set_index = candidate
                     .rule_sets
                     .iter()
-                    .any(|rule_set| rule_set.id == parent)
-                {
-                    return fail(Some(parent.0), "parent rule set does not exist");
+                    .position(|rule_set| rule_set.id == parent)
+                    .ok_or_else(|| failure(Some(parent.0), "parent rule set does not exist"))?;
+                if insertion_index > candidate.rule_sets[rule_set_index].rules.len() {
+                    return fail(Some(parent.0), "rule insertion index is out of range");
                 }
                 let RuleEditPayload {
                     rule_match,
@@ -364,12 +370,9 @@ impl MemoryWorkspace {
                     .chain(body.iter().map(|value| value.id))
                     .collect::<Vec<_>>();
                 let new_rule = MemoryRule::new(id, rule_match, headers, body, respond);
-                let rule_set = candidate
-                    .rule_sets
-                    .iter_mut()
-                    .find(|rule_set| rule_set.id == parent)
-                    .expect("parent existence checked before rule construction");
-                rule_set.rules.push(new_rule);
+                candidate.rule_sets[rule_set_index]
+                    .rules
+                    .insert(insertion_index, new_rule);
                 changed.extend([parent.0, id]);
                 changed.extend(condition_ids);
             }
@@ -1097,29 +1100,54 @@ fn restore_subtree(
             );
         }
     }
+
+    match archive.placement {
+        RestorePlacement::Rule {
+            parent,
+            insertion_index,
+        } => {
+            let rule_set = state
+                .rule_sets
+                .iter()
+                .find(|rule_set| rule_set.id == parent)
+                .ok_or_else(|| failure(Some(parent.0), "restore parent rule set does not exist"))?;
+            if insertion_index > rule_set.rules.len() {
+                return fail(Some(parent.0), "restore insertion index is out of range");
+            }
+            changed.push(parent.0);
+        }
+        RestorePlacement::RuleSetRoot { insertion_index } => {
+            if insertion_index > state.rule_sets.len() {
+                return fail(None, "rule-set restore insertion index is out of range");
+            }
+            let root = archive
+                .nodes
+                .iter()
+                .find(|node| node.old_id == archive.former_root)
+                .expect("archive constructor validates root");
+            let ArchivedNodePayload::RuleSet { path } = &root.payload else {
+                unreachable!("archive constructor validates root kind");
+            };
+            if state
+                .rule_sets
+                .iter()
+                .any(|rule_set| rule_set.path == *path)
+            {
+                return fail(
+                    Some(archive.former_root),
+                    "restored rule-set path already exists",
+                );
+            }
+        }
+    }
+
     let mut ids = HashMap::new();
     for node in &archive.nodes {
         ids.insert(node.old_id, fresh_id(used_ids));
     }
     let root_new = ids[&archive.former_root];
 
-    if let RestorePlacement::Rule {
-        parent,
-        insertion_index,
-    } = archive.placement
-    {
-        let rule_set = state
-            .rule_sets
-            .iter()
-            .find(|rule_set| rule_set.id == parent)
-            .ok_or_else(|| failure(Some(parent.0), "restore parent rule set does not exist"))?;
-        if insertion_index > rule_set.rules.len() {
-            return fail(Some(parent.0), "restore insertion index is out of range");
-        }
-        changed.push(parent.0);
-    }
-
-    if archive.placement == RestorePlacement::RuleSetRoot {
+    if let RestorePlacement::RuleSetRoot { insertion_index } = archive.placement {
         let root = archive
             .nodes
             .iter()
@@ -1128,19 +1156,15 @@ fn restore_subtree(
         let ArchivedNodePayload::RuleSet { path } = &root.payload else {
             unreachable!("archive constructor validates root kind");
         };
-        if state
-            .rule_sets
-            .iter()
-            .any(|rule_set| rule_set.path == *path)
-        {
-            return fail(Some(root_new), "restored rule-set path already exists");
-        }
-        state.rule_sets.push(MemoryRuleSet {
-            id: RuleSetId(root_new),
-            path: path.clone(),
-            rules: Vec::new(),
-            validation: NodeValidation::default(),
-        });
+        state.rule_sets.insert(
+            insertion_index,
+            MemoryRuleSet {
+                id: RuleSetId(root_new),
+                path: path.clone(),
+                rules: Vec::new(),
+                validation: NodeValidation::default(),
+            },
+        );
     }
 
     for node in &archive.nodes {
@@ -1218,7 +1242,7 @@ fn restore_subtree(
         let new_id = ids[&node.old_id];
         let parent = if node.old_id == archive.former_root {
             match archive.placement {
-                RestorePlacement::RuleSetRoot => None,
+                RestorePlacement::RuleSetRoot { .. } => None,
                 RestorePlacement::Rule { parent, .. } => Some(parent.0),
             }
         } else {
