@@ -21,6 +21,12 @@ use crate::shell::top_bar::ServerState;
 
 mod workspace_session;
 pub use workspace_session::{ConditionFamily, DraftBinding, WorkspaceSession};
+mod global_save;
+pub use global_save::{
+    FallbackSaveError, FallbackSaveFailure, FallbackSaveReport, FallbackSkipReason,
+    GlobalSaveCompletion, GlobalSaveReport, ProgressTrust, SaveIntegrity, WorkspaceSaveProgress,
+    WorkspaceSaveReport,
+};
 mod runtime;
 use runtime::SessionGeneration;
 pub use runtime::{RuntimeAction, RuntimeInFlight, RuntimeRequestToken};
@@ -374,6 +380,7 @@ pub struct App {
     next_session_generation: u64,
 
     pub dirty_count: usize,
+    pub last_save_report: Option<GlobalSaveReport>,
 
     pub trace: Vec<apimokka_model::MatchTraceEvent>,
     pub selected_trace: Option<u64>,
@@ -488,6 +495,7 @@ impl App {
             runtime_auto_complete: true,
             next_session_generation: 1,
             dirty_count: 0,
+            last_save_report: None,
             trace: mock::sample_trace_events(),
             selected_trace: None,
             trace_paused: false,
@@ -732,7 +740,7 @@ impl App {
 
             // Save
             Message::Save | Message::SaveAll => {
-                if self.save_workspace_and_fallbacks() {
+                if self.save_workspace_and_fallbacks() == Some(GlobalSaveCompletion::Complete) {
                     self.notice = Some(self.t(Key::FallbackSavedHint).to_string());
                 }
             }
@@ -3584,60 +3592,195 @@ impl App {
 
     /// Global save runs the workspace port first, then commits fallback
     /// drafts in canonical byte order only after workspace success.
-    fn save_workspace_and_fallbacks(&mut self) -> bool {
+    fn save_workspace_and_fallbacks(&mut self) -> Option<GlobalSaveCompletion> {
+        self.save_workspace_and_fallbacks_with(|_, _, _| Ok(()))
+    }
+
+    fn save_workspace_and_fallbacks_with<F>(
+        &mut self,
+        mut write_fallback: F,
+    ) -> Option<GlobalSaveCompletion>
+    where
+        F: FnMut(&str, &str, &str) -> Result<(), FallbackSaveError>,
+    {
         if self
             .snapshot
             .as_ref()
             .is_some_and(|session| session.faulted)
         {
             self.enter_session_fault_if_any();
-            return false;
+            return None;
         }
+        self.notice = None;
+        let mut dirty_fallback_keys: Vec<String> = self
+            .fallback_drafts
+            .keys()
+            .filter(|path| self.is_fallback_dirty(path))
+            .cloned()
+            .collect();
+        dirty_fallback_keys.sort_by(|left, right| left.as_bytes().cmp(right.as_bytes()));
         let selection_target = self.capture_selection_target();
-        let Some(session) = self.snapshot.as_mut() else {
-            return false;
-        };
+        let session = self.snapshot.as_mut()?;
         let result = session.save();
-        match result {
-            workspace_session::SessionSaveResult::Saved => {
+        let (workspace, fallback) = match result {
+            workspace_session::SessionSaveResult::Saved(workspace) => {
                 self.reconcile_selection(selection_target);
                 if self.transient_problem_kind == Some(TransientProblemKind::Save) {
                     self.clear_transient_problem();
                 }
+                let mut written_keys = Vec::new();
+                let mut fallback_failure = None;
+                for (index, key) in dirty_fallback_keys.iter().enumerate() {
+                    let content = self
+                        .fallback_drafts
+                        .get(key)
+                        .map(|draft| draft.text())
+                        .unwrap_or_default();
+                    let status = self
+                        .fallback_status_draft
+                        .get(key)
+                        .cloned()
+                        .or_else(|| self.fallback_status_saved.get(key).cloned())
+                        .unwrap_or_else(|| "200 OK".into());
+                    match write_fallback(key, &content, &status) {
+                        Ok(()) => {
+                            self.commit_fallback_values(key, content, status);
+                            written_keys.push(key.clone());
+                        }
+                        Err(cause) => {
+                            fallback_failure = Some((index, cause));
+                            break;
+                        }
+                    }
+                }
+                let fallback = if let Some((index, cause)) = fallback_failure {
+                    FallbackSaveReport::Failed {
+                        written_keys,
+                        failure: FallbackSaveFailure {
+                            key: dirty_fallback_keys[index].clone(),
+                            cause,
+                        },
+                        remaining_keys: dirty_fallback_keys[index..].to_vec(),
+                    }
+                } else {
+                    FallbackSaveReport::Completed { written_keys }
+                };
+                (workspace, fallback)
             }
-            workspace_session::SessionSaveResult::SaveFailure(failure) => {
+            workspace_session::SessionSaveResult::SaveFailure(workspace) => {
                 self.reconcile_selection(selection_target);
-                self.transient_problem_kind = Some(TransientProblemKind::Save);
-                self.transient_problem_operation = None;
-                self.last_problem = Some(
-                    apimokka_model::FriendlyProblem::new(
-                        "Workspace save failed",
-                        "The workspace adopted the saved prefix reported by the port. Remaining workspace and fallback changes are still pending.",
-                        None,
-                    )
-                    .with_technical(failure.cause.detail().to_owned()),
-                );
-                self.recompute_dirty();
-                return false;
+                (
+                    workspace,
+                    FallbackSaveReport::NotEntered {
+                        reason: FallbackSkipReason::WorkspaceFailed,
+                        remaining_keys: dirty_fallback_keys,
+                    },
+                )
             }
-            workspace_session::SessionSaveResult::ContractFault => {
+            workspace_session::SessionSaveResult::ContractFault(workspace) => {
                 self.reconcile_selection(selection_target);
                 self.enter_session_fault_if_any();
-                return false;
+                (
+                    workspace,
+                    FallbackSaveReport::NotEntered {
+                        reason: FallbackSkipReason::WorkspaceContractFault,
+                        remaining_keys: dirty_fallback_keys,
+                    },
+                )
+            }
+            workspace_session::SessionSaveResult::AlreadyFaulted => {
+                self.enter_session_fault_if_any();
+                return None;
+            }
+        };
+        let report = GlobalSaveReport {
+            workspace,
+            fallback,
+        };
+        let completion = report.completion();
+        let integrity_fault = matches!(
+            &report.workspace.integrity,
+            SaveIntegrity::ContractFault { .. }
+        );
+        self.last_save_report = Some(report);
+        if completion != GlobalSaveCompletion::Complete {
+            self.drawer = Some(DrawerMode::SaveDiff);
+            if integrity_fault {
+                self.present_save_integrity_problem();
+            } else {
+                self.present_global_save_problem(completion);
             }
         }
-        let mut dirty_paths: Vec<String> = self
-            .fallback_drafts
-            .keys()
-            .filter(|p| self.is_fallback_dirty(p))
-            .cloned()
-            .collect();
-        dirty_paths.sort_by(|left, right| left.as_bytes().cmp(right.as_bytes()));
-        for p in dirty_paths {
-            self.commit_fallback_draft(&p);
-        }
         self.recompute_dirty();
-        true
+        Some(completion)
+    }
+
+    fn present_save_integrity_problem(&mut self) {
+        let SaveIntegrity::ContractFault {
+            reason,
+            progress_trust,
+        } = &self
+            .last_save_report
+            .as_ref()
+            .expect("save integrity problem requires a stored report")
+            .workspace
+            .integrity
+        else {
+            return;
+        };
+        let recovery = match progress_trust {
+            ProgressTrust::Verified => {
+                "The verified saved prefix was retained, but the workspace result violated the save contract. Reload the workspace before editing or retrying."
+            }
+            ProgressTrust::Unverified => {
+                "Workspace commit status could not be verified because the adapter result violated the save contract. Reload the workspace before editing or retrying."
+            }
+        };
+        self.transient_problem_kind = Some(TransientProblemKind::PostCommitContract);
+        self.transient_problem_operation = None;
+        self.last_problem = Some(
+            apimokka_model::FriendlyProblem::new("Workspace reload required", recovery, None)
+                .with_technical(reason.clone()),
+        );
+    }
+
+    fn present_global_save_problem(&mut self, completion: GlobalSaveCompletion) {
+        let (summary, recovery, technical) = match self
+            .last_save_report
+            .as_ref()
+            .expect("save problem requires a stored report")
+        {
+            GlobalSaveReport {
+                workspace:
+                    WorkspaceSaveReport {
+                        progress: WorkspaceSaveProgress::Failed { cause, .. },
+                        ..
+                    },
+                ..
+            } => (
+                "Workspace save failed",
+                "Review the last save attempt. The verified prefix was retained; retry the remaining scopes.",
+                cause.detail().to_owned(),
+            ),
+            GlobalSaveReport {
+                fallback: FallbackSaveReport::Failed { failure, .. },
+                ..
+            } => (
+                "Fallback save failed",
+                "Review the last save attempt. Successfully written scopes were retained; retry the remaining fallback files.",
+                failure.cause.detail().to_owned(),
+            ),
+            _ => (
+                "Save did not complete",
+                "Review the last save attempt before retrying.",
+                format!("global save completion: {completion:?}"),
+            ),
+        };
+        self.transient_problem_kind = Some(TransientProblemKind::Save);
+        self.transient_problem_operation = None;
+        self.last_problem = Some(
+            apimokka_model::FriendlyProblem::new(summary, recovery, None).with_technical(technical),
+        );
     }
 
     // ── MK-038 fallback lifecycle helpers ─────────────────────────────────
@@ -3679,13 +3822,23 @@ impl App {
     /// Save: saved ← draft (Dirty → Clean). Takes effect on next request;
     /// no server reload required for fallback files.
     fn commit_fallback_draft(&mut self, path: &str) {
-        if let Some(draft) = self.fallback_drafts.get(path) {
-            self.fallback_saved.insert(path.to_string(), draft.text());
-        }
-        if let Some(status) = self.fallback_status_draft.get(path) {
-            self.fallback_status_saved
-                .insert(path.to_string(), status.clone());
-        }
+        let content = self
+            .fallback_drafts
+            .get(path)
+            .map(|draft| draft.text())
+            .unwrap_or_default();
+        let status = self
+            .fallback_status_draft
+            .get(path)
+            .cloned()
+            .or_else(|| self.fallback_status_saved.get(path).cloned())
+            .unwrap_or_else(|| "200 OK".into());
+        self.commit_fallback_values(path, content, status);
+    }
+
+    fn commit_fallback_values(&mut self, path: &str, content: String, status: String) {
+        self.fallback_saved.insert(path.to_string(), content);
+        self.fallback_status_saved.insert(path.to_string(), status);
     }
 
     /// Recompute the top-bar dirty counter: dirty rule files + dirty
@@ -3796,6 +3949,7 @@ impl App {
         self.view = AppView::Welcome;
         self.snapshot = None;
         self.runtime_in_flight = None;
+        self.last_save_report = None;
         self.selection = RouteSelection::default();
         self.reset_fallback_state(
             std::collections::HashMap::new(),
@@ -3856,6 +4010,7 @@ impl App {
             .map(|file| (file.path.clone(), "200 OK".to_string()))
             .collect();
         self.snapshot = Some(session);
+        self.last_save_report = None;
         self.reset_fallback_state(fallback_saved, fallback_status_saved);
         self.selection = RouteSelection::default();
         self.rule_set_open = None;
@@ -4072,6 +4227,10 @@ mod workspace_session_tests;
 #[cfg(test)]
 #[path = "app/runtime_tests.rs"]
 mod runtime_tests;
+
+#[cfg(test)]
+#[path = "app/global_save_tests.rs"]
+mod global_save_tests;
 
 #[cfg(test)]
 #[path = "app/navigation.rs"]

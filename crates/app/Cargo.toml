@@ -24,3 +24,6 @@ snora                       = { workspace = true }
 
 http                        = { workspace = true }
 serde_json                  = { workspace = true }
+
+[dev-dependencies]
+apimokka-model              = { workspace = true, features = ["contract-test-support"] }

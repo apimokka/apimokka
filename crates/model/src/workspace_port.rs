@@ -791,6 +791,13 @@ impl PortSnapshot {
         self.runtime_pending
     }
 
+    /// Exposes the render projection only for cross-crate adapter contract tests.
+    #[cfg(feature = "contract-test-support")]
+    #[doc(hidden)]
+    pub fn contract_test_workspace_mut(&mut self) -> &mut WorkspaceSnapshot {
+        &mut self.workspace
+    }
+
     /// Discards canonical rule state and condition identity. Migration-only.
     pub fn into_legacy_workspace(self) -> WorkspaceSnapshot {
         self.workspace

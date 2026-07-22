@@ -13,3 +13,6 @@ repository.workspace    = true
 http.workspace              = true
 serde_json.workspace        = true
 uuid.workspace              = true
+
+[features]
+contract-test-support = []

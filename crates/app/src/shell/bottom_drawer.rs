@@ -4,7 +4,10 @@
 //! - Validation: groups by rule set, click-to-navigate, proper empty state.
 //! - Save diff: shows rule summaries and fallback-file change indicators.
 
-use crate::app::App;
+use crate::app::{
+    App, FallbackSaveReport, GlobalSaveCompletion, ProgressTrust, SaveIntegrity,
+    WorkspaceSaveProgress,
+};
 use crate::message::Message;
 use crate::selection::DrawerMode;
 use crate::theme::{self, size, space};
@@ -221,7 +224,7 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
     };
 
     let total = dirty_rule_sets.len() + dirty_fallback_paths.len();
-    if total == 0 {
+    if total == 0 && app.last_save_report.is_none() {
         return container(
             column![
                 text("✓")
@@ -247,12 +250,51 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
         }
     );
 
-    let mut col = column![
-        text(count_text).size(size::BODY_STRONG),
-        Space::new().height(space::S2),
-    ]
-    .spacing(space::S2)
-    .padding(Padding::from([space::S3, space::S4]));
+    let mut col = column![]
+        .spacing(space::S2)
+        .padding(Padding::from([space::S3, space::S4]));
+
+    if app.last_save_report.is_some() {
+        col = col.push(text(app.t(Key::DrawerLastSaveAttempt)).size(size::BODY_STRONG));
+        let mut report = column![].spacing(space::S1);
+        for line in last_save_report_lines(app) {
+            report = report.push(
+                text(line)
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme()))
+                    .width(Length::Fill),
+            );
+        }
+        col = col.push(
+            container(report)
+                .padding(Padding::from([space::S2, space::S3]))
+                .style(theme::card_style)
+                .width(Length::Fill),
+        );
+        col = col.push(Space::new().height(space::S2));
+        col = col.push(text(app.t(Key::DrawerCurrentUnsaved)).size(size::BODY_STRONG));
+    }
+
+    if total == 0 {
+        col = col.push(
+            container(
+                column![
+                    text("✓")
+                        .size(size::TITLE)
+                        .color(Color::from_rgb(0.1, 0.65, 0.1)),
+                    text("No unsaved changes.").size(size::BODY),
+                ]
+                .spacing(space::S2)
+                .align_x(iced::Alignment::Center),
+            )
+            .padding(Padding::from([space::S4, space::S5]))
+            .width(Length::Fill),
+        );
+        return col.into();
+    }
+
+    col = col.push(text(count_text).size(size::BODY_STRONG));
+    col = col.push(Space::new().height(space::S2));
 
     // ── Dirty rule-set files ─────────────────────────────────────────────
     for rs in &dirty_rule_sets {
@@ -340,4 +382,145 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
     );
 
     col.into()
+}
+
+pub(crate) fn last_save_report_lines(app: &App) -> Vec<String> {
+    let Some(report) = app.last_save_report.as_ref() else {
+        return Vec::new();
+    };
+    let mut lines = vec![
+        app.t(match report.completion() {
+            GlobalSaveCompletion::Complete => Key::SaveCompletionComplete,
+            GlobalSaveCompletion::Partial => Key::SaveCompletionPartial,
+            GlobalSaveCompletion::Failed => Key::SaveCompletionFailed,
+            GlobalSaveCompletion::Indeterminate => Key::SaveCompletionIndeterminate,
+        })
+        .to_owned(),
+    ];
+
+    let progress_trust = match &report.workspace.integrity {
+        SaveIntegrity::Valid => ProgressTrust::Verified,
+        SaveIntegrity::ContractFault {
+            reason,
+            progress_trust,
+        } => {
+            lines.push(format!("{}: {}", app.t(Key::SaveIntegrityFailure), reason));
+            *progress_trust
+        }
+    };
+
+    let join_paths = |paths: &[apimokka_model::WorkspaceRelativePath]| {
+        if paths.is_empty() {
+            app.t(Key::SaveNone).to_owned()
+        } else {
+            paths
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        }
+    };
+    if progress_trust == ProgressTrust::Verified {
+        lines.push(format!(
+            "{}: {}",
+            app.t(Key::SaveVerifiedWritten),
+            join_paths(report.workspace.progress.written_files())
+        ));
+    } else {
+        lines.push(format!(
+            "{}: {}",
+            app.t(Key::SaveReportedWritten),
+            join_paths(report.workspace.progress.written_files())
+        ));
+        let diffs = if report.workspace.progress.diffs().is_empty() {
+            app.t(Key::SaveNone).to_owned()
+        } else {
+            report
+                .workspace
+                .progress
+                .diffs()
+                .iter()
+                .map(|diff| format!("{} ({})", diff.path, runtime_effect_label(app, diff.effect)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        lines.push(format!("{}: {diffs}", app.t(Key::SaveReportedDiffs)));
+    }
+
+    if let WorkspaceSaveProgress::Failed {
+        failed_file, cause, ..
+    } = &report.workspace.progress
+    {
+        lines.push(format!(
+            "{}: {} — {}",
+            app.t(if progress_trust == ProgressTrust::Verified {
+                Key::SaveFailedFile
+            } else {
+                Key::SaveReportedFailure
+            }),
+            failed_file,
+            cause.detail()
+        ));
+    }
+
+    match &report.fallback {
+        FallbackSaveReport::Completed { written_keys } => lines.push(format!(
+            "{}: {}",
+            app.t(Key::SaveFallbackWritten),
+            join_strings(app, written_keys)
+        )),
+        FallbackSaveReport::NotEntered { remaining_keys, .. } => lines.push(format!(
+            "{}: {}",
+            app.t(Key::SaveRemainingScopes),
+            join_strings(app, remaining_keys)
+        )),
+        FallbackSaveReport::Failed {
+            written_keys,
+            failure,
+            remaining_keys,
+        } => {
+            lines.push(format!(
+                "{}: {}",
+                app.t(Key::SaveFallbackWritten),
+                join_strings(app, written_keys)
+            ));
+            lines.push(format!(
+                "{}: {} — {}",
+                app.t(Key::SaveFailedFile),
+                failure.key,
+                failure.cause.detail()
+            ));
+            lines.push(format!(
+                "{}: {}",
+                app.t(Key::SaveRemainingScopes),
+                join_strings(app, remaining_keys)
+            ));
+        }
+    }
+
+    lines.push(format!(
+        "{}: {}={}, {}={}",
+        app.t(Key::SaveAttemptPhases),
+        app.t(Key::SaveUnsavedPhase),
+        runtime_effect_label(app, report.workspace.unsaved_hint),
+        app.t(Key::SavePendingPhase),
+        runtime_effect_label(app, report.workspace.runtime_pending)
+    ));
+    lines
+}
+
+fn join_strings(app: &App, values: &[String]) -> String {
+    if values.is_empty() {
+        app.t(Key::SaveNone).to_owned()
+    } else {
+        values.join(", ")
+    }
+}
+
+fn runtime_effect_label(app: &App, effect: apimokka_model::RuntimeEffect) -> &'static str {
+    app.t(match effect {
+        apimokka_model::RuntimeEffect::None => Key::SavePhaseNone,
+        apimokka_model::RuntimeEffect::Reload => Key::SavePhaseReload,
+        apimokka_model::RuntimeEffect::Restart => Key::SavePhaseRestart,
+    })
 }

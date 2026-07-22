@@ -7,6 +7,7 @@ use super::HistoryEntry;
 use super::runtime::{
     RuntimeAction, RuntimeRequestId, RuntimeRequestToken, SavedConfigRevision, SessionGeneration,
 };
+use super::{ProgressTrust, SaveIntegrity, WorkspaceSaveProgress, WorkspaceSaveReport};
 
 use apimokka_model::workspace_port::{
     map_body_condition, map_header_condition, map_response, map_rule_match,
@@ -160,9 +161,10 @@ pub(super) enum SessionApplyResult {
 }
 
 pub(super) enum SessionSaveResult {
-    Saved,
-    SaveFailure(apimokka_model::SaveFailure),
-    ContractFault,
+    Saved(WorkspaceSaveReport),
+    SaveFailure(WorkspaceSaveReport),
+    ContractFault(WorkspaceSaveReport),
+    AlreadyFaulted,
 }
 
 pub(super) enum SessionValidationResult {
@@ -436,11 +438,15 @@ impl WorkspaceSession {
 
     pub(super) fn save(&mut self) -> SessionSaveResult {
         if self.faulted {
-            return SessionSaveResult::ContractFault;
+            return SessionSaveResult::AlreadyFaulted;
         }
         let before = self.latest.clone();
         match self.port.save() {
             Ok(outcome) => {
+                let progress = WorkspaceSaveProgress::Saved {
+                    written_files: outcome.written_files.clone(),
+                    diffs: outcome.diffs.clone(),
+                };
                 let progress_problem = validate_save_outcome_progress(&before, &outcome).err();
                 let phase_problem = validate_save_phases(
                     &before,
@@ -455,14 +461,38 @@ impl WorkspaceSession {
                 if progress_problem.is_none() {
                     self.advance_saved_config_revision(&outcome.diffs);
                 }
-                if let Some(problem) = progress_problem.or(phase_problem).or(identity_problem) {
-                    self.enter_contract_fault(problem);
-                    SessionSaveResult::ContractFault
+                let progress_trust = if progress_problem.is_none() {
+                    ProgressTrust::Verified
                 } else {
-                    SessionSaveResult::Saved
+                    ProgressTrust::Unverified
+                };
+                if let Some(problem) = progress_problem.or(phase_problem).or(identity_problem) {
+                    self.enter_contract_fault(problem.clone());
+                    SessionSaveResult::ContractFault(WorkspaceSaveReport {
+                        progress,
+                        integrity: SaveIntegrity::ContractFault {
+                            reason: problem,
+                            progress_trust,
+                        },
+                        unsaved_hint: outcome.unsaved_hint,
+                        runtime_pending: outcome.runtime_pending,
+                    })
+                } else {
+                    SessionSaveResult::Saved(WorkspaceSaveReport {
+                        progress,
+                        integrity: SaveIntegrity::Valid,
+                        unsaved_hint: outcome.unsaved_hint,
+                        runtime_pending: outcome.runtime_pending,
+                    })
                 }
             }
             Err(failure) => {
+                let progress = WorkspaceSaveProgress::Failed {
+                    written_files: failure.written_files.clone(),
+                    diffs: failure.diffs.clone(),
+                    failed_file: failure.failed_file.clone(),
+                    cause: failure.cause.clone(),
+                };
                 let prefix_len = failure.written_files.len().min(before.dirty_files().len());
                 let progress_problem = validate_save_failure_progress(&before, &failure).err();
                 let phase_problem = validate_save_phases(
@@ -478,11 +508,29 @@ impl WorkspaceSession {
                 if progress_problem.is_none() {
                     self.advance_saved_config_revision(&failure.diffs);
                 }
-                if let Some(problem) = progress_problem.or(phase_problem).or(identity_problem) {
-                    self.enter_contract_fault(problem);
-                    SessionSaveResult::ContractFault
+                let progress_trust = if progress_problem.is_none() {
+                    ProgressTrust::Verified
                 } else {
-                    SessionSaveResult::SaveFailure(failure)
+                    ProgressTrust::Unverified
+                };
+                if let Some(problem) = progress_problem.or(phase_problem).or(identity_problem) {
+                    self.enter_contract_fault(problem.clone());
+                    SessionSaveResult::ContractFault(WorkspaceSaveReport {
+                        progress,
+                        integrity: SaveIntegrity::ContractFault {
+                            reason: problem,
+                            progress_trust,
+                        },
+                        unsaved_hint: failure.unsaved_hint,
+                        runtime_pending: failure.runtime_pending,
+                    })
+                } else {
+                    SessionSaveResult::SaveFailure(WorkspaceSaveReport {
+                        progress,
+                        integrity: SaveIntegrity::Valid,
+                        unsaved_hint: failure.unsaved_hint,
+                        runtime_pending: failure.runtime_pending,
+                    })
                 }
             }
         }
@@ -522,6 +570,7 @@ impl WorkspaceSession {
     }
 
     fn adopt_snapshot(&mut self, snapshot: PortSnapshot) -> Result<(), String> {
+        let structural_problem = validate_snapshot_structure(&snapshot).err();
         let identity_drift = (snapshot.workspace().meta.name != self.identity.name
             || snapshot.workspace().meta.path != self.identity.path)
             .then(|| {
@@ -535,7 +584,7 @@ impl WorkspaceSession {
             });
         self.latest = snapshot;
         self.retain_live_state();
-        identity_drift.map_or(Ok(()), Err)
+        structural_problem.or(identity_drift).map_or(Ok(()), Err)
     }
 
     fn enter_contract_fault(&mut self, problem: String) {
@@ -1051,6 +1100,7 @@ fn editable_node_index(
     snapshot: &PortSnapshot,
 ) -> Result<HashMap<NodeId, (WorkspaceNodeKind, Option<NodeId>)>, String> {
     let mut index = HashMap::new();
+    let mut render_rule_ids = std::collections::HashSet::new();
     for rule_set in &snapshot.workspace().rule_sets {
         insert_editable_node(
             &mut index,
@@ -1058,6 +1108,7 @@ fn editable_node_index(
             (WorkspaceNodeKind::RuleSet, None),
         )?;
         for rule in &rule_set.rules {
+            render_rule_ids.insert(rule.id);
             insert_editable_node(
                 &mut index,
                 rule.id,
@@ -1069,6 +1120,85 @@ fn editable_node_index(
                     rule.id
                 ));
             };
+            let mapped_match = map_rule_match(
+                &rule.payload.url_path,
+                rule.payload.url_path_op,
+                &rule.payload.method,
+            )
+            .map_err(|error| format!("adopted render rule {:?} is invalid: {error}", rule.id))?;
+            if &mapped_match != canonical.rule_match() {
+                return Err(format!(
+                    "adopted snapshot canonical/render rule match differs for {:?}",
+                    rule.id
+                ));
+            }
+            let response_mode = match rule.payload.respond.mode {
+                apimokka_model::snapshot::RespondMode::InlineText => {
+                    apimokka_model::ResponseMode::Inline
+                }
+                apimokka_model::snapshot::RespondMode::ServeFile => {
+                    apimokka_model::ResponseMode::File
+                }
+            };
+            let canonical_delay = canonical
+                .respond()
+                .delay_milliseconds()
+                .map(|delay| delay.to_string())
+                .unwrap_or_default();
+            let mapped_response = map_response(
+                response_mode,
+                &rule.payload.respond.text,
+                &rule.payload.respond.file_path,
+                &rule.payload.respond.status,
+                &canonical_delay,
+            )
+            .map_err(|error| {
+                format!("adopted render response {:?} is invalid: {error}", rule.id)
+            })?;
+            if &mapped_response != canonical.respond()
+                || rule.payload.respond.delay_milliseconds
+                    != canonical.respond().delay_milliseconds().unwrap_or_default()
+            {
+                return Err(format!(
+                    "adopted snapshot canonical/render response differs for {:?}",
+                    rule.id
+                ));
+            }
+            if rule.payload.headers.len() != canonical.conditions().headers.len()
+                || rule.payload.body.len() != canonical.conditions().body.len()
+            {
+                return Err(format!(
+                    "adopted snapshot canonical/render condition count differs for {:?}",
+                    rule.id
+                ));
+            }
+            for (render, canonical) in rule
+                .payload
+                .headers
+                .iter()
+                .zip(&canonical.conditions().headers)
+            {
+                let mapped = map_header_condition(&render.name, render.op, &render.value).map_err(
+                    |error| format!("adopted render header {:?} is invalid: {error}", rule.id),
+                )?;
+                if mapped != canonical.condition {
+                    return Err(format!(
+                        "adopted snapshot canonical/render header differs for {:?}",
+                        rule.id
+                    ));
+                }
+            }
+            for (render, canonical) in rule.payload.body.iter().zip(&canonical.conditions().body) {
+                let mapped = map_body_condition(&render.path, render.op, &render.value).map_err(
+                    |error| format!("adopted render body {:?} is invalid: {error}", rule.id),
+                )?;
+                if mapped != canonical.condition {
+                    return Err(format!(
+                        "adopted snapshot canonical/render body differs for {:?}",
+                        rule.id
+                    ));
+                }
+            }
             for condition in &canonical.conditions().headers {
                 insert_editable_node(
                     &mut index,
@@ -1085,7 +1215,26 @@ fn editable_node_index(
             }
         }
     }
+    let mut canonical_rule_ids = std::collections::HashSet::new();
+    for canonical in snapshot.rules() {
+        if !canonical_rule_ids.insert(canonical.rule_id()) {
+            return Err(format!(
+                "adopted snapshot contains duplicate canonical rule identity {:?}",
+                canonical.rule_id()
+            ));
+        }
+        if !render_rule_ids.contains(&canonical.rule_id()) {
+            return Err(format!(
+                "adopted snapshot has no render rule for canonical rule {:?}",
+                canonical.rule_id()
+            ));
+        }
+    }
     Ok(index)
+}
+
+fn validate_snapshot_structure(snapshot: &PortSnapshot) -> Result<(), String> {
+    editable_node_index(snapshot).map(|_| ())
 }
 
 fn insert_editable_node(
