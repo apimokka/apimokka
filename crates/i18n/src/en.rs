@@ -236,6 +236,8 @@ pub fn t(key: Key) -> &'static str {
         Key::DrawerValidationTitle => "Validation",
         Key::DrawerValidationErrors => "Errors",
         Key::DrawerValidationWarnings => "Warnings",
+        Key::DrawerValidationInfo => "Info",
+        Key::DrawerOpenDiagnostic => "Open",
         Key::DrawerSaveDiffTitle => "Save diff",
         Key::DrawerSaveDiffCount => "files will be written",
         Key::DrawerSaveDiffModified => "Modified",
@@ -342,9 +344,7 @@ pub fn t(key: Key) -> &'static str {
         Key::RuleSetConfigMoreOptions => "More rule-set options",
         Key::RuleSetConfigFewerOptions => "Fewer rule-set options",
         Key::DrawerValidationOk => "\u{2713} No validation issues",
-        Key::DrawerValidationFileOk => "\u{2713} No issues",
         Key::DrawerValidationWorkspace => "Workspace",
-        Key::DrawerJumpToRule => "Go to rule",
         Key::DrawerSaveDiffChangedRules => "rules \u{00B7}",
         Key::DrawerSaveDiffFallbackMod => "JSON content modified",
 

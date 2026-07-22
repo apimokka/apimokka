@@ -1,8 +1,8 @@
 use super::*;
 use crate::message::Message;
 use apimokka_model::{
-    ApplyFailure, CreationReceipt, Diagnostic, EditOutcome, EditTransaction, MemoryWorkspace,
-    NodeId, PortSnapshot, SaveFailure, SaveOutcome, SemanticCreationKey, Severity,
+    ApplyFailure, CreationReceipt, Diagnostic, EditIntent, EditOutcome, EditTransaction,
+    MemoryWorkspace, NodeId, PortSnapshot, SaveFailure, SaveOutcome, SemanticCreationKey, Severity,
     ValidationReport, WorkspaceNodeKind, WorkspacePort,
 };
 use std::cell::RefCell;
@@ -14,6 +14,8 @@ fn expert() -> App {
         apimokka_model::AudienceMode::Expert,
     ));
     app.update(Message::OpenWorkspace("test".into()));
+    let first_rule = app.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    app.update(Message::SelectRule(first_rule));
     app
 }
 
@@ -40,6 +42,33 @@ fn invalid_rule_draft_survives_without_changing_canonical_state() {
         &canonical_before
     );
     assert!(app.last_problem.is_some());
+}
+
+#[test]
+fn only_the_corrected_operation_dismisses_its_transient_problem() {
+    let mut app = expert();
+
+    app.update(Message::SettingsSetPort("abc".into()));
+    assert_eq!(
+        app.transient_problem_kind,
+        Some(TransientProblemKind::Operation)
+    );
+    let rejected_title = app.last_problem.as_ref().unwrap().title.clone();
+
+    app.update(Message::RuleSetMethod("POST".into()));
+    assert_eq!(
+        app.last_problem.as_ref().unwrap().title,
+        rejected_title,
+        "an unrelated successful edit must retain the field problem"
+    );
+
+    app.update(Message::SettingsSetPort("9000".into()));
+    assert!(app.last_problem.is_none());
+    assert_eq!(app.transient_problem_kind, None);
+    assert_eq!(
+        app.snapshot.as_ref().unwrap().root_settings.listener_port,
+        9000
+    );
 }
 
 #[test]
@@ -455,6 +484,114 @@ struct MiddleSaveFailurePort {
     observed: Rc<RefCell<Option<ObservedSaveFailure>>>,
 }
 
+struct ValidationMismatchPort {
+    inner: MemoryWorkspace,
+    report: ValidationReport,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SelectionAdoptionSource {
+    SaveSuccess,
+    SaveFailure,
+    ReloadAcknowledgement,
+    RestartAcknowledgement,
+}
+
+struct SelectionAdoptionPort {
+    inner: MemoryWorkspace,
+    selected_rule: NodeId,
+    source: SelectionAdoptionSource,
+    removed: bool,
+}
+
+impl SelectionAdoptionPort {
+    fn remove_selected_rule(&mut self) {
+        if self.removed {
+            return;
+        }
+        self.inner
+            .apply(
+                EditTransaction::new(vec![EditIntent::DeleteRule {
+                    id: self.selected_rule,
+                }])
+                .unwrap(),
+            )
+            .unwrap();
+        self.removed = true;
+    }
+}
+
+impl WorkspacePort for SelectionAdoptionPort {
+    fn snapshot(&self) -> PortSnapshot {
+        self.inner.snapshot()
+    }
+
+    fn apply(&mut self, transaction: EditTransaction) -> Result<EditOutcome, ApplyFailure> {
+        self.inner.apply(transaction)
+    }
+
+    fn validate(&self) -> ValidationReport {
+        self.inner.validate()
+    }
+
+    fn save(&mut self) -> Result<SaveOutcome, SaveFailure> {
+        match self.source {
+            SelectionAdoptionSource::SaveSuccess => {
+                self.remove_selected_rule();
+                self.inner.save()
+            }
+            SelectionAdoptionSource::SaveFailure => {
+                self.remove_selected_rule();
+                let failed_file = self.inner.snapshot().dirty_files()[0].path.clone();
+                self.inner.inject_save_failure(failed_file).unwrap();
+                self.inner.save()
+            }
+            SelectionAdoptionSource::ReloadAcknowledgement
+            | SelectionAdoptionSource::RestartAcknowledgement => self.inner.save(),
+        }
+    }
+
+    fn acknowledge_reload(&mut self) -> PortSnapshot {
+        if self.source == SelectionAdoptionSource::ReloadAcknowledgement {
+            self.remove_selected_rule();
+        }
+        self.inner.acknowledge_reload()
+    }
+
+    fn acknowledge_restart(&mut self) -> PortSnapshot {
+        if self.source == SelectionAdoptionSource::RestartAcknowledgement {
+            self.remove_selected_rule();
+        }
+        self.inner.acknowledge_restart()
+    }
+}
+
+impl WorkspacePort for ValidationMismatchPort {
+    fn snapshot(&self) -> PortSnapshot {
+        self.inner.snapshot()
+    }
+
+    fn apply(&mut self, transaction: EditTransaction) -> Result<EditOutcome, ApplyFailure> {
+        self.inner.apply(transaction)
+    }
+
+    fn validate(&self) -> ValidationReport {
+        self.report.clone()
+    }
+
+    fn save(&mut self) -> Result<SaveOutcome, SaveFailure> {
+        self.inner.save()
+    }
+
+    fn acknowledge_reload(&mut self) -> PortSnapshot {
+        self.inner.acknowledge_reload()
+    }
+
+    fn acknowledge_restart(&mut self) -> PortSnapshot {
+        self.inner.acknowledge_restart()
+    }
+}
+
 struct ObservedSaveFailure {
     written_files: Vec<String>,
     failed_file: String,
@@ -628,6 +765,26 @@ fn controlled_app(behavior_at: usize, behavior: ApplyBehavior) -> App {
     app
 }
 
+fn selection_adoption_app(source: SelectionAdoptionSource) -> (App, NodeId, RuleSetId) {
+    let mut app = expert();
+    let seed = apimokka_model::mock::shop_api_canonical_seed();
+    let selected_rule = seed.rule_sets[0].rules[0].id;
+    let parent = seed.rule_sets[0].id;
+    let port = SelectionAdoptionPort {
+        inner: MemoryWorkspace::new(seed).unwrap(),
+        selected_rule,
+        source,
+        removed: false,
+    };
+    app.snapshot = Some(WorkspaceSession::from_port(
+        Box::new(port),
+        workspace_session::PrototypeState::default(),
+    ));
+    app.selection.select_rule(selected_rule, parent);
+    app.rule_set_open = Some(parent);
+    (app, selected_rule, parent)
+}
+
 fn dirty_first_fallback(app: &mut App, content: &str) -> (String, String) {
     let path = app.snapshot.as_ref().unwrap().fallback_files[0]
         .path
@@ -643,6 +800,298 @@ fn dirty_first_fallback(app: &mut App, content: &str) -> (String, String) {
     app.recompute_dirty();
     assert!(app.is_fallback_dirty(&path));
     (path, baseline)
+}
+
+#[test]
+fn explicit_validation_equality_is_non_mutating() {
+    let mut app = expert();
+    let selection = app.selection.clone();
+    let dirty = app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .latest()
+        .dirty_files()
+        .to_vec();
+    app.update(Message::OpenValidationDrawer);
+
+    let session = app.snapshot.as_ref().unwrap();
+    assert!(!session.faulted);
+    assert_eq!(app.selection, selection);
+    assert_eq!(app.transient_problem_kind, None);
+    assert_eq!(session.latest().dirty_files(), dirty);
+    assert!(app.last_problem.is_none());
+}
+
+#[test]
+fn validation_mismatch_faults_without_adoption_and_preserves_cached_truth() {
+    let mut app = expert();
+    let seed = apimokka_model::mock::shop_api_canonical_seed();
+    let session = WorkspaceSession::from_port(
+        Box::new(ValidationMismatchPort {
+            inner: MemoryWorkspace::new(seed).unwrap(),
+            report: ValidationReport::default(),
+        }),
+        workspace_session::PrototypeState::default(),
+    );
+    let rule = session.rule_sets[0].rules[0].id;
+    let parent = session.rule_sets[0].id;
+    app.snapshot = Some(session);
+    app.selection.select_rule(rule, parent);
+    app.update(Message::HeaderAdd);
+    app.update(Message::RuleWeightChanged("37".into()));
+    app.update(Message::SettingsSetHost("invalid-ip".into()));
+
+    let cached_name = app.snapshot.as_ref().unwrap().meta.name.clone();
+    let cached_path = app.snapshot.as_ref().unwrap().meta.path.clone();
+    let selection = app.selection.clone();
+    assert!(!app.undo_stack().is_empty());
+    assert!(app.snapshot.as_ref().unwrap().condition_focus.is_some());
+
+    app.update(Message::OpenValidationDrawer);
+
+    let session = app.snapshot.as_ref().unwrap();
+    assert!(session.faulted);
+    assert_eq!(
+        session.contract_fault_adoption,
+        Some(workspace_session::ContractFaultAdoption::NonAdoptingRead)
+    );
+    assert_eq!(session.meta.name, cached_name);
+    assert_eq!(session.meta.path, cached_path);
+    assert_eq!(app.selection, selection);
+    assert_eq!(
+        app.transient_problem_kind,
+        Some(TransientProblemKind::NonAdoptingReadContract)
+    );
+    assert_eq!(session.prototype.rule_extras[&rule].weight, Some(37));
+    assert!(session.rule_drafts.is_empty());
+    assert!(session.condition_focus.is_none());
+    assert!(session.undo_stack.is_empty() && session.redo_stack.is_empty());
+    assert!(
+        app.last_problem
+            .as_ref()
+            .unwrap()
+            .detail
+            .contains("cached canonical workspace was retained")
+    );
+    let original_problem = app.last_problem.clone();
+    app.update(Message::OpenValidationDrawer);
+    assert_eq!(app.last_problem, original_problem);
+}
+
+#[test]
+fn validation_order_and_unknown_targets_are_contract_checked() {
+    let seed = apimokka_model::mock::shop_api_canonical_seed();
+    let inner = MemoryWorkspace::new(seed).unwrap();
+    let mut reordered = inner.validate();
+    reordered.issues.reverse();
+    let mut app = expert();
+    app.snapshot = Some(WorkspaceSession::from_port(
+        Box::new(ValidationMismatchPort {
+            inner,
+            report: reordered,
+        }),
+        workspace_session::PrototypeState::default(),
+    ));
+    app.update(Message::OpenValidationDrawer);
+    assert!(app.snapshot.as_ref().unwrap().faulted);
+    assert!(
+        app.last_problem
+            .as_ref()
+            .unwrap()
+            .technical_detail
+            .as_deref()
+            .unwrap()
+            .contains("first difference at index")
+    );
+
+    let mut unknown_seed = apimokka_model::mock::shop_api_canonical_seed();
+    unknown_seed.diagnostics.push(Diagnostic {
+        node_id: Some(NodeId::new()),
+        severity: Severity::Error,
+        message: "unknown target".into(),
+    });
+    let mut unknown = expert();
+    unknown.snapshot = Some(WorkspaceSession::new(unknown_seed).unwrap());
+    unknown.update(Message::OpenValidationDrawer);
+    assert!(unknown.snapshot.as_ref().unwrap().faulted);
+    assert!(
+        unknown
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .contract_fault
+            .as_deref()
+            .unwrap()
+            .contains("unknown editable node")
+    );
+}
+
+#[test]
+fn condition_focus_binds_pending_identity_and_clears_on_route_change() {
+    let mut app = expert();
+    let rule = app.selection.rule.unwrap();
+    app.update(Message::HeaderAdd);
+    let pending = app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .condition_focus
+        .clone()
+        .unwrap();
+    assert_eq!(pending.rule_id, rule);
+    assert_eq!(pending.family, ConditionFamily::Header);
+    assert!(matches!(pending.binding, DraftBinding::Pending(_)));
+
+    let index = app
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .rule_draft(rule)
+        .unwrap()
+        .header_bindings
+        .len()
+        - 1;
+    app.update(Message::HeaderSetName {
+        index,
+        value: "x-focus".into(),
+    });
+    assert!(matches!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .condition_focus
+            .as_ref()
+            .map(|focus| &focus.binding),
+        Some(DraftBinding::Existing(_))
+    ));
+
+    let other_set = app.snapshot.as_ref().unwrap().rule_sets[1].id;
+    app.update(Message::SelectRuleSet(other_set));
+    assert!(app.snapshot.as_ref().unwrap().condition_focus.is_none());
+}
+
+#[test]
+fn selected_removal_falls_back_only_to_the_captured_parent() {
+    let mut app = expert();
+    let rule = app.selection.rule.unwrap();
+    let parent = app.selection.rule_set.unwrap();
+    app.update(Message::DeleteRule(rule));
+    assert_eq!(app.selection.rule, None);
+    assert_eq!(app.selection.rule_set, Some(parent));
+
+    app.update(Message::DeleteRuleSet(parent));
+    app.update(Message::ConfirmProceed);
+    assert_eq!(app.selection, RouteSelection::default());
+}
+
+#[test]
+fn created_and_restored_nodes_select_the_receipt_or_verified_rebind() {
+    let mut app = expert();
+
+    app.update(Message::AddRuleSet);
+    let created_set = app.selection.rule_set.unwrap();
+    assert_eq!(app.selection.rule, None);
+    assert!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .find_rule_set(created_set)
+            .is_some()
+    );
+
+    let parent = app.snapshot.as_ref().unwrap().rule_sets[0].id;
+    app.update(Message::SelectRuleSet(parent));
+    app.update(Message::AddRule(parent));
+    let created_rule = app.selection.rule.unwrap();
+    assert_eq!(app.selection.rule_set, Some(parent));
+    assert_eq!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .find_rule(created_rule)
+            .unwrap()
+            .0
+            .id,
+        parent
+    );
+
+    app.update(Message::DuplicateRule(created_rule));
+    let duplicate = app.selection.rule.unwrap();
+    assert_ne!(duplicate, created_rule);
+    assert_eq!(app.selection.rule_set, Some(parent));
+    assert_eq!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .find_rule(duplicate)
+            .unwrap()
+            .0
+            .id,
+        parent
+    );
+
+    app.update(Message::DeleteRule(duplicate));
+    assert_eq!(app.selection.rule, None);
+    app.update(Message::Undo);
+    let rebound = app.selection.rule.unwrap();
+    assert_ne!(rebound, duplicate);
+    assert_eq!(app.selection.rule_set, Some(parent));
+    assert_eq!(
+        app.snapshot
+            .as_ref()
+            .unwrap()
+            .find_rule(rebound)
+            .unwrap()
+            .0
+            .id,
+        parent
+    );
+}
+
+#[test]
+fn save_success_and_failure_reconcile_their_adopted_snapshots() {
+    for source in [
+        SelectionAdoptionSource::SaveSuccess,
+        SelectionAdoptionSource::SaveFailure,
+    ] {
+        let (mut app, removed, parent) = selection_adoption_app(source);
+        app.update(Message::Save);
+
+        assert!(app.snapshot.as_ref().unwrap().find_rule(removed).is_none());
+        assert_eq!(app.selection.rule, None);
+        assert_eq!(app.selection.rule_set, Some(parent));
+        assert_eq!(
+            app.last_problem.is_some(),
+            source == SelectionAdoptionSource::SaveFailure
+        );
+    }
+}
+
+#[test]
+fn reload_and_restart_acknowledgements_reconcile_their_adopted_snapshots() {
+    for source in [
+        SelectionAdoptionSource::ReloadAcknowledgement,
+        SelectionAdoptionSource::RestartAcknowledgement,
+    ] {
+        let (mut app, removed, parent) = selection_adoption_app(source);
+        match source {
+            SelectionAdoptionSource::ReloadAcknowledgement => {
+                app.server_state = crate::shell::top_bar::ServerState::ReloadPending;
+                app.update(Message::ReloadConfig);
+            }
+            SelectionAdoptionSource::RestartAcknowledgement => {
+                app.update(Message::RestartServer);
+            }
+            SelectionAdoptionSource::SaveSuccess | SelectionAdoptionSource::SaveFailure => {
+                unreachable!()
+            }
+        }
+
+        assert!(app.snapshot.as_ref().unwrap().find_rule(removed).is_none());
+        assert_eq!(app.selection.rule, None);
+        assert_eq!(app.selection.rule_set, Some(parent));
+    }
 }
 
 #[test]

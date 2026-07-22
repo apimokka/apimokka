@@ -266,6 +266,8 @@ pub enum Key {
     DrawerValidationTitle,
     DrawerValidationErrors,   // "Errors N"
     DrawerValidationWarnings, // "Warnings N"
+    DrawerValidationInfo,
+    DrawerOpenDiagnostic,
     DrawerSaveDiffTitle,
     DrawerSaveDiffCount, // "N files will be written"
     DrawerSaveDiffModified,
@@ -379,9 +381,7 @@ pub enum Key {
     RuleEditorValidationWarning, // "Rule has validation issues:" strip
     // MK-044: bottom drawer
     DrawerValidationOk,         // "✓ No validation issues"
-    DrawerValidationFileOk,     // "✓ No issues in {file}"
     DrawerValidationWorkspace,  // "Workspace"
-    DrawerJumpToRule,           // "Go to rule"
     DrawerSaveDiffChangedRules, // "rules ·" (before summary list)
     DrawerSaveDiffFallbackMod,  // "JSON content modified" // "Rule has validation issues:" strip
     RuleWeightLabel,            // "Weight" — shown when WeightedRandom

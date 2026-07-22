@@ -33,7 +33,7 @@ impl Severity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationIssue {
     /// `None` = workspace-wide issue not anchored to a node.
     pub node_id: Option<NodeId>,
@@ -43,7 +43,7 @@ pub struct ValidationIssue {
     pub location: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ValidationReport {
     pub issues: Vec<ValidationIssue>,
 }
@@ -54,7 +54,7 @@ impl ValidationReport {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub node_id: Option<NodeId>,
     pub severity: Severity,
@@ -62,7 +62,7 @@ pub struct Diagnostic {
 }
 
 /// Per-node validation summary attached inline (e.g. on each rule).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NodeValidation {
     pub issues: Vec<ValidationIssue>,
 }

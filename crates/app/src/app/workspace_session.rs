@@ -11,7 +11,8 @@ use apimokka_model::workspace_port::{
 use apimokka_model::{
     ApplyFailure, BodyConditionPayload, CollectionEdit, ConditionEdit, EditIntent, EditOutcome,
     EditTransaction, HeaderConditionPayload, MemoryWorkspace, NodeId, PortSnapshot, RulePayload,
-    SemanticCreationKey, WorkspaceNodeKind, WorkspacePort, WorkspaceSnapshot,
+    SemanticCreationKey, ValidationIssue, ValidationReport, WorkspaceNodeKind, WorkspacePort,
+    WorkspaceSnapshot,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +25,25 @@ pub struct WorkspaceIdentity {
 pub enum DraftBinding {
     Existing(NodeId),
     Pending(SemanticCreationKey),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionFamily {
+    Header,
+    Body,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConditionFocus {
+    pub rule_id: NodeId,
+    pub family: ConditionFamily,
+    pub binding: DraftBinding,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContractFaultAdoption {
+    PostCommit,
+    NonAdoptingRead,
 }
 
 #[derive(Debug, Clone)]
@@ -120,8 +140,10 @@ pub struct WorkspaceSession {
     pub prototype: PrototypeState,
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
+    pub condition_focus: Option<ConditionFocus>,
     pub faulted: bool,
     pub contract_fault: Option<String>,
+    pub contract_fault_adoption: Option<ContractFaultAdoption>,
     next_creation_key: u64,
 }
 
@@ -134,6 +156,11 @@ pub(super) enum SessionApplyResult {
 pub(super) enum SessionSaveResult {
     Saved,
     SaveFailure(apimokka_model::SaveFailure),
+    ContractFault,
+}
+
+pub(super) enum SessionValidationResult {
+    Equal,
     ContractFault,
 }
 
@@ -163,8 +190,10 @@ impl WorkspaceSession {
             prototype,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            condition_focus: None,
             faulted: false,
             contract_fault: None,
+            contract_fault_adoption: None,
             next_creation_key: 0,
         }
     }
@@ -183,6 +212,39 @@ impl WorkspaceSession {
 
     pub fn rule_draft(&self, rule_id: NodeId) -> Option<&RuleEditorDraft> {
         self.rule_drafts.get(&rule_id)
+    }
+
+    pub fn focus_condition(
+        &mut self,
+        rule_id: NodeId,
+        family: ConditionFamily,
+        binding: DraftBinding,
+    ) {
+        self.condition_focus = Some(ConditionFocus {
+            rule_id,
+            family,
+            binding,
+        });
+    }
+
+    pub fn clear_condition_focus_unless_rule(&mut self, rule_id: Option<NodeId>) {
+        if self
+            .condition_focus
+            .as_ref()
+            .is_some_and(|focus| Some(focus.rule_id) != rule_id)
+        {
+            self.condition_focus = None;
+        }
+    }
+
+    pub fn clear_condition_focus_family(&mut self, rule_id: NodeId, family: ConditionFamily) {
+        if self
+            .condition_focus
+            .as_ref()
+            .is_some_and(|focus| focus.rule_id == rule_id && focus.family == family)
+        {
+            self.condition_focus = None;
+        }
     }
 
     pub fn has_pending_drafts(&self) -> bool {
@@ -294,7 +356,28 @@ impl WorkspaceSession {
             self.enter_contract_fault(problem);
             return SessionApplyResult::ContractFault;
         }
+        self.reconcile_condition_focus(&outcome);
         SessionApplyResult::Validated(Box::new(outcome))
+    }
+
+    pub(super) fn validate(&mut self) -> SessionValidationResult {
+        if self.faulted {
+            return SessionValidationResult::ContractFault;
+        }
+        let expected = match canonical_validation_projection(&self.latest) {
+            Ok(expected) => expected,
+            Err(problem) => {
+                self.enter_read_contract_fault(problem);
+                return SessionValidationResult::ContractFault;
+            }
+        };
+        let actual = self.port.validate();
+        if actual == expected {
+            SessionValidationResult::Equal
+        } else {
+            self.enter_read_contract_fault(validation_mismatch_detail(&expected, &actual));
+            SessionValidationResult::ContractFault
+        }
     }
 
     pub(super) fn save(&mut self) -> SessionSaveResult {
@@ -359,7 +442,16 @@ impl WorkspaceSession {
     }
 
     fn enter_contract_fault(&mut self, problem: String) {
+        self.enter_fault(problem, ContractFaultAdoption::PostCommit);
+    }
+
+    fn enter_read_contract_fault(&mut self, problem: String) {
+        self.enter_fault(problem, ContractFaultAdoption::NonAdoptingRead);
+    }
+
+    fn enter_fault(&mut self, problem: String, adoption: ContractFaultAdoption) {
         self.rule_drafts.clear();
+        self.condition_focus = None;
         self.root_drafts = RootSettingDrafts {
             listener_ip: self.latest.workspace().root_settings.listener_ip.clone(),
             listener_port: self
@@ -373,6 +465,7 @@ impl WorkspaceSession {
         self.redo_stack.clear();
         self.faulted = true;
         self.contract_fault = Some(problem);
+        self.contract_fault_adoption = Some(adoption);
     }
 
     fn retain_live_state(&mut self) {
@@ -386,7 +479,136 @@ impl WorkspaceSession {
             .rule_extras
             .retain(|id, _| live_rules.contains(id));
         self.rule_drafts.retain(|id, _| live_rules.contains(id));
+        if self
+            .condition_focus
+            .as_ref()
+            .is_some_and(|focus| !live_rules.contains(&focus.rule_id))
+        {
+            self.condition_focus = None;
+        }
     }
+
+    fn reconcile_condition_focus(&mut self, outcome: &EditOutcome) {
+        let Some(mut focus) = self.condition_focus.take() else {
+            return;
+        };
+        if let DraftBinding::Pending(key) = &focus.binding {
+            let expected_kind = match focus.family {
+                ConditionFamily::Header => WorkspaceNodeKind::HeaderCondition,
+                ConditionFamily::Body => WorkspaceNodeKind::BodyCondition,
+            };
+            if let Some(receipt) = outcome.creations.iter().find(|receipt| {
+                receipt.key == *key
+                    && receipt.kind == expected_kind
+                    && receipt.parent == Some(focus.rule_id)
+            }) {
+                focus.binding = DraftBinding::Existing(receipt.new_id);
+            }
+        }
+        if let DraftBinding::Existing(id) = focus.binding
+            && let Some(rebind) = outcome
+                .rebound_nodes
+                .iter()
+                .find(|rebind| rebind.old_id == id)
+        {
+            focus.binding = DraftBinding::Existing(rebind.new_id);
+        }
+        if condition_focus_is_live(&self.latest, &focus) {
+            self.condition_focus = Some(focus);
+        }
+    }
+}
+
+fn condition_focus_is_live(snapshot: &PortSnapshot, focus: &ConditionFocus) -> bool {
+    let Some(rule) = snapshot.rule(focus.rule_id) else {
+        return false;
+    };
+    match (&focus.family, &focus.binding) {
+        (_, DraftBinding::Pending(_)) => true,
+        (ConditionFamily::Header, DraftBinding::Existing(id)) => rule
+            .conditions()
+            .headers
+            .iter()
+            .any(|condition| condition.id == *id),
+        (ConditionFamily::Body, DraftBinding::Existing(id)) => rule
+            .conditions()
+            .body
+            .iter()
+            .any(|condition| condition.id == *id),
+    }
+}
+
+fn canonical_validation_projection(snapshot: &PortSnapshot) -> Result<ValidationReport, String> {
+    let live = editable_node_index(snapshot)?;
+    let mut issues = Vec::new();
+    for diagnostic in &snapshot.workspace().diagnostics {
+        if let Some(id) = diagnostic.node_id
+            && !live.contains_key(&id)
+        {
+            return Err(format!(
+                "workspace diagnostic targets unknown editable node {id:?}"
+            ));
+        }
+        issues.push(ValidationIssue {
+            node_id: diagnostic.node_id,
+            severity: diagnostic.severity,
+            message: diagnostic.message.clone(),
+            location: None,
+        });
+    }
+    for rule_set in &snapshot.workspace().rule_sets {
+        append_owned_validation_issues(&mut issues, &rule_set.validation.issues, rule_set.id.0)?;
+        for rule in &rule_set.rules {
+            append_owned_validation_issues(&mut issues, &rule.validation.issues, rule.id)?;
+        }
+    }
+    Ok(ValidationReport { issues })
+}
+
+fn validation_mismatch_detail(expected: &ValidationReport, actual: &ValidationReport) -> String {
+    let first_difference = expected
+        .issues
+        .iter()
+        .map(Some)
+        .chain(std::iter::repeat(None))
+        .zip(
+            actual
+                .issues
+                .iter()
+                .map(Some)
+                .chain(std::iter::repeat(None)),
+        )
+        .enumerate()
+        .find(|(_, (expected, actual))| expected != actual)
+        .expect("unequal validation reports have a first differing issue");
+    format!(
+        "workspace validation report differed from the cached canonical projection: expected {} issue(s), received {}; first difference at index {}: expected {:?}, received {:?}",
+        expected.issues.len(),
+        actual.issues.len(),
+        first_difference.0,
+        first_difference.1.0,
+        first_difference.1.1,
+    )
+}
+
+fn append_owned_validation_issues(
+    projected: &mut Vec<ValidationIssue>,
+    issues: &[ValidationIssue],
+    owner: NodeId,
+) -> Result<(), String> {
+    for issue in issues {
+        if let Some(explicit) = issue.node_id
+            && explicit != owner
+        {
+            return Err(format!(
+                "node validation issue owner mismatch: expected {owner:?}, received {explicit:?}"
+            ));
+        }
+        let mut issue = issue.clone();
+        issue.node_id = Some(owner);
+        projected.push(issue);
+    }
+    Ok(())
 }
 
 #[derive(Debug)]

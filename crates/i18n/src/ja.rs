@@ -226,6 +226,8 @@ pub fn t(key: Key) -> &'static str {
         Key::DrawerValidationTitle => "バリデーション",
         Key::DrawerValidationErrors => "エラー",
         Key::DrawerValidationWarnings => "警告",
+        Key::DrawerValidationInfo => "情報",
+        Key::DrawerOpenDiagnostic => "開く",
         Key::DrawerSaveDiffTitle => "保存差分",
         Key::DrawerSaveDiffCount => "ファイルが書き込まれます",
         Key::DrawerSaveDiffModified => "変更",
@@ -328,9 +330,7 @@ pub fn t(key: Key) -> &'static str {
         Key::RuleSetConfigMoreOptions => "ルールセットの詳細設定",
         Key::RuleSetConfigFewerOptions => "詳細設定を隠す",
         Key::DrawerValidationOk => "\u{2713} バリデーション問題なし",
-        Key::DrawerValidationFileOk => "\u{2713} 問題なし",
         Key::DrawerValidationWorkspace => "ワークスペース",
-        Key::DrawerJumpToRule => "ルールへ移動",
         Key::DrawerSaveDiffChangedRules => "ルール \u{00B7}",
         Key::DrawerSaveDiffFallbackMod => "JSONコンテンツが変更されました",
 

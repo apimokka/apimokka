@@ -12,6 +12,8 @@ fn expert_app() -> App {
     let mut app = App::new().0;
     app.update(Message::ChooseAudienceMode(AudienceMode::Expert));
     app.update(Message::OpenWorkspace("test".into()));
+    let first_rule = app.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    app.update(Message::SelectRule(first_rule));
     app.update(Message::TestRuleOpen);
     app
 }
@@ -22,6 +24,8 @@ fn expert_app_with_payload(payload: apimokka_model::RulePayload) -> App {
     let mut seed = apimokka_model::mock::shop_api_canonical_seed();
     seed.rule_sets[0].rules[0].payload = payload;
     assert!(app.install_workspace(seed));
+    let first_rule = app.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    app.update(Message::SelectRule(first_rule));
     app.update(Message::TestRuleOpen);
     app
 }

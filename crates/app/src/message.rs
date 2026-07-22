@@ -154,6 +154,8 @@ pub enum Message {
     JumpToRule(apimokka_model::NodeId),
     /// MK-042: from trace detail "Jump to file" — select the file AND switch to Routes tab.
     JumpToFile(String),
+    /// Navigate a durable validation row to its live rule set, rule, or condition owner.
+    JumpToDiagnostic(apimokka_model::NodeId),
     /// Switch to Trace tab and select a specific event — rule-editor jump-link.
     JumpToTraceEvent(u64),
     /// Switch to Trace tab ("View all in Trace" link).

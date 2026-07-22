@@ -15,12 +15,12 @@ use iced::{Element, Subscription, Theme};
 use crate::match_test::{TestRequest, TestRuleResult};
 use crate::message::{ConfirmAction, Message};
 use crate::screens;
-use crate::selection::{DrawerMode, RouteSelection, WorkspaceTab};
+use crate::selection::{DrawerMode, RouteSelection, RouteTarget, WorkspaceTab};
 use crate::shell;
 use crate::shell::top_bar::ServerState;
 
 mod workspace_session;
-pub use workspace_session::{DraftBinding, WorkspaceSession};
+pub use workspace_session::{ConditionFamily, DraftBinding, WorkspaceSession};
 
 // ── Theme choice ──────────────────────────────────────────────────────────────
 
@@ -208,14 +208,14 @@ pub struct PathAssistantState {
 
 pub const UNDO_STACK_DEPTH: usize = 50;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleMatchDraftField {
     UrlPath,
     UrlPathOp,
     Method,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RespondDraftField {
     Mode,
     Text,
@@ -405,6 +405,8 @@ pub struct App {
     // ── MK-039: friendly feedback state ───────────────────────────────────
     /// A friendly error banner currently shown (None = no error).
     pub last_problem: Option<apimokka_model::FriendlyProblem>,
+    pub transient_problem_kind: Option<TransientProblemKind>,
+    transient_problem_operation: Option<TransientOperation>,
     pub show_problem_details: bool,
     pub audience_mode: Option<apimokka_model::AudienceMode>,
     // ── MK-041 layout density toggles ─────────────────────────────────────
@@ -413,6 +415,50 @@ pub struct App {
     pub rule_set_config_more: bool,
     /// Transient success / info notice.
     pub notice: Option<String>,
+}
+
+enum DiagnosticNavigation {
+    RuleSet(RuleSetId),
+    Rule {
+        id: NodeId,
+        parent: RuleSetId,
+    },
+    Condition {
+        id: NodeId,
+        rule: NodeId,
+        parent: RuleSetId,
+        family: ConditionFamily,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransientProblemKind {
+    Operation,
+    Save,
+    Admission,
+    PostCommitContract,
+    NonAdoptingReadContract,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransientOperation {
+    Root(WorkspaceRootKey),
+    RuleMatch {
+        rule_id: NodeId,
+        field: RuleMatchDraftField,
+    },
+    Respond {
+        rule_id: NodeId,
+        field: RespondDraftField,
+    },
+    Header {
+        rule_id: NodeId,
+        index: usize,
+    },
+    Body {
+        rule_id: NodeId,
+        index: usize,
+    },
 }
 
 impl App {
@@ -453,6 +499,8 @@ impl App {
             fallback_status_saved: std::collections::HashMap::new(),
             fallback_status_draft: std::collections::HashMap::new(),
             last_problem: None,
+            transient_problem_kind: None,
+            transient_problem_operation: None,
             show_problem_details: false,
             audience_mode: None, // None → first-run picker shown
             rule_when_more: false,
@@ -532,12 +580,12 @@ impl App {
                 self.notice = None;
             }
             Message::DismissProblem => {
-                self.last_problem = None;
+                self.clear_transient_problem();
             }
             Message::ProblemAction => {
                 if self.last_problem.is_some() {
                     self.tab = crate::selection::WorkspaceTab::Settings;
-                    self.last_problem = None;
+                    self.clear_transient_problem();
                 }
             }
 
@@ -664,9 +712,11 @@ impl App {
             }
             Message::ReloadConfig => {
                 if self.server_state == ServerState::ReloadPending {
+                    let selection_target = self.capture_selection_target();
                     if let Some(session) = self.snapshot.as_mut() {
                         session.acknowledge_reload();
                     }
+                    self.reconcile_selection(selection_target);
                     if self.present_session_contract_fault_if_any() {
                         return;
                     }
@@ -674,9 +724,11 @@ impl App {
                 }
             }
             Message::RestartServer => {
+                let selection_target = self.capture_selection_target();
                 if let Some(session) = self.snapshot.as_mut() {
                     session.acknowledge_restart();
                 }
+                self.reconcile_selection(selection_target);
                 if self.present_session_contract_fault_if_any() {
                     return;
                 }
@@ -697,6 +749,15 @@ impl App {
             // Drawer
             Message::OpenValidationDrawer => {
                 self.drawer = Some(DrawerMode::Validation);
+                if let Some(session) = self.snapshot.as_mut()
+                    && !session.faulted
+                    && matches!(
+                        session.validate(),
+                        workspace_session::SessionValidationResult::ContractFault
+                    )
+                {
+                    self.present_session_contract_fault_if_any();
+                }
             }
             Message::OpenSaveDiffDrawer => {
                 self.drawer = Some(DrawerMode::SaveDiff);
@@ -755,23 +816,23 @@ impl App {
 
             // Selection
             Message::SelectRuleSet(id) => {
-                self.selection.rule_set = Some(id);
-                self.selection.rule = None;
+                self.selection.select_rule_set(id);
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.clear_condition_focus_unless_rule(None);
+                }
                 // Accordion: opening a rule set closes others
                 self.rule_set_open = Some(id);
             }
             Message::SelectRule(id) => {
-                self.selection.rule = Some(id);
-                self.selection.file_route = None;
-                self.selection.script = None;
-                if let Some(snap) = &self.snapshot {
-                    for rs in &snap.rule_sets {
-                        if rs.rules.iter().any(|r| r.id == id) {
-                            self.selection.rule_set = Some(rs.id);
-                            // Accordion: open the parent rule set
-                            self.rule_set_open = Some(rs.id);
-                            break;
-                        }
+                let parent = self
+                    .snapshot
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.find_rule(id).map(|(rule_set, _)| rule_set.id));
+                if let Some(parent) = parent {
+                    self.selection.select_rule(id, parent);
+                    self.rule_set_open = Some(parent);
+                    if let Some(session) = self.snapshot.as_mut() {
+                        session.clear_condition_focus_unless_rule(Some(id));
                     }
                 }
             }
@@ -793,16 +854,16 @@ impl App {
                         .unwrap_or_else(|| "200 OK".into());
                     self.fallback_status_draft.insert(s.clone(), saved);
                 }
-                self.selection.file_route = Some(s);
-                self.selection.rule = None;
-                self.selection.rule_set = None; // prevent rule-set config taking priority
-                self.selection.script = None;
+                self.selection.select_fallback(s);
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.clear_condition_focus_unless_rule(None);
+                }
             }
             Message::SelectScript(s) => {
-                self.selection.script = Some(s);
-                self.selection.rule = None;
-                self.selection.rule_set = None; // prevent rule-set config taking priority
-                self.selection.file_route = None;
+                self.selection.select_script(s);
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.clear_condition_focus_unless_rule(None);
+                }
             }
             Message::AddRuleSet => {
                 let Some(session) = self.snapshot.as_mut() else {
@@ -830,9 +891,8 @@ impl App {
                         .find(|receipt| receipt.kind == WorkspaceNodeKind::RuleSet)
                     {
                         let id = RuleSetId(receipt.new_id);
-                        self.selection.rule_set = Some(id);
+                        self.selection.select_rule_set(id);
                         self.rule_set_open = Some(id);
-                        self.selection.rule = None;
                         if let Some(archive) = self.archive_rule_set(id) {
                             let prototypes = self.subtree_prototypes(&archive);
                             let bindings = subtree_bindings(&archive);
@@ -878,8 +938,7 @@ impl App {
                         .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
                     {
                         let new_id = receipt.new_id;
-                        self.selection.rule = Some(receipt.new_id);
-                        self.selection.rule_set = Some(rs_id);
+                        self.selection.select_rule(new_id, rs_id);
                         self.rule_set_open = Some(rs_id);
                         if let Some(archive) = self.archive_rule(new_id) {
                             let prototypes = self.subtree_prototypes(&archive);
@@ -959,9 +1018,6 @@ impl App {
                             prototypes,
                         });
                     }
-                    if self.selection.rule == Some(id) {
-                        self.selection.rule = None;
-                    }
                 }
             }
             Message::DuplicateRule(id) => {
@@ -1014,7 +1070,7 @@ impl App {
                         .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
                     {
                         let new_id = receipt.new_id;
-                        self.selection.rule = Some(new_id);
+                        self.selection.select_rule(new_id, parent);
                         if let Some(extra) = self
                             .snapshot
                             .as_ref()
@@ -1187,6 +1243,9 @@ impl App {
                 self.tab = crate::selection::WorkspaceTab::Routes;
                 self.update(Message::SelectFileRoute(path));
             }
+            Message::JumpToDiagnostic(id) => {
+                self.navigate_to_diagnostic(id);
+            }
 
             // Test rule
             Message::TestRuleOpen => {
@@ -1324,14 +1383,6 @@ impl App {
                                 .apply_workspace_intent(EditIntent::RemoveRuleSet { id })
                                 .is_some();
                             if removed {
-                                if self.selection.rule_set == Some(id) {
-                                    self.selection.rule_set = self
-                                        .snapshot
-                                        .as_ref()
-                                        .and_then(|s| s.rule_sets.first())
-                                        .map(|rs| rs.id);
-                                    self.selection.rule = None;
-                                }
                                 if let Some(archive) = archive {
                                     self.push_undo(HistoryEntry::RemovedSubtree {
                                         bindings: subtree_bindings(&archive),
@@ -1390,7 +1441,11 @@ impl App {
                 let value = match v.parse::<i64>() {
                     Ok(value) => value,
                     Err(error) => {
-                        self.present_workspace_problem("Listener port rejected", error.to_string());
+                        self.present_operation_problem(
+                            TransientOperation::Root(WorkspaceRootKey::ListenerPort),
+                            "Listener port rejected",
+                            error.to_string(),
+                        );
                         return;
                     }
                 };
@@ -1487,6 +1542,19 @@ impl App {
         self.apply_workspace_transaction(vec![intent])
     }
 
+    fn apply_workspace_operation(
+        &mut self,
+        operation: TransientOperation,
+        intent: EditIntent,
+    ) -> Option<EditOutcome> {
+        let outcome = self.apply_workspace_intent(intent);
+        if outcome.is_none() && self.transient_problem_kind == Some(TransientProblemKind::Operation)
+        {
+            self.transient_problem_operation = Some(operation);
+        }
+        outcome
+    }
+
     fn apply_workspace_transaction(&mut self, intents: Vec<EditIntent>) -> Option<EditOutcome> {
         if self
             .snapshot
@@ -1508,10 +1576,11 @@ impl App {
                 return None;
             }
         };
+        let selection_target = self.capture_selection_target();
         let result = self.snapshot.as_mut()?.apply(transaction);
         match result {
             workspace_session::SessionApplyResult::Validated(outcome) => {
-                self.last_problem = None;
+                self.reconcile_selection(selection_target);
                 self.recompute_dirty();
                 Some(*outcome)
             }
@@ -1529,37 +1598,104 @@ impl App {
                     .and_then(|session| session.contract_fault.clone())
                     .unwrap_or_else(|| "workspace port contract fault".into());
                 self.present_adopted_workspace_problem("Workspace reload required", technical);
-                self.reconcile_selection();
+                self.reconcile_selection(selection_target);
                 self.recompute_dirty();
                 None
             }
         }
     }
 
-    fn reconcile_selection(&mut self) {
-        let rule_survives = self.selection.rule.is_some_and(|id| {
-            self.snapshot
-                .as_ref()
-                .is_some_and(|session| session.find_rule(id).is_some())
+    fn capture_selection_target(&self) -> RouteTarget {
+        self.snapshot
+            .as_ref()
+            .map(|session| self.selection.capture(session))
+            .unwrap_or(RouteTarget::None)
+    }
+
+    fn navigate_to_diagnostic(&mut self, id: NodeId) {
+        let target = self.snapshot.as_ref().and_then(|session| {
+            if let Some(rule_set) = session.find_rule_set(RuleSetId(id)) {
+                return Some(DiagnosticNavigation::RuleSet(rule_set.id));
+            }
+            if let Some((rule_set, _)) = session.find_rule(id) {
+                return Some(DiagnosticNavigation::Rule {
+                    id,
+                    parent: rule_set.id,
+                });
+            }
+            for rule in session.latest().rules() {
+                if rule
+                    .conditions()
+                    .headers
+                    .iter()
+                    .any(|condition| condition.id == id)
+                {
+                    let parent = session.find_rule(rule.rule_id())?.0.id;
+                    return Some(DiagnosticNavigation::Condition {
+                        id,
+                        rule: rule.rule_id(),
+                        parent,
+                        family: ConditionFamily::Header,
+                    });
+                }
+                if rule
+                    .conditions()
+                    .body
+                    .iter()
+                    .any(|condition| condition.id == id)
+                {
+                    let parent = session.find_rule(rule.rule_id())?.0.id;
+                    return Some(DiagnosticNavigation::Condition {
+                        id,
+                        rule: rule.rule_id(),
+                        parent,
+                        family: ConditionFamily::Body,
+                    });
+                }
+            }
+            None
         });
-        if !rule_survives {
-            self.selection.rule = None;
+        match target {
+            Some(DiagnosticNavigation::RuleSet(id)) => {
+                self.selection.select_rule_set(id);
+                self.rule_set_open = Some(id);
+            }
+            Some(DiagnosticNavigation::Rule { id, parent }) => {
+                self.selection.select_rule(id, parent);
+                self.rule_set_open = Some(parent);
+            }
+            Some(DiagnosticNavigation::Condition {
+                id,
+                rule,
+                parent,
+                family,
+            }) => {
+                self.selection.select_rule(rule, parent);
+                self.rule_set_open = Some(parent);
+                if let Some(session) = self.snapshot.as_mut() {
+                    session.focus_condition(rule, family, DraftBinding::Existing(id));
+                }
+            }
+            None => return,
         }
-        let set_survives = self.selection.rule_set.is_some_and(|id| {
-            self.snapshot
-                .as_ref()
-                .is_some_and(|session| session.find_rule_set(id).is_some())
-        });
-        if !set_survives {
-            self.selection.rule_set = self
-                .snapshot
-                .as_ref()
-                .and_then(|session| session.rule_sets.first())
-                .map(|set| set.id);
+        self.tab = WorkspaceTab::Routes;
+        self.drawer = None;
+    }
+
+    fn reconcile_selection(&mut self, target: RouteTarget) {
+        if let Some(session) = self.snapshot.as_mut() {
+            self.selection.reconcile(session, target);
+            session.clear_condition_focus_unless_rule(self.selection.rule);
+            self.rule_set_open = self.selection.rule_set;
+        } else {
+            self.selection = RouteSelection::default();
+            self.rule_set_open = None;
         }
     }
 
     fn present_workspace_problem(&mut self, title: &str, technical: String) {
+        self.transient_problem_kind = Some(TransientProblemKind::Operation);
+        self.transient_problem_operation = None;
         self.last_problem = Some(
             apimokka_model::FriendlyProblem::new(
                 title,
@@ -1570,7 +1706,33 @@ impl App {
         );
     }
 
+    fn present_operation_problem(
+        &mut self,
+        operation: TransientOperation,
+        title: &str,
+        technical: String,
+    ) {
+        self.present_workspace_problem(title, technical);
+        self.transient_problem_operation = Some(operation);
+    }
+
+    fn clear_operation_problem(&mut self, operation: TransientOperation) {
+        if self.transient_problem_kind == Some(TransientProblemKind::Operation)
+            && self.transient_problem_operation == Some(operation)
+        {
+            self.clear_transient_problem();
+        }
+    }
+
+    fn clear_transient_problem(&mut self) {
+        self.last_problem = None;
+        self.transient_problem_kind = None;
+        self.transient_problem_operation = None;
+    }
+
     fn present_adopted_workspace_problem(&mut self, title: &str, technical: String) {
+        self.transient_problem_kind = Some(TransientProblemKind::PostCommitContract);
+        self.transient_problem_operation = None;
         self.last_problem = Some(
             apimokka_model::FriendlyProblem::new(
                 title,
@@ -1589,8 +1751,16 @@ impl App {
                 .flatten()
         });
         if let Some(technical) = technical {
-            self.present_adopted_workspace_problem("Workspace reload required", technical);
-            self.reconcile_selection();
+            let adoption = self
+                .snapshot
+                .as_ref()
+                .and_then(|session| session.contract_fault_adoption);
+            match adoption {
+                Some(workspace_session::ContractFaultAdoption::NonAdoptingRead) => {
+                    self.present_cached_workspace_problem("Workspace reload required", technical)
+                }
+                _ => self.present_adopted_workspace_problem("Workspace reload required", technical),
+            }
             self.recompute_dirty();
             true
         } else {
@@ -1598,26 +1768,45 @@ impl App {
         }
     }
 
+    fn present_cached_workspace_problem(&mut self, title: &str, technical: String) {
+        self.transient_problem_kind = Some(TransientProblemKind::NonAdoptingReadContract);
+        self.transient_problem_operation = None;
+        self.last_problem = Some(
+            apimokka_model::FriendlyProblem::new(
+                title,
+                "The cached canonical workspace was retained, but validation no longer matches the workspace port. Reload before editing again.",
+                None,
+            )
+            .with_technical(technical),
+        );
+    }
+
     fn update_root_setting(&mut self, key: WorkspaceRootKey, value: WorkspaceEditValue) {
+        let operation = TransientOperation::Root(key);
         let before = self.current_root_edit(key);
         let edit = match map_root_setting(key, value) {
             Ok(edit) => edit,
             Err(error) => {
-                self.present_workspace_problem("Workspace setting rejected", error.to_string());
+                self.present_operation_problem(
+                    operation,
+                    "Workspace setting rejected",
+                    error.to_string(),
+                );
                 return;
             }
         };
         if before.as_ref().is_some_and(|before| before == &edit) {
             self.sync_root_setting_draft(key);
-            self.last_problem = None;
+            self.clear_operation_problem(operation);
             return;
         }
         let effect = edit.effect();
         let history_after = edit.clone();
         if self
-            .apply_workspace_intent(EditIntent::UpdateRootSetting(edit))
+            .apply_workspace_operation(operation, EditIntent::UpdateRootSetting(edit))
             .is_some()
         {
+            self.clear_operation_problem(operation);
             self.sync_root_setting_draft(key);
             if let Some(before) = before {
                 self.push_undo(HistoryEntry::RootSetting {
@@ -1697,6 +1886,7 @@ impl App {
         let Some(id) = self.selected_rule_id() else {
             return;
         };
+        let operation = TransientOperation::RuleMatch { rule_id: id, field };
         let before = self
             .snapshot
             .as_ref()
@@ -1713,7 +1903,7 @@ impl App {
         let rule_match = match map_rule_match(&draft.url_path, draft.url_path_op, &draft.method) {
             Ok(value) => value,
             Err(error) => {
-                self.present_workspace_problem("Rule edit rejected", error.to_string());
+                self.present_operation_problem(operation, "Rule edit rejected", error.to_string());
                 return;
             }
         };
@@ -1722,14 +1912,15 @@ impl App {
         };
         if rule.rule_match == rule_match {
             self.sync_rule_match_draft(id, field);
-            self.last_problem = None;
+            self.clear_operation_problem(operation);
             return;
         }
         rule.rule_match = rule_match.clone();
         if self
-            .apply_workspace_intent(EditIntent::UpdateRule { id, rule })
+            .apply_workspace_operation(operation, EditIntent::UpdateRule { id, rule })
             .is_some()
         {
+            self.clear_operation_problem(operation);
             self.sync_rule_match_draft(id, field);
             if let Some(before) = before {
                 self.push_undo(HistoryEntry::RuleMatch {
@@ -1750,6 +1941,7 @@ impl App {
         let Some(id) = self.selected_rule_id() else {
             return;
         };
+        let operation = TransientOperation::Respond { rule_id: id, field };
         let before = self
             .snapshot
             .as_ref()
@@ -1777,7 +1969,11 @@ impl App {
         ) {
             Ok(value) => value,
             Err(error) => {
-                self.present_workspace_problem("Response edit rejected", error.to_string());
+                self.present_operation_problem(
+                    operation,
+                    "Response edit rejected",
+                    error.to_string(),
+                );
                 return;
             }
         };
@@ -1788,16 +1984,20 @@ impl App {
             .is_some_and(|rule| rule.respond() == &mapped)
         {
             self.sync_respond_draft(id, field);
-            self.last_problem = None;
+            self.clear_operation_problem(operation);
             return;
         }
         if self
-            .apply_workspace_intent(EditIntent::UpdateRespond {
-                id,
-                respond: mapped.clone(),
-            })
+            .apply_workspace_operation(
+                operation,
+                EditIntent::UpdateRespond {
+                    id,
+                    respond: mapped.clone(),
+                },
+            )
             .is_some()
         {
+            self.clear_operation_problem(operation);
             self.sync_respond_draft(id, field);
             if let Some(before) = before {
                 self.push_undo(HistoryEntry::Respond {
@@ -1813,6 +2013,10 @@ impl App {
     fn update_response_delay_draft(&mut self, value: String) {
         let Some(id) = self.selected_rule_id() else {
             return;
+        };
+        let operation = TransientOperation::Respond {
+            rule_id: id,
+            field: RespondDraftField::Delay,
         };
         let before = self
             .snapshot
@@ -1841,22 +2045,30 @@ impl App {
         ) {
             Ok(value) => value,
             Err(error) => {
-                self.present_workspace_problem("Response edit rejected", error.to_string());
+                self.present_operation_problem(
+                    operation,
+                    "Response edit rejected",
+                    error.to_string(),
+                );
                 return;
             }
         };
         if before.as_ref().is_some_and(|before| before == &mapped) {
             self.sync_respond_draft(id, RespondDraftField::Delay);
-            self.last_problem = None;
+            self.clear_operation_problem(operation);
             return;
         }
         if self
-            .apply_workspace_intent(EditIntent::UpdateRespond {
-                id,
-                respond: mapped.clone(),
-            })
+            .apply_workspace_operation(
+                operation,
+                EditIntent::UpdateRespond {
+                    id,
+                    respond: mapped.clone(),
+                },
+            )
             .is_some()
         {
+            self.clear_operation_problem(operation);
             self.sync_respond_draft(id, RespondDraftField::Delay);
             if let Some(before) = before {
                 self.push_undo(HistoryEntry::Respond {
@@ -1878,7 +2090,8 @@ impl App {
         };
         let key = session.creation_key("header");
         if let Some(draft) = session.ensure_rule_draft(id) {
-            draft.push_header(key);
+            draft.push_header(key.clone());
+            session.focus_condition(id, ConditionFamily::Header, DraftBinding::Pending(key));
         }
     }
 
@@ -1890,6 +2103,7 @@ impl App {
         let Some(id) = self.selected_rule_id() else {
             return;
         };
+        let operation = TransientOperation::Header { rule_id: id, index };
         let Some(session) = self.snapshot.as_mut() else {
             return;
         };
@@ -1904,10 +2118,15 @@ impl App {
         };
         mutate(condition);
         let condition = condition.clone();
+        session.focus_condition(id, ConditionFamily::Header, binding.clone());
         let mapped = match map_header_condition(&condition.name, condition.op, &condition.value) {
             Ok(value) => value,
             Err(error) => {
-                self.present_workspace_problem("Header condition rejected", error.to_string());
+                self.present_operation_problem(
+                    operation,
+                    "Header condition rejected",
+                    error.to_string(),
+                );
                 return;
             }
         };
@@ -1929,7 +2148,7 @@ impl App {
             if let DraftBinding::Existing(condition_id) = binding {
                 self.sync_header_draft_condition(id, index, condition_id);
             }
-            self.last_problem = None;
+            self.clear_operation_problem(operation);
             return;
         }
         let intent = match &binding {
@@ -1943,9 +2162,10 @@ impl App {
                 key: key.clone(),
             },
         };
-        let Some(outcome) = self.apply_workspace_intent(intent) else {
+        let Some(outcome) = self.apply_workspace_operation(operation, intent) else {
             return;
         };
+        self.clear_operation_problem(operation);
         if matches!(binding, DraftBinding::Pending(_)) {
             if let Some(receipt) = outcome
                 .creations
@@ -2010,6 +2230,9 @@ impl App {
             DraftBinding::Pending(_) => true,
         };
         if removed {
+            if let Some(session) = self.snapshot.as_mut() {
+                session.clear_condition_focus_family(id, ConditionFamily::Header);
+            }
             if let Some(draft) = self
                 .snapshot
                 .as_mut()
@@ -2072,6 +2295,9 @@ impl App {
         let Some(id) = self.selected_rule_id() else {
             return;
         };
+        if let Some(session) = self.snapshot.as_mut() {
+            session.clear_condition_focus_family(id, ConditionFamily::Header);
+        }
         let bindings = self
             .snapshot
             .as_mut()
@@ -2137,7 +2363,8 @@ impl App {
         };
         let key = session.creation_key("body");
         if let Some(draft) = session.ensure_rule_draft(id) {
-            draft.push_body(key);
+            draft.push_body(key.clone());
+            session.focus_condition(id, ConditionFamily::Body, DraftBinding::Pending(key));
         }
     }
 
@@ -2145,6 +2372,7 @@ impl App {
         let Some(id) = self.selected_rule_id() else {
             return;
         };
+        let operation = TransientOperation::Body { rule_id: id, index };
         let Some(session) = self.snapshot.as_mut() else {
             return;
         };
@@ -2159,10 +2387,15 @@ impl App {
         };
         mutate(condition);
         let condition = condition.clone();
+        session.focus_condition(id, ConditionFamily::Body, binding.clone());
         let mapped = match map_body_condition(&condition.path, condition.op, &condition.value) {
             Ok(value) => value,
             Err(error) => {
-                self.present_workspace_problem("Body condition rejected", error.to_string());
+                self.present_operation_problem(
+                    operation,
+                    "Body condition rejected",
+                    error.to_string(),
+                );
                 return;
             }
         };
@@ -2184,7 +2417,7 @@ impl App {
             if let DraftBinding::Existing(condition_id) = binding {
                 self.sync_body_draft_condition(id, index, condition_id);
             }
-            self.last_problem = None;
+            self.clear_operation_problem(operation);
             return;
         }
         let intent = match &binding {
@@ -2198,9 +2431,10 @@ impl App {
                 key: key.clone(),
             },
         };
-        let Some(outcome) = self.apply_workspace_intent(intent) else {
+        let Some(outcome) = self.apply_workspace_operation(operation, intent) else {
             return;
         };
+        self.clear_operation_problem(operation);
         if matches!(binding, DraftBinding::Pending(_)) {
             if let Some(receipt) = outcome
                 .creations
@@ -2265,6 +2499,9 @@ impl App {
             DraftBinding::Pending(_) => true,
         };
         if removed {
+            if let Some(session) = self.snapshot.as_mut() {
+                session.clear_condition_focus_family(id, ConditionFamily::Body);
+            }
             if let Some(draft) = self
                 .snapshot
                 .as_mut()
@@ -2323,6 +2560,9 @@ impl App {
         let Some(id) = self.selected_rule_id() else {
             return;
         };
+        if let Some(session) = self.snapshot.as_mut() {
+            session.clear_condition_focus_family(id, ConditionFamily::Body);
+        }
         let bindings = self
             .snapshot
             .as_mut()
@@ -3113,10 +3353,17 @@ impl App {
         }
         *current_root = root.new_id;
         match root_kind {
-            Some(WorkspaceNodeKind::Rule) => self.selection.rule = Some(root.new_id),
+            Some(WorkspaceNodeKind::Rule) => {
+                if let Some(parent) = self.snapshot.as_ref().and_then(|session| {
+                    session
+                        .find_rule(root.new_id)
+                        .map(|(rule_set, _)| rule_set.id)
+                }) {
+                    self.selection.select_rule(root.new_id, parent);
+                }
+            }
             Some(WorkspaceNodeKind::RuleSet) => {
-                self.selection.rule_set = Some(RuleSetId(root.new_id));
-                self.selection.rule = None;
+                self.selection.select_rule_set(RuleSetId(root.new_id));
             }
             _ => {}
         }
@@ -3393,12 +3640,22 @@ impl App {
             self.present_workspace_problem("Workspace reload required", technical);
             return false;
         }
+        let selection_target = self.capture_selection_target();
         let Some(session) = self.snapshot.as_mut() else {
             return false;
         };
-        match session.save() {
-            workspace_session::SessionSaveResult::Saved => {}
+        let result = session.save();
+        match result {
+            workspace_session::SessionSaveResult::Saved => {
+                self.reconcile_selection(selection_target);
+                if self.transient_problem_kind == Some(TransientProblemKind::Save) {
+                    self.clear_transient_problem();
+                }
+            }
             workspace_session::SessionSaveResult::SaveFailure(failure) => {
+                self.reconcile_selection(selection_target);
+                self.transient_problem_kind = Some(TransientProblemKind::Save);
+                self.transient_problem_operation = None;
                 self.last_problem = Some(
                     apimokka_model::FriendlyProblem::new(
                         "Workspace save failed",
@@ -3411,16 +3668,23 @@ impl App {
                 return false;
             }
             workspace_session::SessionSaveResult::ContractFault => {
-                let technical = session
-                    .contract_fault
-                    .clone()
+                self.reconcile_selection(selection_target);
+                let technical = self
+                    .snapshot
+                    .as_ref()
+                    .and_then(|session| session.contract_fault.clone())
                     .unwrap_or_else(|| "workspace session is faulted".into());
                 self.present_adopted_workspace_problem("Workspace reload required", technical);
                 self.recompute_dirty();
                 return false;
             }
         }
-        match session.latest().runtime_pending() {
+        match self
+            .snapshot
+            .as_ref()
+            .map(|session| session.latest().runtime_pending())
+            .unwrap_or(RuntimeEffect::None)
+        {
             RuntimeEffect::None => {}
             RuntimeEffect::Reload => self.server_state = ServerState::ReloadPending,
             RuntimeEffect::Restart => {
@@ -3603,6 +3867,7 @@ impl App {
             std::collections::HashMap::new(),
         );
         self.dirty_count = 0;
+        self.clear_transient_problem();
     }
 
     fn reset_fallback_state(
@@ -3621,6 +3886,8 @@ impl App {
         let session = match WorkspaceSession::new(seed) {
             Ok(session) => session,
             Err(error) => {
+                self.transient_problem_kind = Some(TransientProblemKind::Admission);
+                self.transient_problem_operation = None;
                 self.last_problem = Some(
                     apimokka_model::FriendlyProblem::new(
                         "The workspace could not be opened",
@@ -3632,12 +3899,6 @@ impl App {
                 return false;
             }
         };
-        let rule_set = session.rule_sets.first().map(|rule_set| rule_set.id);
-        let rule = session
-            .rule_sets
-            .first()
-            .and_then(|rule_set| rule_set.rules.first())
-            .map(|rule| rule.id);
         let content_catalog = mock_fallback_content();
         let fallback_saved = session
             .fallback_files
@@ -3656,16 +3917,11 @@ impl App {
             .collect();
         self.snapshot = Some(session);
         self.reset_fallback_state(fallback_saved, fallback_status_saved);
-        self.selection = RouteSelection {
-            rule_set,
-            rule,
-            file_route: None,
-            script: None,
-        };
-        self.rule_set_open = rule_set;
+        self.selection = RouteSelection::default();
+        self.rule_set_open = None;
         self.server_state = ServerState::Running;
         self.save_pending_restart = false;
-        self.last_problem = None;
+        self.clear_transient_problem();
         self.recompute_dirty();
         true
     }

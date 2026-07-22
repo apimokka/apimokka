@@ -1363,6 +1363,46 @@ fn validation_matches_snapshot_diagnostics() {
 }
 
 #[test]
+fn validation_projects_workspace_rule_set_and_rule_sources_in_stable_order() {
+    let mut initial = minimal_workspace("test", "127.0.0.1", 3000, false);
+    let set = initial.rule_sets[0].id;
+    let rule = initial.rule_sets[0].rules[0].id;
+    initial.diagnostics = vec![Diagnostic {
+        node_id: None,
+        severity: Severity::Info,
+        message: "workspace".into(),
+    }];
+    initial.rule_sets[0].validation.issues = vec![ValidationIssue {
+        node_id: None,
+        severity: Severity::Warning,
+        message: "set".into(),
+        location: Some("set.location".into()),
+    }];
+    initial.rule_sets[0].rules[0].validation.issues = vec![ValidationIssue {
+        node_id: Some(rule),
+        severity: Severity::Error,
+        message: "rule".into(),
+        location: Some("rule.location".into()),
+    }];
+    let port = MemoryWorkspace::new(initial).unwrap();
+    let report = port.validate();
+
+    assert_eq!(
+        report
+            .issues
+            .iter()
+            .map(|issue| issue.message.as_str())
+            .collect::<Vec<_>>(),
+        vec!["workspace", "set", "rule"]
+    );
+    assert_eq!(report.issues[0].node_id, None);
+    assert_eq!(report.issues[1].node_id, Some(set.0));
+    assert_eq!(report.issues[2].node_id, Some(rule));
+    assert_eq!(report.issues[0].location, None);
+    assert_eq!(report.issues[1].location.as_deref(), Some("set.location"));
+}
+
+#[test]
 fn successful_update_and_delete_refresh_diagnostics_and_inline_validation() {
     fn invalid_initial() -> (crate::WorkspaceSnapshot, NodeId) {
         let mut initial = minimal_workspace("test", "127.0.0.1", 3000, false);

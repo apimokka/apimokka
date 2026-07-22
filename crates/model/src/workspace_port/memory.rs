@@ -592,19 +592,30 @@ impl WorkspacePort for MemoryWorkspace {
     }
 
     fn validate(&self) -> ValidationReport {
-        ValidationReport {
-            issues: self
-                .state
-                .diagnostics
-                .iter()
-                .map(|diagnostic| ValidationIssue {
-                    node_id: diagnostic.node_id,
-                    severity: diagnostic.severity,
-                    message: diagnostic.message.clone(),
-                    location: None,
-                })
-                .collect(),
+        let mut issues = self
+            .state
+            .diagnostics
+            .iter()
+            .map(|diagnostic| ValidationIssue {
+                node_id: diagnostic.node_id,
+                severity: diagnostic.severity,
+                message: diagnostic.message.clone(),
+                location: None,
+            })
+            .collect::<Vec<_>>();
+        for rule_set in &self.state.rule_sets {
+            issues.extend(rule_set.validation.issues.iter().cloned().map(|mut issue| {
+                issue.node_id.get_or_insert(rule_set.id.0);
+                issue
+            }));
+            for rule in &rule_set.rules {
+                issues.extend(rule.validation.issues.iter().cloned().map(|mut issue| {
+                    issue.node_id.get_or_insert(rule.id);
+                    issue
+                }));
+            }
         }
+        ValidationReport { issues }
     }
 
     fn save(&mut self) -> Result<SaveOutcome, SaveFailure> {

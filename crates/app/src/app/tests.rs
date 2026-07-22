@@ -31,10 +31,19 @@ fn first_fallback_path(a: &App) -> String {
 // ── Selection / accordion invariants ──────────────────────────────────
 
 #[test]
+fn workspace_install_starts_with_no_unrelated_route_selection() {
+    let a = fresh();
+    assert_eq!(a.selection, RouteSelection::default());
+    assert_eq!(a.rule_set_open, None);
+}
+
+#[test]
 fn select_file_route_clears_rule_set() {
     // Regression: a stale rule_set selection used to make the rule-set
     // config view hijack the centre panel instead of the file editor.
     let mut a = fresh();
+    let first_set = a.snapshot.as_ref().unwrap().rule_sets[0].id;
+    a.update(Message::SelectRuleSet(first_set));
     assert!(a.selection.rule_set.is_some());
     let path = first_fallback_path(&a);
     a.update(Message::SelectFileRoute(path.clone()));

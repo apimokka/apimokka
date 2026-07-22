@@ -55,117 +55,12 @@ fn drawer_header<'a>(app: &'a App, mode: DrawerMode) -> Element<'a, Message> {
 // ── Validation panel ──────────────────────────────────────────────────────────
 
 fn validation_content(app: &App) -> Element<'_, Message> {
-    let Some(snap) = &app.snapshot else {
+    if app.snapshot.is_none() {
         return widgets::empty_state(app.t(Key::DrawerValidationOk));
-    };
-
-    let mut col = column![]
-        .spacing(space::S2)
-        .padding(Padding::from([space::S3, space::S4]));
-
-    // ── Workspace-level diagnostics (shown first, at workspace scope) ────
-    if !snap.diagnostics.is_empty() {
-        col = col.push(text(app.t(Key::DrawerValidationWorkspace)).size(size::BODY_STRONG));
-        for d in &snap.diagnostics {
-            col = col.push(
-                row![
-                    text(widgets::severity_glyph(d.severity)).size(size::BODY),
-                    text(d.message.as_str())
-                        .size(size::CAPTION)
-                        .color(theme::muted(&app.theme()))
-                        .width(Length::Fill),
-                ]
-                .spacing(space::S2)
-                .align_y(Alignment::Center),
-            );
-        }
-        col = col.push(widgets::divider());
     }
 
-    // ── Per-rule-set groups ──────────────────────────────────────────────
-    let mut any_issue = false;
-    for rs in &snap.rule_sets {
-        let file_name = rs.file.path.rsplit('/').next().unwrap_or(&rs.file.path);
-
-        let rule_issues: Vec<_> = rs
-            .rules
-            .iter()
-            .flat_map(|r| r.validation.issues.iter().map(move |iss| (r, iss)))
-            .collect();
-
-        if rule_issues.is_empty() {
-            // Clean file — positive confirmation in muted text
-            col = col.push(
-                row![
-                    text("✓")
-                        .size(size::CAPTION)
-                        .color(Color::from_rgb(0.1, 0.65, 0.1)),
-                    text(app.t(Key::DrawerValidationFileOk))
-                        .size(size::CAPTION)
-                        .color(theme::muted(&app.theme())),
-                    text(file_name)
-                        .size(size::CAPTION)
-                        .color(theme::muted(&app.theme())),
-                ]
-                .spacing(space::S2)
-                .align_y(Alignment::Center),
-            );
-        } else {
-            any_issue = true;
-            // File heading
-            col = col.push(text(file_name).size(size::BODY_STRONG));
-            for (rule, iss) in &rule_issues {
-                let rule_id = rule.id;
-                let summary = rule.summary();
-                let glyph = widgets::severity_glyph(iss.severity);
-                let glyph_color = match iss.severity {
-                    apimokka_model::Severity::Error => Color::from_rgb(0.85, 0.15, 0.15),
-                    apimokka_model::Severity::Warning => Color::from_rgb(0.85, 0.45, 0.0),
-                    apimokka_model::Severity::Info => Color::from_rgb(0.2, 0.5, 0.9),
-                };
-                col = col.push(
-                    container(
-                        column![
-                            // Rule summary (clickable to navigate)
-                            button(
-                                row![
-                                    text(glyph).size(size::CAPTION).color(glyph_color),
-                                    text(summary).size(size::BODY).width(Length::Fill),
-                                    text(app.t(Key::DrawerJumpToRule))
-                                        .size(size::CAPTION)
-                                        .color(theme::muted(&app.theme())),
-                                    text("→")
-                                        .size(size::CAPTION)
-                                        .color(theme::muted(&app.theme())),
-                                ]
-                                .spacing(space::S2)
-                                .align_y(Alignment::Center),
-                            )
-                            .on_press(Message::JumpToRule(rule_id))
-                            .padding(0)
-                            .style(iced::widget::button::text)
-                            .width(Length::Fill),
-                            // Issue message, indented
-                            row![
-                                Space::new().width(Length::Fixed(space::S5)),
-                                text(iss.message.as_str())
-                                    .size(size::CAPTION)
-                                    .color(theme::muted(&app.theme()))
-                                    .width(Length::Fill),
-                            ],
-                        ]
-                        .spacing(space::S1),
-                    )
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .style(theme::card_style)
-                    .width(Length::Fill),
-                );
-            }
-        }
-    }
-
-    // ── All-clear state ──────────────────────────────────────────────────
-    if !any_issue && snap.diagnostics.is_empty() {
+    let rows = durable_diagnostic_rows(app);
+    if rows.is_empty() {
         return container(
             column![
                 text("✓")
@@ -181,7 +76,128 @@ fn validation_content(app: &App) -> Element<'_, Message> {
         .into();
     }
 
+    let mut col = column![]
+        .spacing(space::S2)
+        .padding(Padding::from([space::S3, space::S4]));
+
+    for diagnostic in rows {
+        let target = diagnostic.target;
+        let severity_label = match diagnostic.severity {
+            apimokka_model::Severity::Error => app.t(Key::DrawerValidationErrors),
+            apimokka_model::Severity::Warning => app.t(Key::DrawerValidationWarnings),
+            apimokka_model::Severity::Info => app.t(Key::DrawerValidationInfo),
+        };
+        let heading = row![
+            text(widgets::severity_glyph(diagnostic.severity))
+                .size(size::BODY)
+                .color(theme::severity_color(&app.theme(), diagnostic.severity)),
+            text(severity_label).size(size::CAPTION),
+            text(diagnostic.scope).size(size::BODY).width(Length::Fill),
+            text(if target.is_some() {
+                app.t(Key::DrawerOpenDiagnostic)
+            } else {
+                ""
+            })
+            .size(size::CAPTION)
+            .color(theme::muted(&app.theme())),
+            text(if target.is_some() { "→" } else { "" })
+                .size(size::CAPTION)
+                .color(theme::muted(&app.theme())),
+        ]
+        .spacing(space::S2)
+        .align_y(Alignment::Center);
+        let heading: Element<'_, Message> = if let Some(target) = target {
+            button(heading)
+                .on_press(Message::JumpToDiagnostic(target))
+                .padding(0)
+                .style(iced::widget::button::text)
+                .width(Length::Fill)
+                .into()
+        } else {
+            heading.into()
+        };
+        let mut detail = column![
+            heading,
+            text(diagnostic.message)
+                .size(size::CAPTION)
+                .color(theme::muted(&app.theme()))
+                .width(Length::Fill),
+        ]
+        .spacing(space::S1);
+        if app.show_problem_details
+            && let Some(location) = diagnostic.location
+        {
+            detail = detail.push(
+                text(location)
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
+            );
+        }
+        col = col.push(
+            container(detail)
+                .padding(Padding::from([space::S2, space::S3]))
+                .style(theme::card_style)
+                .width(Length::Fill),
+        );
+    }
+
     col.into()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DurableDiagnosticRow {
+    pub target: Option<apimokka_model::NodeId>,
+    pub severity: apimokka_model::Severity,
+    pub scope: String,
+    pub message: String,
+    pub location: Option<String>,
+}
+
+pub(crate) fn durable_diagnostic_rows(app: &App) -> Vec<DurableDiagnosticRow> {
+    let Some(snapshot) = app.snapshot.as_ref() else {
+        return Vec::new();
+    };
+    let mut rows = snapshot
+        .diagnostics
+        .iter()
+        .map(|diagnostic| DurableDiagnosticRow {
+            target: diagnostic.node_id,
+            severity: diagnostic.severity,
+            scope: app.t(Key::DrawerValidationWorkspace).to_owned(),
+            message: diagnostic.message.clone(),
+            location: None,
+        })
+        .collect::<Vec<_>>();
+    for rule_set in &snapshot.rule_sets {
+        rows.extend(
+            rule_set
+                .validation
+                .issues
+                .iter()
+                .map(|issue| DurableDiagnosticRow {
+                    target: Some(issue.node_id.unwrap_or(rule_set.id.0)),
+                    severity: issue.severity,
+                    scope: rule_set.file.path.clone(),
+                    message: issue.message.clone(),
+                    location: issue.location.clone(),
+                }),
+        );
+        for rule in &rule_set.rules {
+            rows.extend(
+                rule.validation
+                    .issues
+                    .iter()
+                    .map(|issue| DurableDiagnosticRow {
+                        target: Some(issue.node_id.unwrap_or(rule.id)),
+                        severity: issue.severity,
+                        scope: format!("{} · {}", rule_set.file.path, rule.summary()),
+                        message: issue.message.clone(),
+                        location: issue.location.clone(),
+                    }),
+            );
+        }
+    }
+    rows
 }
 
 // ── Save-diff panel ───────────────────────────────────────────────────────────

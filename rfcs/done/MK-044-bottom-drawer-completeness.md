@@ -6,6 +6,8 @@ Also: the one stubbed command palette entry (`PaletteCmdAddRule → Noop`).
 **Touches.** `screens/bottom_drawer.rs`, `message.rs`, `app.rs`,
 `screens/command_palette.rs`, i18n.
 **Follows.** MK-032 (original drawer spec), MK-042 (trace jump-to-rule pattern).
+**Amended by.** MK-053 section 5.1 (durable diagnostic ordering and
+presentation).
 
 ## Context
 
@@ -98,3 +100,17 @@ AddRuleFromPalette,
 - Save-diff panel shows "JSON content modified" for dirty fallback files.
 - `PaletteCmdAddRule` adds a rule and navigates to it instead of Noop.
 - Zero errors, zero warnings, existing + new tests pass.
+
+## Later validation-panel supersession (2026-07-21)
+
+MK-053 section 5.1 supersedes only this RFC's validation-panel grouping and
+clean-file-row presentation. Durable diagnostics now remain in one fixed
+cross-source order and are not regrouped by target; clean rule sets do not add
+rows when other diagnostics exist. Rule-level rows retain their owning file
+path in their scope, and target rows retain a localized text action plus the
+navigation arrow. The all-clear state, target navigation, save-diff behavior,
+and command-palette behavior above remain authoritative.
+
+The original acceptance criteria record what shipped in v0.9.13. This note
+records the current superseding behavior without rewriting that historical
+release claim or changing MK-044's Implemented lifecycle state.
