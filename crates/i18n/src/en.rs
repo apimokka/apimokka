@@ -34,6 +34,8 @@ pub fn t(key: Key) -> &'static str {
         Key::StatusStarting => "Starting",
         Key::StatusReloadPending => "Reload pending",
         Key::StatusRestartRequired => "Restart required",
+        Key::StatusReloadOnStart => "Reload applies on start",
+        Key::StatusRestartOnStart => "Restart applies on start",
         Key::StatusError => "Error",
         Key::StatusSaved => "Saved",
         Key::StatusUnsaved => "Unsaved",

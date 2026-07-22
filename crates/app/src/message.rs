@@ -50,6 +50,11 @@ pub enum Message {
     StartStopServer,
     ReloadConfig,
     RestartServer,
+    RuntimeSucceeded(crate::app::RuntimeRequestToken),
+    RuntimeFailed {
+        token: crate::app::RuntimeRequestToken,
+        technical: String,
+    },
 
     // ── Save ──────────────────────────────────────────────────────────────
     Save,

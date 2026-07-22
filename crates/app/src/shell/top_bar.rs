@@ -5,7 +5,7 @@
 //! in Settings (they are rare settings, not constant workflow controls).
 //! ⌘K keyboard shortcut still works via the keyboard subscription.
 
-use crate::app::App;
+use crate::app::{App, RuntimeAction};
 use crate::message::Message;
 use crate::theme::{self, pad, size, space};
 use apimokka_i18n::Key;
@@ -20,8 +20,6 @@ pub enum ServerState {
     Stopped,
     Starting,
     Running,
-    ReloadPending,
-    RestartRequired,
     Error,
 }
 impl ServerState {
@@ -30,8 +28,6 @@ impl ServerState {
             Self::Stopped => "■",
             Self::Starting => "◔",
             Self::Running => "●",
-            Self::ReloadPending => "↻",
-            Self::RestartRequired => "⏻",
             Self::Error => "!",
         }
     }
@@ -40,8 +36,6 @@ impl ServerState {
             Self::Stopped => app.t(Key::StatusStopped),
             Self::Starting => app.t(Key::StatusStarting),
             Self::Running => app.t(Key::StatusRunning),
-            Self::ReloadPending => app.t(Key::StatusReloadPending),
-            Self::RestartRequired => app.t(Key::StatusRestartRequired),
             Self::Error => app.t(Key::StatusError),
         }
     }
@@ -95,37 +89,69 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let server_label = app.server_state.label(app).to_string();
     let server_chip = chip(app.server_state.glyph().to_string(), server_label);
     let save_chip = chip(save_glyph.to_string(), save_label);
+    let phase = app.runtime_phase();
+    let phase_chip: Element<'_, Message> = match phase {
+        apimokka_model::RuntimeEffect::None => Space::new().width(Length::Fixed(0.0)).into(),
+        apimokka_model::RuntimeEffect::Reload => chip(
+            "↻".into(),
+            app.t(if app.server_state == ServerState::Stopped {
+                Key::StatusReloadOnStart
+            } else {
+                Key::StatusReloadPending
+            })
+            .into(),
+        ),
+        apimokka_model::RuntimeEffect::Restart => chip(
+            "⏻".into(),
+            app.t(if app.server_state == ServerState::Stopped {
+                Key::StatusRestartOnStart
+            } else {
+                Key::StatusRestartRequired
+            })
+            .into(),
+        ),
+    };
 
     // ── Action buttons ────────────────────────────────────────────────────
     let save_btn = action_btn(app.t(Key::BtnSaveAll), Message::Save, app.dirty_count > 0);
-    let reload_btn = action_btn(
-        app.t(Key::BtnReload),
-        Message::ReloadConfig,
-        app.server_state == ServerState::ReloadPending,
-    );
-    let restart_btn = action_btn(
-        app.t(Key::BtnRestart),
-        Message::RestartServer,
-        app.server_state == ServerState::RestartRequired,
-    );
-    let srv_label = match app.server_state {
-        ServerState::Running | ServerState::ReloadPending | ServerState::RestartRequired => {
-            app.t(Key::BtnStopServer)
+    let config_btn: Element<'_, Message> = match phase {
+        apimokka_model::RuntimeEffect::Reload
+            if app.runtime_request_available(RuntimeAction::Reload) =>
+        {
+            action_btn(app.t(Key::BtnReload), Message::ReloadConfig, true)
         }
+        apimokka_model::RuntimeEffect::Restart
+            if app.runtime_request_available(RuntimeAction::Restart) =>
+        {
+            action_btn(app.t(Key::BtnRestart), Message::RestartServer, true)
+        }
+        _ => Space::new().width(Length::Fixed(0.0)).into(),
+    };
+    let srv_label = match app.server_state {
+        ServerState::Running => app.t(Key::BtnStopServer),
         _ => app.t(Key::BtnStartServer),
     };
-    let server_btn = action_btn(srv_label, Message::StartStopServer, true);
+    let server_action = if app.server_state == ServerState::Running {
+        RuntimeAction::Stop
+    } else {
+        RuntimeAction::Start
+    };
+    let server_btn = action_btn(
+        srv_label,
+        Message::StartStopServer,
+        app.runtime_request_available(server_action),
+    );
 
     let bar = row![
         app_label,
         ws_section,
         Space::new().width(space::S4),
         server_chip,
+        phase_chip,
         save_chip,
         Space::new().width(Length::Fill),
         save_btn,
-        reload_btn,
-        restart_btn,
+        config_btn,
         server_btn,
     ]
     .spacing(space::S2)

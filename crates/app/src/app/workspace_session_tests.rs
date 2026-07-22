@@ -255,12 +255,16 @@ fn undo_and_redo_preserve_unrelated_invalid_rule_and_root_drafts() {
 #[test]
 fn refresh_acknowledgement_preserves_unrelated_invalid_drafts() {
     let mut app = expert();
+    app.update(Message::SettingsSetPort("9000".into()));
+    app.update(Message::Save);
     let rule = app.selection.rule.unwrap();
     app.update(Message::RuleSetMethod("PATCH".into()));
     app.update(Message::SettingsSetHost("invalid-ip".into()));
-    app.server_state = crate::shell::top_bar::ServerState::ReloadPending;
-
-    app.update(Message::ReloadConfig);
+    match app.runtime_phase() {
+        RuntimeEffect::Reload => app.update(Message::ReloadConfig),
+        RuntimeEffect::Restart => app.update(Message::RestartServer),
+        RuntimeEffect::None => panic!("saved runtime-affecting edit must expose an action"),
+    }
 
     assert_eq!(
         app.snapshot
@@ -770,8 +774,28 @@ fn selection_adoption_app(source: SelectionAdoptionSource) -> (App, NodeId, Rule
     let seed = apimokka_model::mock::shop_api_canonical_seed();
     let selected_rule = seed.rule_sets[0].rules[0].id;
     let parent = seed.rule_sets[0].id;
+    let mut inner = MemoryWorkspace::new(seed).unwrap();
+    let pending_edit = match source {
+        SelectionAdoptionSource::ReloadAcknowledgement => Some(map_root_setting(
+            WorkspaceRootKey::LogLevel,
+            WorkspaceEditValue::Enum("debug".into()),
+        )),
+        SelectionAdoptionSource::RestartAcknowledgement => Some(map_root_setting(
+            WorkspaceRootKey::ListenerPort,
+            WorkspaceEditValue::Integer(9000),
+        )),
+        SelectionAdoptionSource::SaveSuccess | SelectionAdoptionSource::SaveFailure => None,
+    };
+    if let Some(edit) = pending_edit {
+        inner
+            .apply(
+                EditTransaction::new(vec![EditIntent::UpdateRootSetting(edit.unwrap())]).unwrap(),
+            )
+            .unwrap();
+        inner.save().unwrap();
+    }
     let port = SelectionAdoptionPort {
-        inner: MemoryWorkspace::new(seed).unwrap(),
+        inner,
         selected_rule,
         source,
         removed: false,
@@ -1077,7 +1101,6 @@ fn reload_and_restart_acknowledgements_reconcile_their_adopted_snapshots() {
         let (mut app, removed, parent) = selection_adoption_app(source);
         match source {
             SelectionAdoptionSource::ReloadAcknowledgement => {
-                app.server_state = crate::shell::top_bar::ServerState::ReloadPending;
                 app.update(Message::ReloadConfig);
             }
             SelectionAdoptionSource::RestartAcknowledgement => {

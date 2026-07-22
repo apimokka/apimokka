@@ -21,6 +21,9 @@ use crate::shell::top_bar::ServerState;
 
 mod workspace_session;
 pub use workspace_session::{ConditionFamily, DraftBinding, WorkspaceSession};
+mod runtime;
+use runtime::SessionGeneration;
+pub use runtime::{RuntimeAction, RuntimeInFlight, RuntimeRequestToken};
 
 // ── Theme choice ──────────────────────────────────────────────────────────────
 
@@ -366,9 +369,11 @@ pub struct App {
     pub snapshot: Option<WorkspaceSession>,
     pub selection: RouteSelection,
     pub server_state: ServerState,
+    pub runtime_in_flight: Option<RuntimeInFlight>,
+    runtime_auto_complete: bool,
+    next_session_generation: u64,
 
     pub dirty_count: usize,
-    pub save_pending_restart: bool,
 
     pub trace: Vec<apimokka_model::MatchTraceEvent>,
     pub selected_trace: Option<u64>,
@@ -435,6 +440,7 @@ enum DiagnosticNavigation {
 pub enum TransientProblemKind {
     Operation,
     Save,
+    Runtime,
     Admission,
     PostCommitContract,
     NonAdoptingReadContract,
@@ -478,8 +484,10 @@ impl App {
             snapshot,
             selection: sel,
             server_state: ServerState::Running,
+            runtime_in_flight: None,
+            runtime_auto_complete: true,
+            next_session_generation: 1,
             dirty_count: 0,
-            save_pending_restart: false,
             trace: mock::sample_trace_events(),
             selected_trace: None,
             trace_paused: false,
@@ -547,12 +555,7 @@ impl App {
             .is_some_and(|session| session.faulted)
             && is_workspace_mutation(&msg)
         {
-            let technical = self
-                .snapshot
-                .as_ref()
-                .and_then(|session| session.contract_fault.clone())
-                .unwrap_or_else(|| "workspace session is faulted".into());
-            self.present_workspace_problem("Workspace reload required", technical);
+            self.enter_session_fault_if_any();
             return;
         }
         match msg {
@@ -705,35 +708,26 @@ impl App {
 
             // Server actions
             Message::StartStopServer => {
-                self.server_state = match self.server_state {
-                    ServerState::Stopped => ServerState::Running,
-                    _ => ServerState::Stopped,
+                let action = match self.server_state {
+                    ServerState::Stopped | ServerState::Error => Some(RuntimeAction::Start),
+                    ServerState::Running => Some(RuntimeAction::Stop),
+                    ServerState::Starting => None,
                 };
+                if let Some(action) = action {
+                    self.request_runtime(action);
+                }
             }
             Message::ReloadConfig => {
-                if self.server_state == ServerState::ReloadPending {
-                    let selection_target = self.capture_selection_target();
-                    if let Some(session) = self.snapshot.as_mut() {
-                        session.acknowledge_reload();
-                    }
-                    self.reconcile_selection(selection_target);
-                    if self.present_session_contract_fault_if_any() {
-                        return;
-                    }
-                    self.server_state = ServerState::Running;
-                }
+                self.request_runtime(RuntimeAction::Reload);
             }
             Message::RestartServer => {
-                let selection_target = self.capture_selection_target();
-                if let Some(session) = self.snapshot.as_mut() {
-                    session.acknowledge_restart();
-                }
-                self.reconcile_selection(selection_target);
-                if self.present_session_contract_fault_if_any() {
-                    return;
-                }
-                self.server_state = ServerState::Running;
-                self.save_pending_restart = false;
+                self.request_runtime(RuntimeAction::Restart);
+            }
+            Message::RuntimeSucceeded(token) => {
+                self.complete_runtime_success(token);
+            }
+            Message::RuntimeFailed { token, technical } => {
+                self.complete_runtime_failure(token, technical);
             }
 
             // Save
@@ -756,7 +750,7 @@ impl App {
                         workspace_session::SessionValidationResult::ContractFault
                     )
                 {
-                    self.present_session_contract_fault_if_any();
+                    self.enter_session_fault_if_any();
                 }
             }
             Message::OpenSaveDiffDrawer => {
@@ -1561,12 +1555,7 @@ impl App {
             .as_ref()
             .is_some_and(|session| session.faulted)
         {
-            let technical = self
-                .snapshot
-                .as_ref()
-                .and_then(|session| session.contract_fault.clone())
-                .unwrap_or_else(|| "workspace session is faulted".into());
-            self.present_workspace_problem("Workspace reload required", technical);
+            self.enter_session_fault_if_any();
             return None;
         }
         let transaction = match EditTransaction::new(intents) {
@@ -1592,14 +1581,8 @@ impl App {
                 None
             }
             workspace_session::SessionApplyResult::ContractFault => {
-                let technical = self
-                    .snapshot
-                    .as_ref()
-                    .and_then(|session| session.contract_fault.clone())
-                    .unwrap_or_else(|| "workspace port contract fault".into());
-                self.present_adopted_workspace_problem("Workspace reload required", technical);
                 self.reconcile_selection(selection_target);
-                self.recompute_dirty();
+                self.enter_session_fault_if_any();
                 None
             }
         }
@@ -1741,31 +1724,6 @@ impl App {
             )
             .with_technical(technical),
         );
-    }
-
-    fn present_session_contract_fault_if_any(&mut self) -> bool {
-        let technical = self.snapshot.as_ref().and_then(|session| {
-            session
-                .faulted
-                .then(|| session.contract_fault.clone())
-                .flatten()
-        });
-        if let Some(technical) = technical {
-            let adoption = self
-                .snapshot
-                .as_ref()
-                .and_then(|session| session.contract_fault_adoption);
-            match adoption {
-                Some(workspace_session::ContractFaultAdoption::NonAdoptingRead) => {
-                    self.present_cached_workspace_problem("Workspace reload required", technical)
-                }
-                _ => self.present_adopted_workspace_problem("Workspace reload required", technical),
-            }
-            self.recompute_dirty();
-            true
-        } else {
-            false
-        }
     }
 
     fn present_cached_workspace_problem(&mut self, title: &str, technical: String) {
@@ -3632,12 +3590,7 @@ impl App {
             .as_ref()
             .is_some_and(|session| session.faulted)
         {
-            let technical = self
-                .snapshot
-                .as_ref()
-                .and_then(|session| session.contract_fault.clone())
-                .unwrap_or_else(|| "workspace session is faulted".into());
-            self.present_workspace_problem("Workspace reload required", technical);
+            self.enter_session_fault_if_any();
             return false;
         }
         let selection_target = self.capture_selection_target();
@@ -3669,27 +3622,8 @@ impl App {
             }
             workspace_session::SessionSaveResult::ContractFault => {
                 self.reconcile_selection(selection_target);
-                let technical = self
-                    .snapshot
-                    .as_ref()
-                    .and_then(|session| session.contract_fault.clone())
-                    .unwrap_or_else(|| "workspace session is faulted".into());
-                self.present_adopted_workspace_problem("Workspace reload required", technical);
-                self.recompute_dirty();
+                self.enter_session_fault_if_any();
                 return false;
-            }
-        }
-        match self
-            .snapshot
-            .as_ref()
-            .map(|session| session.latest().runtime_pending())
-            .unwrap_or(RuntimeEffect::None)
-        {
-            RuntimeEffect::None => {}
-            RuntimeEffect::Reload => self.server_state = ServerState::ReloadPending,
-            RuntimeEffect::Restart => {
-                self.server_state = ServerState::RestartRequired;
-                self.save_pending_restart = true;
             }
         }
         let mut dirty_paths: Vec<String> = self
@@ -3861,6 +3795,7 @@ impl App {
     fn leave_workspace(&mut self) {
         self.view = AppView::Welcome;
         self.snapshot = None;
+        self.runtime_in_flight = None;
         self.selection = RouteSelection::default();
         self.reset_fallback_state(
             std::collections::HashMap::new(),
@@ -3883,7 +3818,8 @@ impl App {
     }
 
     pub(crate) fn install_workspace(&mut self, seed: apimokka_model::WorkspaceSnapshot) -> bool {
-        let session = match WorkspaceSession::new(seed) {
+        let generation = SessionGeneration(self.next_session_generation);
+        let session = match WorkspaceSession::new_with_generation(seed, generation) {
             Ok(session) => session,
             Err(error) => {
                 self.transient_problem_kind = Some(TransientProblemKind::Admission);
@@ -3899,6 +3835,10 @@ impl App {
                 return false;
             }
         };
+        self.next_session_generation = self
+            .next_session_generation
+            .checked_add(1)
+            .expect("session generation overflow");
         let content_catalog = mock_fallback_content();
         let fallback_saved = session
             .fallback_files
@@ -3919,8 +3859,8 @@ impl App {
         self.reset_fallback_state(fallback_saved, fallback_status_saved);
         self.selection = RouteSelection::default();
         self.rule_set_open = None;
+        self.runtime_in_flight = None;
         self.server_state = ServerState::Running;
-        self.save_pending_restart = false;
         self.clear_transient_problem();
         self.recompute_dirty();
         true
@@ -4128,6 +4068,10 @@ mod tests_mk045;
 #[cfg(test)]
 #[path = "app/workspace_session_tests.rs"]
 mod workspace_session_tests;
+
+#[cfg(test)]
+#[path = "app/runtime_tests.rs"]
+mod runtime_tests;
 
 #[cfg(test)]
 #[path = "app/navigation.rs"]

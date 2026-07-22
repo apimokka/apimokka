@@ -32,6 +32,8 @@ pub fn t(key: Key) -> &'static str {
         Key::StatusStarting => "起動中",
         Key::StatusReloadPending => "リロード待ち",
         Key::StatusRestartRequired => "再起動が必要",
+        Key::StatusReloadOnStart => "起動時にリロードを適用",
+        Key::StatusRestartOnStart => "起動時に再起動を適用",
         Key::StatusError => "エラー",
         Key::StatusSaved => "保存済み",
         Key::StatusUnsaved => "未保存",

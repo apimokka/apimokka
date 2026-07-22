@@ -38,6 +38,8 @@ pub enum Key {
     StatusStarting,
     StatusReloadPending,
     StatusRestartRequired,
+    StatusReloadOnStart,
+    StatusRestartOnStart,
     StatusError,
     StatusSaved,
     StatusUnsaved, // "Unsaved (N)" — caller appends count

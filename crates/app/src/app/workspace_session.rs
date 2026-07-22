@@ -4,6 +4,9 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use super::HistoryEntry;
+use super::runtime::{
+    RuntimeAction, RuntimeRequestId, RuntimeRequestToken, SavedConfigRevision, SessionGeneration,
+};
 
 use apimokka_model::workspace_port::{
     map_body_condition, map_header_condition, map_response, map_rule_match,
@@ -144,6 +147,9 @@ pub struct WorkspaceSession {
     pub faulted: bool,
     pub contract_fault: Option<String>,
     pub contract_fault_adoption: Option<ContractFaultAdoption>,
+    generation: SessionGeneration,
+    saved_config_revision: SavedConfigRevision,
+    next_runtime_request_id: u64,
     next_creation_key: u64,
 }
 
@@ -165,13 +171,34 @@ pub(super) enum SessionValidationResult {
 }
 
 impl WorkspaceSession {
+    #[cfg(test)]
     pub fn new(seed: WorkspaceSnapshot) -> Result<Self, apimokka_model::FieldError> {
-        let prototype = prototype_from_seed(&seed);
-        let port = MemoryWorkspace::new(seed)?;
-        Ok(Self::from_port(Box::new(port), prototype))
+        Self::new_with_generation(seed, SessionGeneration(0))
     }
 
+    pub(crate) fn new_with_generation(
+        seed: WorkspaceSnapshot,
+        generation: SessionGeneration,
+    ) -> Result<Self, apimokka_model::FieldError> {
+        let prototype = prototype_from_seed(&seed);
+        let port = MemoryWorkspace::new(seed)?;
+        Ok(Self::from_port_with_generation(
+            Box::new(port),
+            prototype,
+            generation,
+        ))
+    }
+
+    #[cfg(test)]
     pub(crate) fn from_port(port: Box<dyn WorkspacePort>, prototype: PrototypeState) -> Self {
+        Self::from_port_with_generation(port, prototype, SessionGeneration(0))
+    }
+
+    pub(crate) fn from_port_with_generation(
+        port: Box<dyn WorkspacePort>,
+        prototype: PrototypeState,
+        generation: SessionGeneration,
+    ) -> Self {
         let latest = port.snapshot();
         let identity = WorkspaceIdentity {
             name: latest.workspace().meta.name.clone(),
@@ -194,7 +221,34 @@ impl WorkspaceSession {
             faulted: false,
             contract_fault: None,
             contract_fault_adoption: None,
+            generation,
+            saved_config_revision: SavedConfigRevision(0),
+            next_runtime_request_id: 1,
             next_creation_key: 0,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn generation(&self) -> SessionGeneration {
+        self.generation
+    }
+
+    pub fn saved_config_revision(&self) -> SavedConfigRevision {
+        self.saved_config_revision
+    }
+
+    pub(super) fn issue_runtime_request(&mut self, action: RuntimeAction) -> RuntimeRequestToken {
+        let request_id = RuntimeRequestId(self.next_runtime_request_id);
+        self.next_runtime_request_id = self
+            .next_runtime_request_id
+            .checked_add(1)
+            .expect("runtime request ID overflow");
+        RuntimeRequestToken {
+            generation: self.generation,
+            request_id,
+            action,
+            consumed_revision: (action != RuntimeAction::Stop)
+                .then_some(self.saved_config_revision),
         }
     }
 
@@ -384,9 +438,24 @@ impl WorkspaceSession {
         if self.faulted {
             return SessionSaveResult::ContractFault;
         }
+        let before = self.latest.clone();
         match self.port.save() {
             Ok(outcome) => {
-                if let Err(problem) = self.adopt_snapshot(outcome.snapshot.clone()) {
+                let progress_problem = validate_save_outcome_progress(&before, &outcome).err();
+                let phase_problem = validate_save_phases(
+                    &before,
+                    &outcome.snapshot,
+                    &outcome.diffs,
+                    &[],
+                    outcome.unsaved_hint,
+                    outcome.runtime_pending,
+                )
+                .err();
+                let identity_problem = self.adopt_snapshot(outcome.snapshot.clone()).err();
+                if progress_problem.is_none() {
+                    self.advance_saved_config_revision(&outcome.diffs);
+                }
+                if let Some(problem) = progress_problem.or(phase_problem).or(identity_problem) {
                     self.enter_contract_fault(problem);
                     SessionSaveResult::ContractFault
                 } else {
@@ -394,7 +463,22 @@ impl WorkspaceSession {
                 }
             }
             Err(failure) => {
-                if let Err(problem) = self.adopt_snapshot((*failure.snapshot).clone()) {
+                let prefix_len = failure.written_files.len().min(before.dirty_files().len());
+                let progress_problem = validate_save_failure_progress(&before, &failure).err();
+                let phase_problem = validate_save_phases(
+                    &before,
+                    &failure.snapshot,
+                    &failure.diffs,
+                    &before.dirty_files()[prefix_len..],
+                    failure.unsaved_hint,
+                    failure.runtime_pending,
+                )
+                .err();
+                let identity_problem = self.adopt_snapshot((*failure.snapshot).clone()).err();
+                if progress_problem.is_none() {
+                    self.advance_saved_config_revision(&failure.diffs);
+                }
+                if let Some(problem) = progress_problem.or(phase_problem).or(identity_problem) {
                     self.enter_contract_fault(problem);
                     SessionSaveResult::ContractFault
                 } else {
@@ -404,7 +488,20 @@ impl WorkspaceSession {
         }
     }
 
-    pub fn acknowledge_reload(&mut self) {
+    fn advance_saved_config_revision(&mut self, diffs: &[apimokka_model::FileDiff]) {
+        if diffs
+            .iter()
+            .any(|diff| diff.effect != apimokka_model::RuntimeEffect::None)
+        {
+            self.saved_config_revision.0 = self
+                .saved_config_revision
+                .0
+                .checked_add(1)
+                .expect("saved configuration revision overflow");
+        }
+    }
+
+    pub(super) fn acknowledge_reload(&mut self) {
         if self.faulted {
             return;
         }
@@ -414,7 +511,7 @@ impl WorkspaceSession {
         }
     }
 
-    pub fn acknowledge_restart(&mut self) {
+    pub(super) fn acknowledge_restart(&mut self) {
         if self.faulted {
             return;
         }
@@ -447,6 +544,15 @@ impl WorkspaceSession {
 
     fn enter_read_contract_fault(&mut self, problem: String) {
         self.enter_fault(problem, ContractFaultAdoption::NonAdoptingRead);
+    }
+
+    #[cfg(test)]
+    pub(super) fn enter_future_fault_for_test(
+        &mut self,
+        problem: String,
+        adoption: ContractFaultAdoption,
+    ) {
+        self.enter_fault(problem, adoption);
     }
 
     fn enter_fault(&mut self, problem: String, adoption: ContractFaultAdoption) {
@@ -536,6 +642,74 @@ fn condition_focus_is_live(snapshot: &PortSnapshot, focus: &ConditionFocus) -> b
             .iter()
             .any(|condition| condition.id == *id),
     }
+}
+
+fn validate_save_outcome_progress(
+    before: &PortSnapshot,
+    outcome: &apimokka_model::SaveOutcome,
+) -> Result<(), String> {
+    let dirty = before.dirty_files();
+    let written_paths = outcome
+        .diffs
+        .iter()
+        .map(|diff| &diff.path)
+        .collect::<Vec<_>>();
+    if outcome.diffs != dirty
+        || outcome.written_files.iter().collect::<Vec<_>>() != written_paths
+        || !outcome.snapshot.dirty_files().is_empty()
+    {
+        return Err("save outcome did not report the exact captured dirty workspace".into());
+    }
+    Ok(())
+}
+
+fn validate_save_failure_progress(
+    before: &PortSnapshot,
+    failure: &apimokka_model::SaveFailure,
+) -> Result<(), String> {
+    let dirty = before.dirty_files();
+    let prefix_len = failure.written_files.len();
+    if prefix_len >= dirty.len()
+        || failure.diffs != dirty[..prefix_len]
+        || failure
+            .written_files
+            .iter()
+            .zip(&failure.diffs)
+            .any(|(path, diff)| path != &diff.path)
+        || failure.failed_file != dirty[prefix_len].path
+        || failure.snapshot.dirty_files() != &dirty[prefix_len..]
+    {
+        return Err("save failure did not report an exact captured dirty prefix and suffix".into());
+    }
+    Ok(())
+}
+
+fn validate_save_phases(
+    before: &PortSnapshot,
+    after: &PortSnapshot,
+    written: &[apimokka_model::FileDiff],
+    remaining: &[apimokka_model::FileDiff],
+    reported_unsaved: apimokka_model::RuntimeEffect,
+    reported_pending: apimokka_model::RuntimeEffect,
+) -> Result<(), String> {
+    let expected_pending = written
+        .iter()
+        .fold(before.runtime_pending(), |pending, diff| {
+            pending.combine(diff.effect)
+        });
+    let expected_unsaved = remaining
+        .iter()
+        .fold(apimokka_model::RuntimeEffect::None, |pending, diff| {
+            pending.combine(diff.effect)
+        });
+    if reported_pending != expected_pending
+        || after.runtime_pending() != expected_pending
+        || reported_unsaved != expected_unsaved
+        || after.unsaved_hint() != expected_unsaved
+    {
+        return Err("save result phase fields differed from verified workspace progress".into());
+    }
+    Ok(())
 }
 
 fn canonical_validation_projection(snapshot: &PortSnapshot) -> Result<ValidationReport, String> {
