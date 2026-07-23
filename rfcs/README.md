@@ -11,8 +11,7 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-
-No RFCs are currently proposed.
+| [MK-054](./proposed/MK-054-quality-and-security-gates.md) | Quality and security gates | Stabilization roadmap M4 |
 
 ---
 
