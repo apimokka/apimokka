@@ -1,8 +1,8 @@
 //! Tree node descriptions for the route sidebar.
 //!
-//! Mirrors `ConfigFileView`, `ConfigNodeView`, `NodeKind`, and
-//! `FileNodeView` from the engine integration reference. The mockup uses
-//! only the fields it renders today; rarely-used fields are deferred.
+//! Local render-oriented types informed by the integration reference. They
+//! contain only fields used by the mockup and are not an engine-isomorphic
+//! schema.
 
 use crate::ids::NodeId;
 

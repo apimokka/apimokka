@@ -1,9 +1,9 @@
 //! Rule editing payloads.
 //!
-//! Mirrors `RulePayload`, `HeaderConditionPayload`, `BodyConditionPayload`,
-//! and the three operator enums from the engine reference. Operator
-//! categorisation is preserved because the GUI's body-condition value
-//! input changes shape per category (external design § 15.7).
+//! Local render and editor-draft payloads. RFC MK-053 maps them explicitly to
+//! canonical port values; they do not mirror an engine payload. Operator
+//! categorisation is retained because the GUI's body-condition value input
+//! changes shape per category (external design § 15.7).
 
 use crate::respond::RespondPayload;
 

@@ -1,9 +1,11 @@
 //! Save-flow result types.
 //!
-//! Mirrors `SaveResult` / `DiffItem` / `ReloadHint` from the engine
-//! reference. The Save Diff drawer (external design § 23.3) reads these
-//! to render created/modified/removed file rows and the appropriate
-//! runtime-action call-to-action.
+//! Legacy Save Diff presentation types retained by the mockup.
+//!
+//! The authoritative MK-053 save boundary is
+//! [`crate::workspace_port::WorkspacePort::save`], with `SaveOutcome`,
+//! `SaveFailure`, `FileDiff`, and `RuntimeEffect`. The app owns the typed
+//! Global Save report that combines workspace and fallback attempts.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiffKind {

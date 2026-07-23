@@ -57,8 +57,12 @@ to reach the full Routes workbench.
 
 - **First-launch flow** — Mode picker → Welcome → Dashboard or Wizard → Workspace. On the Welcome screen, "Create workspace" opens a three-starter wizard (Minimal / Shop API example / Empty); the Minimal default generates a single `GET /health → 200 OK` rule.
 - **Audience modes** — Guided mode surfaces inline hints and collapses advanced controls (headers, body conditions, strategy) behind expandable "More" rows; Expert mode shows everything directly. Switching modes is reversible in Settings.
-- **Snapshot-apply loop simulation** — mirrors the apimock-rs `Workspace::apply(EditCommand)` contract without real file I/O (see [MK-035](./rfcs/done/MK-035-state-models.md))
-- **Undo / redo** — typed command log (⌘Z / ⌘⇧Z); covers delete, add, move, and URL-path edits
+- **Mapped workspace boundary** — typed UI edit intents, canonical snapshots,
+  save outcomes, and runtime effects pass through an in-memory `WorkspacePort`.
+  This implements the reviewed local MK-053 mapping without claiming a direct
+  engine API mirror or performing real file I/O.
+- **Undo / redo** — GUI-owned semantic history (⌘Z / ⌘⇧Z) applies compensating
+  port transactions and rebinds recreated node identities.
 - **MK-038 fallback file lifecycle** — two-buffer (saved baseline + draft), explicit Save, confirmed Revert, live JSON validity badge
 - **Snora Design tokens** — built on snora 0.25's design system: WCAG-AA contrast-tested color presets with four themes (Light, Dark, **High Contrast Light, High Contrast Dark**). High-contrast modes add visible card/panel borders for low-vision users. Selectable in Settings → Appearance.
 - **Non-colour status matrix** — every status indicator carries both a glyph and a text label
@@ -66,7 +70,9 @@ to reach the full Routes workbench.
 - **snora AppLayout shell** — header / left sidebar / screen body / bottom drawer; command palette (all 17 commands wired)
 - **Visual rule builder** — URL path + operator, method segment controls, header and body condition rows with full operator coverage, respond editor (inline text / file path / status / delay)
 - **Live Trace panel** — filterable event list, outcome-aware match detail (Matched → jump to rule; Fallback → jump to file; Miss → create rule CTA; Error → kind + message), dropped-event warning
-- **Bottom drawer** — Validation panel grouped by rule set with jump-to-rule navigation; Save-diff panel with rule summaries per dirty file
+- **Bottom drawer** — Validation panel grouped by rule set with jump-to-rule
+  navigation; Save Diff separates the typed last-attempt report from current
+  unsaved workspace and fallback scopes.
 - **Test rule dialog** — fail-closed dry-run evaluation against pinned
   apimock-routing 5.10.0 matcher primitives. Unsupported conditions are reported
   as “Unable to verify,” never as a match or non-match. See the

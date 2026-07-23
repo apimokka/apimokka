@@ -1,8 +1,11 @@
 //! Root-level workspace settings.
 //!
-//! Mirrors `RootSettingKey` + the relevant strategy variants from the
-//! engine. The mockup keeps them in one struct because each Settings
-//! sub-panel reads and writes only one named field at a time.
+//! Local render and prototype state for root-level workspace settings.
+//!
+//! The fourteen reference-backed editable keys map through
+//! [`crate::workspace_port::WorkspaceRootKey`]. Trace controls and strategy
+//! parameters without a usable reference command remain explicit MK-053
+//! `ReferenceGap`s and are not engine-equivalence claims.
 
 #[derive(Debug, Clone)]
 pub struct RootSettings {

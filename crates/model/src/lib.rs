@@ -1,19 +1,16 @@
 //! # apimokka-model
 //!
-//! Pure data types mirroring the `apimock-rs` GUI integration surface
-//! (Workspace, Snapshot, EditCommand, RulePayload, RespondPayload,
-//! ValidationReport, MatchTraceEvent, …).
+//! UI-facing workspace, rendering, validation, and trace data types.
 //!
 //! This crate has **no UI dependency**. It exists so the GUI layer
-//! (`apimokka-app`) and any test fixtures can talk in the same vocabulary
-//! the engine eventually consumes, while the mockup remains decoupled
-//! from a live engine integration. See `apimock-rs-GUI-INTEGRATION-
-//! REFERENCE-v5.10.1.md` for the engine surface this mirrors.
+//! (`apimokka`) and test fixtures can share a typed local contract while the
+//! mockup remains decoupled from a live engine integration.
 //!
-//! All types are deliberately read-mostly. Mockup `apply()` calls in the
-//! sibling `apimokka-app` crate update in-memory copies so the
-//! snapshot-apply loop (RFC-MK-003) is demonstrable without a real
-//! engine connection.
+//! [`workspace_port`] is the authoritative application boundary adopted by
+//! RFC MK-053. It explicitly maps UI concepts to the documented apimock-rs
+//! 5.10.1 semantics; it is not source- or binary-isomorphic with an engine
+//! crate. Older render and prototype types remain for the mock UI and must not
+//! be treated as engine commands or reconstructed canonical state.
 
 pub mod audience;
 pub mod edit_command;

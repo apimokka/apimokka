@@ -1,10 +1,9 @@
-//! Structured editing commands and the result of applying them.
+//! Legacy mockup command shapes retained for render/prototype compatibility.
 //!
-//! Per RFC-MK-003, the UI never mutates the workspace directly — it
-//! dispatches an `EditCommand`, the workspace adapter `apply`s it, and
-//! the new `WorkspaceSnapshot` plus diagnostics drive the next render.
-//! The mockup uses an in-memory adapter; the same command shapes will
-//! map directly to the engine when wired up.
+//! Configuration mutation now uses [`crate::workspace_port::EditIntent`] and
+//! [`crate::workspace_port::WorkspacePort`]. These older index-addressed
+//! shapes are not the MK-053 port contract and do not claim a direct mapping to
+//! a future engine API.
 
 use crate::ids::{NodeId, RuleSetId};
 use crate::respond::RespondPayload;

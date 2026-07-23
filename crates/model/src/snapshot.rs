@@ -1,9 +1,11 @@
 //! The render-ready workspace snapshot.
 //!
-//! Built once per `Workspace::apply()` (here, mock apply) and consumed by
-//! the UI to render the route tree, rule list, and rule editor. Selection
-//! state is **not** in the snapshot — it lives in the UI app state and is
-//! anchored to `NodeId`s so it survives across re-snapshots.
+//! Exposed as the render projection inside
+//! [`crate::workspace_port::PortSnapshot`] and consumed by the UI to render
+//! the route tree, rule list, and rule editor. Canonical rule and condition
+//! state lives beside it in the port snapshot; this projection is lossy and
+//! must not be used to reconstruct canonical history values. Selection state
+//! lives in the app and is anchored to session-scoped `NodeId`s.
 
 use crate::ids::{NodeId, RuleSetId};
 use crate::node::{ConfigFileView, FileNodeView};
@@ -12,8 +14,7 @@ use crate::rule::{BodyConditionPayload, HeaderConditionPayload, RulePayload, Url
 use crate::settings::RootSettings;
 use crate::validation::{Diagnostic, NodeValidation};
 
-/// Top-level workspace identity. Held outside the snapshot because it's
-/// constant for the workspace lifetime.
+/// Top-level workspace identity, immutable for one admitted session.
 #[derive(Debug, Clone)]
 pub struct WorkspaceMeta {
     pub name: String,

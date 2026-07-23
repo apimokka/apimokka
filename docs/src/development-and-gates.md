@@ -136,3 +136,48 @@ dependency, lint, audit, stable, and MSRV implementation gates were not rerun;
 the accepted M2 evidence above remains the observed implementation record. The
 oracle guard and its self-test were rerun because the adopted dependency
 contract is part of MK-052 closure.
+
+## M3 integration-boundary implementation candidate — 2026-07-22
+
+RFC MK-053 replaces direct configuration mutation with the local
+`WorkspacePort` mapping boundary, stable condition identity, atomic semantic
+history, complete snapshot adoption/correlation, runtime request correlation,
+and typed Global Save reporting. The adapter remains in memory; production
+filesystem, subprocess, file-watching, merge, and trace-transport work is not
+included.
+
+The final documentation pass removes direct engine-mirroring claims from the
+model and architecture descriptions, distinguishes canonical port state from
+lossy render/prototype types, records the complete `ReferenceGap` inventory,
+and refreshes the source-size baseline for later M5 planning.
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | Rust formatting is clean |
+| `cargo doc -q --workspace --no-deps --locked` | 0 | Model intra-doc links and workspace documentation build |
+| `cargo test -q --workspace --locked` | 0 | app 187, model 55, model doctests 4 |
+| `cargo +1.91 test -q --workspace --lib --bins --locked` | 0 | app 187 and model 55 on Rust 1.91.1 |
+| stable and Rust 1.91 workspace builds | 0 | Both workspace builds passed |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | 101 | Same four M1/M2 model findings; no new M3 finding before the model crate stopped the gate |
+| `cargo clippy -q -p apimokka --all-targets --all-features --locked` | 0 | Established warnings only; no M3-specific finding |
+| `bash scripts/check-matcher-oracle-self-test.sh` | 0 | 6 checks passed |
+| `bash scripts/check-matcher-oracle.sh` | 0 | apimock-routing 5.10.0 and http 1.4.2 contract verified |
+| `bash scripts/check-rfcs.sh` | 0 | `RFC integrity: 0 error(s)` |
+| `bash scripts/check-rfcs-self-test.sh` | 0 | 25 checks passed |
+| `git diff --check` | 0 | No tracked-file whitespace diagnostics |
+| `cargo audit` | 1 | Same two high-severity quick-xml vulnerabilities and seven allowed warnings; M4 remains owner |
+
+The audit scanned 477 locked packages against 1,167 loaded RustSec advisories.
+The two vulnerabilities remain RUSTSEC-2026-0194 and RUSTSEC-2026-0195 in
+`quick-xml 0.39.4`; the seven allowed warnings remain five unmaintained and two
+unsound transitive crates. This is current M4 input, not a passing security
+gate or a claim of release readiness.
+
+The full M3 range from accepted M2 base `a2213ae` contains 58 tracked paths.
+The inventory includes the accepted app-test extraction, model port/mapping/
+memory modules, app session and behavior-focused test modules, reducer and
+presentation integration, RFC records, and this documentation correction.
+Each implementation slice received independent review before the next slice;
+the final review evaluates the integrated range and does not supersede those
+accepted checkpoint records. M3 remains in review until that verdict and a
+separate lifecycle-closure decision are recorded.

@@ -1,8 +1,9 @@
-//! Match-trace events emitted by the engine for each handled request.
+//! Match-trace presentation events used by the mockup.
 //!
-//! Mirrors `MatchTraceEvent` + `Outcome` from the engine reference.
-//! The mockup constructs these from canned data; in production the GUI
-//! would subscribe to the trace channel (UDS or TCP).
+//! These are currently constructed from canned data. No trace transport is
+//! implemented, and the reference does not establish a usable command shape
+//! for the prototype trace controls; RFC MK-053 records that as a
+//! `ReferenceGap` rather than an engine-mirroring claim.
 
 /// Outcome variant + the small set of fields each variant carries.
 #[derive(Debug, Clone)]

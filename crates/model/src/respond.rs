@@ -2,7 +2,8 @@
 //!
 //! Exactly one of `text` or `file_path` should be set per rule
 //! (RFC validation; external design § 17.6). The GUI enforces this via
-//! a tabbed editor.
+//! a tabbed editor. This is the lossy render/draft form; the canonical port
+//! response is [`crate::workspace_port::RespondDefinition`].
 
 /// Response mode the GUI is currently editing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
