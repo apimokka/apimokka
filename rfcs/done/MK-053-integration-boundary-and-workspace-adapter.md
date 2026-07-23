@@ -1,6 +1,6 @@
 # RFC MK-053 — Integration boundary and workspace adapter
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M3 — Integration boundary.
 **Touches.** Mock workspace ownership, edit intents and engine-command mapping,
 snapshot refresh and selection, stable condition identity, diagnostics and

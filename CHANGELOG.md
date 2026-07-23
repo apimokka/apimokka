@@ -2,6 +2,13 @@
 
 ### Changed
 
+- Configuration editing now uses the RFC MK-053 `WorkspacePort` mapping
+  boundary instead of mutating render snapshots directly. Typed atomic edits,
+  stable condition identities, canonical/render snapshot correlation,
+  semantic undo/redo, runtime request correlation, and historical Global Save
+  reporting are covered by the in-memory contract suite. Production
+  filesystem, process, watcher, merge, and trace-transport integration remains
+  explicitly deferred.
 - Test Rule now evaluates supported conditions through the lockfile-resolved
   apimock-routing 5.10.0 matcher primitives. Unsupported configured methods and
   operators produce a distinct “Unable to verify” outcome; malformed input
