@@ -179,17 +179,20 @@ memory modules, app session and behavior-focused test modules, reducer and
 presentation integration, RFC records, and this documentation correction.
 Each implementation slice received independent review before the next slice;
 the final review evaluates the integrated range and does not supersede those
-accepted checkpoint records. M3 remains in review until that verdict and a
-separate lifecycle-closure decision are recorded.
+accepted checkpoint records. The integrated verdict and separate lifecycle
+closure were accepted on 2026-07-23.
 
-## M3 lifecycle-closure candidate — 2026-07-23
+## M3 lifecycle closure — 2026-07-23
 
 After independent acceptance of the integrated implementation and project-owner
 acceptance of the final documentation corrections, MK-053 moved to `rfcs/done/`
 with `Implemented (Unreleased)`. Its index entry moved to Implemented, the
 Proposed section became explicitly empty, and the Unreleased changelog records
-the delivered boundary without claiming production integration. M3 remains
-`In review` until closure confirmation is accepted.
+the delivered boundary without claiming production integration. Independent
+closure confirmation was accepted in
+`.git-exclude/reviewed/2026-07-23-rfc-mk053-closure-confirmation-review.md`, and
+the project owner committed the closure candidate before M3 was marked
+`Complete`.
 
 | Closure check | Exit | Observed result |
 |---|---:|---|
