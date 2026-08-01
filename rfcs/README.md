@@ -11,8 +11,7 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-
-No RFCs are currently proposed.
+| [MK-055](./proposed/MK-055-engine-contract-conformance.md) | Engine contract conformance | Stabilization roadmap M7 |
 
 ---
 

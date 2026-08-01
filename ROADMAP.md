@@ -366,7 +366,7 @@ RFC identifiers are assigned only when files are created.
 | 2 | Test-rule matcher conformance | M2 | MK-052 Implemented |
 | 3 | GUI editing boundary and apimock-rs mapping/adapter | M3 | MK-053 Implemented |
 | 4 | Release gates, dependency policy, and security exceptions | M4 | MK-054 Implemented |
-| 5 | **Engine contract conformance against apimock-config 5.10.0** | M7 | To be created |
+| 5 | **Engine contract conformance against apimock-config 5.10.0** | M7 | MK-055 Proposed, design accepted |
 | 6 | Reducer, routes, fixtures, and test modularization | M5 | To be created |
 | 7 | UX and accessibility acceptance protocol | M6 | To be created |
 
@@ -433,7 +433,7 @@ condition, owner, and next decision.
 | M2 — Match-test conformance | Complete | Accepted 2026-07-16; MK-052 Implemented (Unreleased); implementation evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-test-rule-matcher-conformance-implementation-second-rereview.md`; dependency-policy evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-compatible-manifest-lockfile-authority-amendment-rereview.md`; closure evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-closure-confirmation-rereview.md` |
 | M3 — Integration boundary | Complete | Accepted 2026-07-23; MK-053 Implemented (Unreleased); integrated implementation evidence: `.git-exclude/reviewed/2026-07-22-rfc-mk053-integrated-implementation-review.md`; closure evidence: `.git-exclude/reviewed/2026-07-23-rfc-mk053-closure-confirmation-review.md` |
 | M4 — Quality and security gates | Complete | Accepted 2026-08-01; MK-054 Implemented (Unreleased); implementation evidence: `.git-exclude/reviewed/2026-08-01-rfc-mk054-quality-and-security-gates-implementation-rereview.md`, committed `160456c`; lifecycle closure prepared by the programme architect and confirmed directly by the project owner on 2026-08-01, without the separate independent closure-confirmation session used for M1–M3 |
-| M7 — Engine contract conformance | Not started | — |
+| M7 — Engine contract conformance | Implementing | MK-055 design accepted and implementation authorized by the project owner 2026-08-01, including resolution of all five review questions; assigned to the dev team via `.git-exclude/tasks/dev-team/003-mk055-engine-contract-conformance.md`. The RFC was authored by the programme architect and confirmed directly by the project owner, without a separate independent design review. |
 | R1 — Blocking re-review | Not started | — |
 | M5 — Maintainable structure | Not started | — |
 | M6 — UX acceptance evidence | Not started | — |
