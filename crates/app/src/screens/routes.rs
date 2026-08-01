@@ -327,40 +327,39 @@ fn centre_panel(app: &App) -> Element<'_, Message> {
     };
 
     // Priority 1: rule selected → rule editor
-    if let Some(rule_id) = app.selection.rule {
-        if let Some((_, rule)) = snap.find_rule(rule_id) {
-            let payload = snap
-                .rule_draft(rule_id)
-                .map(|draft| &draft.payload)
-                .unwrap_or(&rule.payload);
-            return rule_editor(app, rule, payload);
-        }
+    if let Some(rule_id) = app.selection.rule
+        && let Some((_, rule)) = snap.find_rule(rule_id)
+    {
+        let payload = snap
+            .rule_draft(rule_id)
+            .map(|draft| &draft.payload)
+            .unwrap_or(&rule.payload);
+        return rule_editor(app, rule, payload);
     }
 
     // Priority 2: fallback file selected → JSON file editor
     // (must be above rule-set-config: SelectFileRoute clears rule but not rule_set)
-    if let Some(path) = &app.selection.file_route {
-        if let Some(file) = snap
+    if let Some(path) = &app.selection.file_route
+        && let Some(file) = snap
             .fallback_files
             .iter()
             .find(|f| &f.name == path || &f.path == path)
-        {
-            return fallback_file_editor(app, file);
-        }
+    {
+        return fallback_file_editor(app, file);
     }
 
     // Priority 3: middleware script selected → read-only viewer
-    if let Some(path) = &app.selection.script {
-        if let Some(script) = snap.middleware_scripts.iter().find(|s| &s.path == path) {
-            return script_viewer(app, script);
-        }
+    if let Some(path) = &app.selection.script
+        && let Some(script) = snap.middleware_scripts.iter().find(|s| &s.path == path)
+    {
+        return script_viewer(app, script);
     }
 
     // Priority 4: rule set activated (no rule/file/script) → rule set configuration
-    if let (Some(rs_id), None) = (app.selection.rule_set, app.selection.rule) {
-        if let Some(rs) = snap.rule_sets.iter().find(|rs| rs.id == rs_id) {
-            return rule_set_config(app, rs);
-        }
+    if let (Some(rs_id), None) = (app.selection.rule_set, app.selection.rule)
+        && let Some(rs) = snap.rule_sets.iter().find(|rs| rs.id == rs_id)
+    {
+        return rule_set_config(app, rs);
     }
 
     // Empty state — distinguish blank workspace (no rule sets) from "nothing selected"
@@ -679,7 +678,7 @@ fn rule_editor<'a>(
     // Expert mode shows all four cards directly (no change from v0.9.0).
     let when_col = {
         let mut cards: Vec<Element<Message>> = vec![
-            section_head(t(Key::WhenLabel)).into(),
+            section_head(t(Key::WhenLabel)),
             url_path_card(app, p),
             method_card(app, &p.method),
         ];
@@ -931,16 +930,12 @@ fn fallback_file_editor<'a>(
     .spacing(space::S2);
 
     // ── Content editor (multi-line, MK-038) ───────────────────────────────
-    // JSON syntax highlighting via iced's `highlighter` feature (syntect).
-    // Disabled theme: SolarizedDark/InspiredGitHub — pick in Settings (future).
-
     let editor: Element<Message> = if let Some(content) = app.fallback_drafts.get(&file.path) {
         iced::widget::text_editor(content)
             .on_action(Message::FallbackEditorAction)
             .size(size::MONO)
             .font(iced::Font::MONOSPACE)
             .height(Length::Fill)
-            .highlight("json", iced::highlighter::Theme::InspiredGitHub)
             .into()
     } else {
         // Draft is created on selection; this branch is defensive only.

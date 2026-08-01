@@ -292,9 +292,6 @@ pub fn accent_strip_style(t: &Theme) -> container::Style {
 
 /// Left-rail selected destination background.
 #[allow(dead_code)]
-#[allow(dead_code)]
-#[allow(dead_code)]
-#[allow(dead_code)]
 pub fn rail_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let p = ep.primary.base.color;

@@ -19,10 +19,12 @@ use crate::validation::{Diagnostic, NodeValidation, Severity, ValidationIssue};
 /// MK-047: A blank workspace with no rules, created from wizard input.
 /// All settings default to safe values; the user fills in content after creation.
 pub fn blank_workspace(name: &str, host: &str, port: u16, tls: bool) -> WorkspaceSnapshot {
-    let mut settings = RootSettings::default();
-    settings.listener_ip = host.to_string();
-    settings.listener_port = port;
-    settings.tls_enabled = tls;
+    let settings = RootSettings {
+        listener_ip: host.to_string(),
+        listener_port: port,
+        tls_enabled: tls,
+        ..Default::default()
+    };
 
     WorkspaceSnapshot {
         meta: WorkspaceMeta {
@@ -262,8 +264,10 @@ pub fn shop_api_mock() -> WorkspaceSnapshot {
         message: "No include filter is set. All supported files are visible.".into(),
     }];
 
-    let mut settings = RootSettings::default();
-    settings.strategy = Strategy::WeightedRandom;
+    let settings = RootSettings {
+        strategy: Strategy::WeightedRandom,
+        ..Default::default()
+    };
 
     WorkspaceSnapshot {
         meta: WorkspaceMeta {
@@ -518,10 +522,12 @@ pub fn minimal_workspace(name: &str, host: &str, port: u16, tls: bool) -> Worksp
         validation: NodeValidation::default(),
     };
 
-    let mut settings = RootSettings::default();
-    settings.listener_ip = host.to_string();
-    settings.listener_port = port;
-    settings.tls_enabled = tls;
+    let settings = RootSettings {
+        listener_ip: host.to_string(),
+        listener_port: port,
+        tls_enabled: tls,
+        ..Default::default()
+    };
 
     WorkspaceSnapshot {
         meta: WorkspaceMeta {

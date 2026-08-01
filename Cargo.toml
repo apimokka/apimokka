@@ -23,7 +23,7 @@ apimock-routing             = "5"
 http                        = "1.4"
 
 # GUI stack
-iced                        = { version = "0.14", features = ["tokio", "advanced", "highlighter"] }
+iced                        = { version = "0.14", features = ["tokio", "advanced"] }
 snora                       = { version = "0.25", features = ["widgets", "design"] }
 
 # Utility

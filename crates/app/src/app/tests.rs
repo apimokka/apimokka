@@ -134,6 +134,21 @@ fn fallback_json_validity_predicate() {
 }
 
 #[test]
+fn fallback_plain_text_editor_builds_and_preserves_draft_edits() {
+    let mut a = fresh();
+    let path = first_fallback_path(&a);
+    a.update(Message::SelectFileRoute(path.clone()));
+    let edited = "{\"plain_text\":true}";
+    a.fallback_drafts
+        .insert(path.clone(), Content::with_text(edited));
+
+    let _ = crate::screens::routes::view(&a);
+
+    assert_eq!(a.fallback_drafts[&path].text(), edited);
+    assert!(a.is_fallback_dirty(&path));
+}
+
+#[test]
 fn rule_edit_does_not_commit_fallback_drafts() {
     // The load-bearing separation: editing a rule must never silently
     // commit a dirty fallback file draft.
@@ -291,8 +306,10 @@ fn problem_action_routes_to_settings() {
 #[test]
 fn body_size_meets_comfort_floor() {
     // MK-039 comfort: body text is at least 16 px.
-    assert!(crate::theme::size::BODY >= 16.0);
-    assert!(crate::theme::touch::COMFORTABLE >= 52.0);
+    const {
+        assert!(crate::theme::size::BODY >= 16.0);
+        assert!(crate::theme::touch::COMFORTABLE >= 52.0);
+    }
 }
 
 // ── MK-040: audience modes ────────────────────────────────────────────

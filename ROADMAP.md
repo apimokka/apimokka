@@ -459,7 +459,7 @@ blocking condition, owner, and next decision date.
 | M1 — Repository truth | Complete | Accepted 2026-07-15; MK-051 Implemented (Unreleased); evidence: `.git-exclude/reviewed/2026-07-15-rfc-mk051-repository-truth-closure-confirmation-review.md` |
 | M2 — Match-test conformance | Complete | Accepted 2026-07-16; MK-052 Implemented (Unreleased); implementation evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-test-rule-matcher-conformance-implementation-second-rereview.md`; dependency-policy evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-compatible-manifest-lockfile-authority-amendment-rereview.md`; closure evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-closure-confirmation-rereview.md` |
 | M3 — Integration boundary | Complete | Accepted 2026-07-23; MK-053 Implemented (Unreleased); integrated implementation evidence: `.git-exclude/reviewed/2026-07-22-rfc-mk053-integrated-implementation-review.md`; closure evidence: `.git-exclude/reviewed/2026-07-23-rfc-mk053-closure-confirmation-review.md` |
-| M4 — Quality and security gates | Designing | RFC MK-054 proposed 2026-07-23; design review pending |
+| M4 — Quality and security gates | In review | MK-054 integrated implementation and gate evidence prepared 2026-07-23; independent security/release review pending |
 | R1 — Blocking re-review | Not started | — |
 | M5 — Maintainable structure | Not started | — |
 | M6 — UX acceptance evidence | Not started | — |

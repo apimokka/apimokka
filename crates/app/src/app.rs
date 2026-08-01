@@ -886,25 +886,23 @@ impl App {
                 };
                 if let Some(outcome) =
                     self.apply_workspace_intent(EditIntent::AddRuleSet { path, key })
-                {
-                    if let Some(receipt) = outcome
+                    && let Some(receipt) = outcome
                         .creations
                         .iter()
                         .find(|receipt| receipt.kind == WorkspaceNodeKind::RuleSet)
-                    {
-                        let id = RuleSetId(receipt.new_id);
-                        self.selection.select_rule_set(id);
-                        self.rule_set_open = Some(id);
-                        if let Some(archive) = self.archive_rule_set(id) {
-                            let prototypes = self.subtree_prototypes(&archive);
-                            let bindings = subtree_bindings(&archive);
-                            self.push_undo(HistoryEntry::AddedSubtree {
-                                archive,
-                                current_root: id.0,
-                                bindings,
-                                prototypes,
-                            });
-                        }
+                {
+                    let id = RuleSetId(receipt.new_id);
+                    self.selection.select_rule_set(id);
+                    self.rule_set_open = Some(id);
+                    if let Some(archive) = self.archive_rule_set(id) {
+                        let prototypes = self.subtree_prototypes(&archive);
+                        let bindings = subtree_bindings(&archive);
+                        self.push_undo(HistoryEntry::AddedSubtree {
+                            archive,
+                            current_root: id.0,
+                            bindings,
+                            prototypes,
+                        });
                     }
                 }
             }
@@ -933,25 +931,23 @@ impl App {
                     insertion_index,
                     rule,
                     key,
-                }) {
-                    if let Some(receipt) = outcome
-                        .creations
-                        .iter()
-                        .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
-                    {
-                        let new_id = receipt.new_id;
-                        self.selection.select_rule(new_id, rs_id);
-                        self.rule_set_open = Some(rs_id);
-                        if let Some(archive) = self.archive_rule(new_id) {
-                            let prototypes = self.subtree_prototypes(&archive);
-                            let bindings = subtree_bindings(&archive);
-                            self.push_undo(HistoryEntry::AddedSubtree {
-                                archive,
-                                current_root: new_id,
-                                bindings,
-                                prototypes,
-                            });
-                        }
+                }) && let Some(receipt) = outcome
+                    .creations
+                    .iter()
+                    .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
+                {
+                    let new_id = receipt.new_id;
+                    self.selection.select_rule(new_id, rs_id);
+                    self.rule_set_open = Some(rs_id);
+                    if let Some(archive) = self.archive_rule(new_id) {
+                        let prototypes = self.subtree_prototypes(&archive);
+                        let bindings = subtree_bindings(&archive);
+                        self.push_undo(HistoryEntry::AddedSubtree {
+                            archive,
+                            current_root: new_id,
+                            bindings,
+                            prototypes,
+                        });
                     }
                 }
             }
@@ -961,20 +957,19 @@ impl App {
                     .as_ref()
                     .and_then(|snapshot| snapshot.find_rule(id))
                     .and_then(|(set, _)| set.rules.iter().position(|rule| rule.id == id));
-                if let Some(index) = index.filter(|index| *index > 0) {
-                    if self
+                if let Some(index) = index.filter(|index| *index > 0)
+                    && self
                         .apply_workspace_intent(EditIntent::MoveRule {
                             id,
                             new_index: index - 1,
                         })
                         .is_some()
-                    {
-                        self.push_undo(HistoryEntry::MoveRule {
-                            rule_id: id,
-                            before_index: index,
-                            after_index: index - 1,
-                        });
-                    }
+                {
+                    self.push_undo(HistoryEntry::MoveRule {
+                        rule_id: id,
+                        before_index: index,
+                        after_index: index - 1,
+                    });
                 }
             }
             Message::MoveRuleDown(id) => {
@@ -986,17 +981,16 @@ impl App {
                         let index = set.rules.iter().position(|rule| rule.id == id)?;
                         (index + 1 < set.rules.len()).then_some(index + 1)
                     });
-                if let Some(new_index) = target {
-                    if self
+                if let Some(new_index) = target
+                    && self
                         .apply_workspace_intent(EditIntent::MoveRule { id, new_index })
                         .is_some()
-                    {
-                        self.push_undo(HistoryEntry::MoveRule {
-                            rule_id: id,
-                            before_index: new_index - 1,
-                            after_index: new_index,
-                        });
-                    }
+                {
+                    self.push_undo(HistoryEntry::MoveRule {
+                        rule_id: id,
+                        before_index: new_index - 1,
+                        after_index: new_index,
+                    });
                 }
             }
             Message::DeleteRuleSet(id) => {
@@ -1011,15 +1005,13 @@ impl App {
                 let deleted = self
                     .apply_workspace_intent(EditIntent::DeleteRule { id })
                     .is_some();
-                if deleted {
-                    if let Some(archive) = archive {
-                        self.push_undo(HistoryEntry::RemovedSubtree {
-                            bindings: subtree_bindings(&archive),
-                            archive,
-                            current_root: id,
-                            prototypes,
-                        });
-                    }
+                if deleted && let Some(archive) = archive {
+                    self.push_undo(HistoryEntry::RemovedSubtree {
+                        bindings: subtree_bindings(&archive),
+                        archive,
+                        current_root: id,
+                        prototypes,
+                    });
                 }
             }
             Message::DuplicateRule(id) => {
@@ -1065,34 +1057,31 @@ impl App {
                     insertion_index,
                     rule,
                     key,
-                }) {
-                    if let Some(receipt) = outcome
-                        .creations
-                        .iter()
-                        .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
+                }) && let Some(receipt) = outcome
+                    .creations
+                    .iter()
+                    .find(|receipt| receipt.kind == WorkspaceNodeKind::Rule)
+                {
+                    let new_id = receipt.new_id;
+                    self.selection.select_rule(new_id, parent);
+                    if let Some(extra) = self
+                        .snapshot
+                        .as_ref()
+                        .and_then(|session| session.prototype.rule_extras.get(&id))
+                        .cloned()
+                        && let Some(session) = self.snapshot.as_mut()
                     {
-                        let new_id = receipt.new_id;
-                        self.selection.select_rule(new_id, parent);
-                        if let Some(extra) = self
-                            .snapshot
-                            .as_ref()
-                            .and_then(|session| session.prototype.rule_extras.get(&id))
-                            .cloned()
-                        {
-                            if let Some(session) = self.snapshot.as_mut() {
-                                session.prototype.rule_extras.insert(new_id, extra);
-                            }
-                        }
-                        if let Some(archive) = self.archive_rule(new_id) {
-                            let prototypes = self.subtree_prototypes(&archive);
-                            let bindings = subtree_bindings(&archive);
-                            self.push_undo(HistoryEntry::AddedSubtree {
-                                archive,
-                                current_root: new_id,
-                                bindings,
-                                prototypes,
-                            });
-                        }
+                        session.prototype.rule_extras.insert(new_id, extra);
+                    }
+                    if let Some(archive) = self.archive_rule(new_id) {
+                        let prototypes = self.subtree_prototypes(&archive);
+                        let bindings = subtree_bindings(&archive);
+                        self.push_undo(HistoryEntry::AddedSubtree {
+                            archive,
+                            current_root: new_id,
+                            bindings,
+                            prototypes,
+                        });
                     }
                 }
             }
@@ -1384,15 +1373,13 @@ impl App {
                             let removed = self
                                 .apply_workspace_intent(EditIntent::RemoveRuleSet { id })
                                 .is_some();
-                            if removed {
-                                if let Some(archive) = archive {
-                                    self.push_undo(HistoryEntry::RemovedSubtree {
-                                        bindings: subtree_bindings(&archive),
-                                        archive,
-                                        current_root: id.0,
-                                        prototypes,
-                                    });
-                                }
+                            if removed && let Some(archive) = archive {
+                                self.push_undo(HistoryEntry::RemovedSubtree {
+                                    bindings: subtree_bindings(&archive),
+                                    archive,
+                                    current_root: id.0,
+                                    prototypes,
+                                });
                             }
                         }
                         ConfirmAction::DiscardChanges => {
@@ -1502,19 +1489,17 @@ impl App {
                 }
             }
             Message::FallbackFileFormat => {
-                if let Some(path) = self.selection.file_route.clone() {
-                    if let Some(content) = self.fallback_drafts.get(&path) {
-                        let raw = content.text();
-                        // Pretty-print only if the draft parses; otherwise keep as-is.
-                        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
-                            if let Ok(pretty) = serde_json::to_string_pretty(&val) {
-                                self.fallback_drafts.insert(
-                                    path,
-                                    iced::widget::text_editor::Content::with_text(&pretty),
-                                );
-                                self.recompute_dirty();
-                            }
-                        }
+                if let Some(path) = self.selection.file_route.clone()
+                    && let Some(content) = self.fallback_drafts.get(&path)
+                {
+                    let raw = content.text();
+                    // Pretty-print only if the draft parses; otherwise keep as-is.
+                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw)
+                        && let Ok(pretty) = serde_json::to_string_pretty(&val)
+                    {
+                        self.fallback_drafts
+                            .insert(path, iced::widget::text_editor::Content::with_text(&pretty));
+                        self.recompute_dirty();
                     }
                 }
             }
@@ -1525,12 +1510,11 @@ impl App {
                 }
             }
             Message::FallbackFileRevert => {
-                if self.selection.file_route.is_some() {
-                    if let Some(path) = self.selection.file_route.clone() {
-                        if self.is_fallback_dirty(&path) {
-                            self.update(Message::ConfirmRequest(ConfirmAction::RevertFile(path)));
-                        }
-                    }
+                if self.selection.file_route.is_some()
+                    && let Some(path) = self.selection.file_route.clone()
+                    && self.is_fallback_dirty(&path)
+                {
+                    self.update(Message::ConfirmRequest(ConfirmAction::RevertFile(path)));
                 }
             }
         }
@@ -2250,10 +2234,9 @@ impl App {
             self.snapshot
                 .as_mut()
                 .and_then(|session| session.rule_drafts.get_mut(&rule_id)),
-        ) {
-            if let Some(condition) = draft.payload.headers.get_mut(draft_index) {
-                *condition = projected;
-            }
+        ) && let Some(condition) = draft.payload.headers.get_mut(draft_index)
+        {
+            *condition = projected;
         }
     }
 
@@ -2515,10 +2498,9 @@ impl App {
             self.snapshot
                 .as_mut()
                 .and_then(|session| session.rule_drafts.get_mut(&rule_id)),
-        ) {
-            if let Some(condition) = draft.payload.body.get_mut(draft_index) {
-                *condition = projected;
-            }
+        ) && let Some(condition) = draft.payload.body.get_mut(draft_index)
+        {
+            *condition = projected;
         }
     }
 
@@ -3375,10 +3357,10 @@ impl App {
                     .iter_mut()
                     .chain(draft.body_bindings.iter_mut())
                 {
-                    if let DraftBinding::Existing(id) = binding {
-                        if let Some(new_id) = map.get(id) {
-                            *id = *new_id;
-                        }
+                    if let DraftBinding::Existing(id) = binding
+                        && let Some(new_id) = map.get(id)
+                    {
+                        *id = *new_id;
                     }
                 }
                 (map.get(&id).copied().unwrap_or(id), draft)
@@ -4118,19 +4100,17 @@ fn rebind_command(command: &mut HistoryEntry, map: &std::collections::HashMap<No
                 parent,
                 insertion_index,
             } = archive.placement()
+                && let Some(new_parent) = map.get(&parent.0)
+                && let Ok(rebuilt) = apimokka_model::ArchivedSubtree::new(
+                    archive.former_root(),
+                    apimokka_model::RestorePlacement::Rule {
+                        parent: RuleSetId(*new_parent),
+                        insertion_index,
+                    },
+                    archive.nodes().to_vec(),
+                )
             {
-                if let Some(new_parent) = map.get(&parent.0) {
-                    if let Ok(rebuilt) = apimokka_model::ArchivedSubtree::new(
-                        archive.former_root(),
-                        apimokka_model::RestorePlacement::Rule {
-                            parent: RuleSetId(*new_parent),
-                            insertion_index,
-                        },
-                        archive.nodes().to_vec(),
-                    ) {
-                        *archive = rebuilt;
-                    }
-                }
+                *archive = rebuilt;
             }
         }
         HistoryEntry::RootSetting { .. } | HistoryEntry::TracePrototype { .. } => {}

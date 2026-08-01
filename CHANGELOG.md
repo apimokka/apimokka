@@ -2,6 +2,11 @@
 
 ### Changed
 
+- Release-decision checks now run through one repository-owned stable/MSRV,
+  strict-Clippy, audit, and governance gate. The full workspace is warning-free
+  under denied Clippy warnings. The fallback JSON editor remains editable as
+  plain text without iced's optional syntax-highlighter dependency chain, and
+  the retained Wayland build path now resolves patched `quick-xml` 0.41.0.
 - Configuration editing now uses the RFC MK-053 `WorkspacePort` mapping
   boundary instead of mutating render snapshots directly. Typed atomic edits,
   stable condition identities, canonical/render snapshot correlation,

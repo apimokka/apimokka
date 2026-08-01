@@ -26,7 +26,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
 /// Events that pass the live filter (case-insensitive substring on path /
 /// method / outcome label). Empty filter = all events.
-fn filtered_events<'a>(app: &'a App) -> Vec<&'a MatchTraceEvent> {
+fn filtered_events(app: &App) -> Vec<&MatchTraceEvent> {
     let q = app.trace_filter.to_lowercase();
     app.trace
         .iter()
@@ -250,34 +250,34 @@ fn outcome_matched<'a>(
 ) -> iced::widget::Column<'a, Message> {
     col = col.push(text(format!("{} ✓", app.t(Key::TraceMatchedLabel))).size(size::BODY));
 
-    if let Some(snap) = &app.snapshot {
-        if let Some(rs) = snap.rule_sets.get(rs_idx) {
-            let rs_name = rs.file.path.rsplit('/').next().unwrap_or(&rs.file.path);
-            col = col.push(widgets::field_row(
-                app.t(Key::DetailMatchedRuleSet),
-                rs_name,
-            ));
+    if let Some(snap) = &app.snapshot
+        && let Some(rs) = snap.rule_sets.get(rs_idx)
+    {
+        let rs_name = rs.file.path.rsplit('/').next().unwrap_or(&rs.file.path);
+        col = col.push(widgets::field_row(
+            app.t(Key::DetailMatchedRuleSet),
+            rs_name,
+        ));
 
-            if let Some(rule) = rs.rules.get(rule_idx) {
-                let rule_summary = rule.summary();
-                col = col.push(
-                    row![
-                        text(app.t(Key::DetailMatchedRule))
-                            .size(size::CAPTION)
-                            .color(theme::muted(&app.theme()))
-                            .width(Length::Fixed(100.0)),
-                        text(rule_summary).size(size::CAPTION).width(Length::Fill),
-                    ]
-                    .spacing(space::S2)
-                    .align_y(Alignment::Center),
-                );
-                let rule_id = rule.id;
-                col = col.push(
-                    button(text(app.t(Key::DetailJumpToRule)).size(size::BODY))
-                        .on_press(Message::JumpToRule(rule_id))
-                        .padding(Padding::from([space::S2, space::S3])),
-                );
-            }
+        if let Some(rule) = rs.rules.get(rule_idx) {
+            let rule_summary = rule.summary();
+            col = col.push(
+                row![
+                    text(app.t(Key::DetailMatchedRule))
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme()))
+                        .width(Length::Fixed(100.0)),
+                    text(rule_summary).size(size::CAPTION).width(Length::Fill),
+                ]
+                .spacing(space::S2)
+                .align_y(Alignment::Center),
+            );
+            let rule_id = rule.id;
+            col = col.push(
+                button(text(app.t(Key::DetailJumpToRule)).size(size::BODY))
+                    .on_press(Message::JumpToRule(rule_id))
+                    .padding(Padding::from([space::S2, space::S3])),
+            );
         }
     }
     col

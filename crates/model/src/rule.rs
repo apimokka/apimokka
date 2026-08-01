@@ -222,7 +222,7 @@ pub struct BodyConditionPayload {
     pub value: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RulePayload {
     pub url_path: String,
     /// `None` means the URL path is unused. The GUI must not send a value
@@ -237,19 +237,4 @@ pub struct RulePayload {
     pub weight: Option<u32>,
     /// Strategy-specific. Only visible when current Strategy is Priority.
     pub priority: Option<i32>,
-}
-
-impl Default for RulePayload {
-    fn default() -> Self {
-        Self {
-            url_path: String::new(),
-            url_path_op: None,
-            method: String::new(),
-            headers: Vec::new(),
-            body: Vec::new(),
-            respond: RespondPayload::default(),
-            weight: None,
-            priority: None,
-        }
-    }
 }

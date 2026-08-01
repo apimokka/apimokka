@@ -206,3 +206,94 @@ The closure patch changes lifecycle, roadmap, changelog, and evidence
 documentation only. Rust, dependency, lint, audit, stable, and MSRV gates were
 not rerun; the independently accepted M3 implementation evidence above remains
 the observed implementation record.
+
+## M4 quality and security implementation candidate — 2026-07-23
+
+RFC MK-054 removes the optional iced syntax highlighter while preserving the
+fallback JSON editor as an editable plain-text surface, clears the complete
+workspace warning backlog without lint suppression, updates the retained
+Wayland build path to patched `quick-xml`, and adds one canonical local release
+gate with a stubbed command-contract self-test.
+
+### Toolchains and integrated gate
+
+The complete `bash scripts/check-release-gates.sh` run was observed after the
+implementation candidate was assembled. It used repository-local temporary
+storage and exited 0 with `Release gates: all checks passed`.
+
+| Command / probe | Observed result |
+|---|---|
+| `bash --version` | Bash 5.3.15 |
+| `git --version` | Git 2.55.0 |
+| `rustc --version`; `cargo --version` | Rust 1.97.1; Cargo 1.97.1 |
+| `rustc +1.91 --version`; `cargo +1.91 --version` | Rust 1.91.1; Cargo 1.91.1 |
+| `cargo fmt --version` | rustfmt 1.9.0-stable |
+| `cargo clippy --version` | Clippy 0.1.97 |
+| `cargo audit --version` | cargo-audit 0.22.2 |
+| `cargo fmt --all -- --check` | Pass |
+| `cargo test --workspace --lib --bins --locked` | Pass: app 188, model 55; app/i18n library targets contain no unit tests |
+| `cargo test --workspace --doc --locked` | Pass: four model compile-fail doctests; app/i18n have none |
+| `cargo build --workspace --locked` | Pass |
+| `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | Pass with no warnings |
+| `cargo +1.91 test --workspace --lib --bins --locked` | Pass: app 188, model 55 |
+| `cargo +1.91 build --workspace --locked` | Pass |
+| `cargo audit` | Pass: zero vulnerabilities; five allowed warnings inventoried below |
+| matcher oracle self-test / checker | Pass: 6 checks; apimock-routing 5.10.0 and http 1.4.2 verified |
+| RFC checker self-test / checker | Pass: 25 checks; 0 errors |
+| `git diff --check` | Pass: no tracked whitespace diagnostics |
+
+The first sandboxed integrated attempt reached `cargo audit` after the preceding
+stable and MSRV gates passed, then exited 1 because the sandbox made the
+advisory-database lock path read-only. The complete command was rerun outside
+that restriction and passed from its first probe through its final whitespace
+gate. The passing rerun, not the environmental failure, is the candidate gate
+evidence.
+
+The separately invoked
+`bash scripts/check-release-gates-self-test.sh` passed 11 cases. Its independent
+NUL-delimited argv log verifies the complete successful command order and exact
+arguments. It also covers first-format, middle-Clippy, and final-Git failure
+propagation; missing Rust 1.91, rustfmt, Clippy, cargo-audit, and Git; temporary-
+directory failure; unsupported arguments; and invocation outside the repository
+root. No real Rust suite runs inside those stub cases.
+
+Focused command
+`cargo test -p apimokka fallback_plain_text_editor_builds_and_preserves_draft_edits
+--locked` passed one test. It builds the fallback editor with plain-text JSON,
+preserves the edited draft, and keeps the draft dirty for the normal save flow.
+
+### Dependency and audit evidence
+
+`Cargo.lock` now contains these reviewed registry identities:
+
+| Package | Version | Source | Checksum |
+|---|---:|---|---|
+| `quick-xml` | 0.41.0 | `registry+https://github.com/rust-lang/crates.io-index` | `e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1` |
+| `wayland-scanner` | 0.31.11 | `registry+https://github.com/rust-lang/crates.io-index` | `338e30461b3a2b67d70eb30a6d89f8e0c93a833e07d2ae89085cd070c4a00ac0` |
+
+Locked Cargo metadata reports the same two versions and crates.io sources.
+Manifest/config inspection found no patch, Git dependency, alternate registry,
+vendored source, or source replacement. The resolved feature graph contains one
+`quick-xml` package, reached only through the `wayland-scanner` proc-macro path,
+and retains iced X11 and Wayland features. `iced_highlighter`, `syntect`,
+`plist`, `bincode`, and `yaml-rust` are absent from `Cargo.lock` and the active
+graph.
+
+The passing audit scanned 460 locked packages against 1,167 advisories. Its
+database revision was `b54e9b51596ad6a02ca5355c1f2743cc5b5d502f`, timestamped
+`2026-07-22T19:32:51+02:00`. No vulnerability or exception remains. The five
+allowed warnings are recorded, but are not silently promoted beyond the M4
+policy:
+
+| Advisory | Package | Version | Category | Resolved workspace dependency path |
+|---|---|---:|---|---|
+| RUSTSEC-2024-0436 | `paste` | 1.0.15 | unmaintained | `paste → metal → wgpu-hal → wgpu → iced_wgpu → iced_renderer → iced → apimokka` (Apple Metal target path) |
+| RUSTSEC-2026-0206 | `rustybuzz` | 0.20.1 | unmaintained | `rustybuzz → usvg → resvg → iced_tiny_skia → iced_renderer → iced → apimokka`; also `rustybuzz → usvg → resvg → iced_wgpu → iced_renderer → iced → apimokka` |
+| RUSTSEC-2026-0192 | `ttf-parser` | 0.25.1 | unmaintained | Font/text: `ttf-parser → fontdb → cosmic-text → iced_graphics → iced_program → iced_winit → iced → apimokka`; window decoration: `ttf-parser → owned_ttf_parser → ab_glyph → sctk-adwaita → winit → iced_winit → iced → apimokka`; SVG: `ttf-parser → rustybuzz → usvg → resvg → iced_tiny_skia → iced_renderer → iced → apimokka` |
+| RUSTSEC-2026-0190 | `anyhow` | 1.0.102 | unsound | No resolved workspace path: both host and `--target all` inverse trees are empty. It is lockfile-only unreachable residue referenced by the `wasm-metadata`, `wit-bindgen-core`, `wit-bindgen-rust`, `wit-bindgen-rust-macro`, `wit-component`, and `wit-parser` lock entries. |
+| RUSTSEC-2026-0186 | `memmap2` | 0.9.10 | unsound | Font/text: `memmap2 → fontdb → cosmic-text → iced_graphics → iced_program → iced_winit → iced → apimokka`; Wayland decoration: `memmap2 → sctk-adwaita → winit → iced_winit → iced → apimokka`; clipboard: `memmap2 → smithay-client-toolkit → smithay-clipboard → clipboard_wayland → window_clipboard → iced_winit → iced → apimokka`; software rendering: `memmap2 → softbuffer → iced_tiny_skia → iced_renderer → iced → apimokka` |
+
+Explicit no-index whitespace checks for both untracked release-gate scripts
+returned the expected exit 1 with no whitespace diagnostics. The scripts are
+executable. M4 is `In review`: this evidence does not claim independent
+acceptance, milestone completion, R1 GO, release eligibility, or a release.
