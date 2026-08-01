@@ -350,3 +350,45 @@ closure patch changed no Rust source, manifest, or lockfile.
 This acceptance closes MK-054 and completes M4 only. It does not decide R1,
 claim release eligibility, or authorize a release, a version bump, a tag, or a
 push.
+
+## M4 security-evidence addendum — 2026-08-01
+
+`cargo audit` now reports **six** allowed warnings where the accepted M4
+evidence above recorded five. The M4 record is not rewritten: it was accurate
+when observed on 2026-07-23 and remains the frozen implementation evidence.
+This addendum records what changed after it.
+
+What changed is the advisory database, not the dependency graph. `Cargo.lock`
+is untouched since the M4 candidate, the same 460 packages are scanned, and the
+resolved versions are unchanged. The database moved from revision
+`b54e9b51596ad6a02ca5355c1f2743cc5b5d502f` (1,167 advisories, timestamped
+`2026-07-22T19:32:51+02:00`) to `685d32fd681b540aa64019820639613c5a4fd922`
+(1,177 advisories, timestamped `2026-07-31T18:37:42+02:00`).
+
+The additional warning, recorded to the same advisory ID, package, version,
+category, and dependency-path contract as the M4 inventory:
+
+| Advisory | Package | Version | Category | Resolved workspace dependency path |
+|---|---|---:|---|---|
+| RUSTSEC-2026-0221 | `event-listener` | 5.4.1 | unsound | `event-listener → async-broadcast → zbus → mundy → iced_winit → iced → apimokka` (desktop appearance detection; also reached via `async-lock`, `async-process`, and `event-listener-strategy` branches of the same `zbus` subtree) |
+
+The advisory is titled "`event-listener` allows `!Send` tags to cross thread
+boundaries via `StackSlot`" and carries advisory date 2026-07-13, which is
+earlier than the M4 database revision. Since the M4 run did not report it, the
+inference — not an independently verified fact — is that it entered the
+database after that revision was taken. It is reachable on `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`, and
+`aarch64-apple-darwin`, so it is not platform-conditional.
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `cargo audit` | 0 | Zero vulnerabilities; six allowed warnings; 1,177 advisories loaded; 460 packages scanned |
+
+This does not reopen M4. RFC MK-054's security policy blocks completion on a
+remaining or newly disclosed **vulnerability**; unmaintained and unsound
+warnings are inventoried rather than promoted to blocking. No vulnerability
+exists, no exception was added, and the blocking `cargo audit` gate passes.
+
+R1 should expect six allowed warnings when it re-runs the canonical gate, and
+should treat this addendum rather than the 2026-07-23 count as the current
+inventory. Warning counts are expected to drift with the advisory database
+between milestones; that drift is not by itself a gate regression.
