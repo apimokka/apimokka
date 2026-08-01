@@ -61,8 +61,9 @@ to reach the full Routes workbench.
   save outcomes, and runtime effects pass through an in-memory `WorkspacePort`.
   This implements the reviewed local MK-053 mapping without claiming a direct
   engine API mirror or performing real file I/O.
-- **Undo / redo** — GUI-owned semantic history (⌘Z / ⌘⇧Z) applies compensating
-  port transactions and rebinds recreated node identities.
+- **Undo / redo** — GUI-owned semantic history (Ctrl+Z / Ctrl+Shift+Z, ⌘Z /
+  ⌘⇧Z on macOS) applies compensating port transactions and rebinds recreated
+  node identities.
 - **MK-038 fallback file lifecycle** — two-buffer (saved baseline + draft), explicit Save, confirmed Revert, live JSON validity badge
 - **Snora Design tokens** — built on snora 0.25's design system: WCAG-AA contrast-tested color presets with four themes (Light, Dark, **High Contrast Light, High Contrast Dark**). High-contrast modes add visible card/panel borders for low-vision users. Selectable in Settings → Appearance.
 - **Non-colour status matrix** — every status indicator carries both a glyph and a text label

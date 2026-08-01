@@ -4258,36 +4258,14 @@ impl App {
         use iced::keyboard::{self, key::Named};
         keyboard::listen().map(|event| {
             if let iced::keyboard::Event::KeyPressed { key, modifiers, .. } = event {
-                match key {
-                    iced::keyboard::Key::Named(Named::Escape) => {
-                        return Message::EscapePressed;
-                    }
-                    iced::keyboard::Key::Character(ref c)
-                        if c.as_str() == "k" && (modifiers.command() || modifiers.control()) =>
-                    {
-                        return Message::ToggleCommandPalette;
-                    }
-                    // MK-045: ⌘Z / Ctrl+Z → Undo; ⌘⇧Z / Ctrl+Shift+Z / Ctrl+Y → Redo
-                    iced::keyboard::Key::Character(ref c)
-                        if c.as_str() == "z"
-                            && (modifiers.command() || modifiers.control())
-                            && !modifiers.shift() =>
-                    {
-                        return Message::Undo;
-                    }
-                    iced::keyboard::Key::Character(ref c)
-                        if c.as_str() == "z"
-                            && (modifiers.command() || modifiers.control())
-                            && modifiers.shift() =>
-                    {
-                        return Message::Redo;
-                    }
-                    iced::keyboard::Key::Character(ref c)
-                        if c.as_str() == "y" && modifiers.control() && !modifiers.command() =>
-                    {
-                        return Message::Redo;
-                    }
-                    _ => {}
+                if key == iced::keyboard::Key::Named(Named::Escape) {
+                    return Message::EscapePressed;
+                }
+                // Dev-team handoff 002: key/modifier matching lives in the
+                // accelerator table, not inline arms, so it cannot drift
+                // from the palette's displayed shortcuts.
+                if let Some(message) = crate::accelerator::match_pressed(&key, modifiers) {
+                    return message;
                 }
             }
             Message::Noop

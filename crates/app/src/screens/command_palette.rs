@@ -1,4 +1,5 @@
 //! MK-033 — Command palette dialog.
+use crate::accelerator::{self, Accelerator};
 use crate::app::App;
 use crate::message::Message;
 use crate::selection::WorkspaceTab;
@@ -8,18 +9,23 @@ use apimokka_i18n::Key;
 use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
 
-#[allow(dead_code)]
-struct Cmd {
-    label: Key,
-    shortcut: Option<&'static str>,
-    msg: Message,
-}
-
 pub fn view(app: &App) -> Element<'_, Message> {
     let cmds: &[(Key, Option<&'static str>, Message)] = &[
-        (Key::PaletteCmdUndo, Some("⌘Z"), Message::Undo),
-        (Key::PaletteCmdRedo, Some("⌘⇧Z"), Message::Redo),
-        (Key::PaletteCmdSave, Some("⌘S"), Message::Save),
+        (
+            Key::PaletteCmdUndo,
+            Some(accelerator::display(Accelerator::Undo)),
+            Message::Undo,
+        ),
+        (
+            Key::PaletteCmdRedo,
+            Some(accelerator::display(Accelerator::Redo)),
+            Message::Redo,
+        ),
+        (
+            Key::PaletteCmdSave,
+            Some(accelerator::display(Accelerator::Save)),
+            Message::Save,
+        ),
         (Key::PaletteCmdAddRule, None, Message::AddRuleFromPalette),
         (Key::PaletteCmdAddRuleSet, None, Message::AddRuleSet),
         (Key::PaletteCmdTestRule, None, Message::TestRuleOpen),
@@ -35,7 +41,11 @@ pub fn view(app: &App) -> Element<'_, Message> {
             Message::OpenSaveDiffDrawer,
         ),
         (Key::PaletteCmdStartServer, None, Message::StartStopServer),
-        (Key::PaletteCmdReload, Some("⌘R"), Message::ReloadConfig),
+        (
+            Key::PaletteCmdReload,
+            Some(accelerator::display(Accelerator::Reload)),
+            Message::ReloadConfig,
+        ),
         (Key::PaletteCmdRestart, None, Message::RestartServer),
         (
             Key::PaletteCmdSwitchWorkspace,
@@ -114,7 +124,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 text(app.t(Key::PaletteTitle))
                     .size(size::SECTION)
                     .width(Length::Fill),
-                container(text("⌘K").size(size::CAPTION))
+                container(text(accelerator::display(Accelerator::Palette)).size(size::CAPTION))
                     .padding(Padding::from([2.0, 8.0]))
                     .style(theme::chip_style),
                 container(text("Esc").size(size::CAPTION))

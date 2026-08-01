@@ -1,3 +1,4 @@
+mod accelerator;
 mod app;
 mod match_test;
 mod message;
