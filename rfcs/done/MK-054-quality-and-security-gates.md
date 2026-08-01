@@ -1,6 +1,6 @@
 # RFC MK-054 — Quality and security gates
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M4 — Quality and security gates.
 **Touches.** Rust warnings and lints, the iced feature surface, `Cargo.lock`,
 release-gate automation, security evidence, and M4/R1 documentation.
@@ -388,4 +388,5 @@ a single entry point without choosing a hosting platform in M4.
 5. Is one integrated implementation review sufficient for this bounded M4
    changeset?
 
-Creation of this Proposed RFC does not authorize implementation.
+Implementation was not authorized merely by creation of the proposed RFC; the
+project owner authorized it separately after design acceptance.

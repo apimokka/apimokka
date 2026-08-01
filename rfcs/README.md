@@ -11,7 +11,8 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-| [MK-054](./proposed/MK-054-quality-and-security-gates.md) | Quality and security gates | Stabilization roadmap M4 |
+
+No RFCs are currently proposed.
 
 ---
 
@@ -52,6 +53,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-051](./done/MK-051-repository-truth-and-rfc-integrity.md) | Repository truth and RFC integrity | Unreleased |
 | [MK-052](./done/MK-052-test-rule-matcher-conformance.md) | Test Rule matcher conformance | Unreleased |
 | [MK-053](./done/MK-053-integration-boundary-and-workspace-adapter.md) | Integration boundary and workspace adapter | Unreleased |
+| [MK-054](./done/MK-054-quality-and-security-gates.md) | Quality and security gates | Unreleased |
 
 ---
 

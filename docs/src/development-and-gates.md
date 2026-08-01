@@ -297,3 +297,56 @@ Explicit no-index whitespace checks for both untracked release-gate scripts
 returned the expected exit 1 with no whitespace diagnostics. The scripts are
 executable. M4 is `In review`: this evidence does not claim independent
 acceptance, milestone completion, R1 GO, release eligibility, or a release.
+
+## M4 lifecycle-closure candidate — 2026-08-01
+
+Independent rereview accepted the integrated MK-054 implementation in
+`.git-exclude/reviewed/2026-08-01-rfc-mk054-quality-and-security-gates-implementation-rereview.md`,
+and the project owner committed it as `160456c`. The project owner then
+authorized this lifecycle-closure patch. MK-054 moved to `rfcs/done/` with
+`Implemented (Unreleased)`, its index entry moved to Implemented, and the
+Proposed section became explicitly empty. Its historical
+implementation-authorization sentence was recast in past tense, matching the
+MK-052 closure precedent. The Unreleased changelog entry now cites the RFC
+number so the delivered gate work is traceable from the release record.
+
+The architecture source-size baseline was refreshed in the same patch. The
+2026-07-22 table predated the MK-054 warning and highlighter changes and had
+drifted on five files: `app.rs` 4,363 to 4,343, `screens/routes.rs` 1,547 to
+1,542, `model/mock.rs` 537 to 543, `theme.rs` 420 to 417, and `app/tests.rs`
+381 to 398. These remain recorded facts for M5 planning, not exceptions to the
+project guideline.
+
+| Closure check | Exit | Observed result |
+|---|---:|---|
+| `bash scripts/check-rfcs-self-test.sh` | 0 | 25 checks passed |
+| `bash scripts/check-rfcs.sh` | 0 | `RFC integrity: 0 error(s)` |
+| `bash scripts/check-matcher-oracle-self-test.sh` | 0 | 6 checks passed |
+| `bash scripts/check-matcher-oracle.sh` | 0 | apimock-routing 5.10.0 and http 1.4.2 contract verified |
+| `git diff --check` | 0 | No tracked-file whitespace diagnostics |
+| `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | 0 | Reproduced green on the closure tree |
+
+The closure patch changes lifecycle, index, changelog, and evidence
+documentation only. No Rust source, manifest, or lockfile changed, so the
+stable, MSRV, audit, and full release-gate runs were not repeated; the
+independently accepted 2026-07-23 M4 implementation evidence above remains the
+observed implementation record. The Clippy line was reproduced because it is
+inexpensive against the existing build fingerprints and confirms the closure
+tree is the accepted tree.
+
+The project owner reviewed and accepted this closure candidate on 2026-08-01,
+and M4 moved to `Complete`.
+
+The confirmation route differed from M1–M3 and is recorded rather than
+smoothed over. Those closures each received a separate independent
+closure-confirmation review. This candidate was prepared by the programme
+architect, who is also the project's implementation reviewer, so an
+independent confirmation would have required a reviewer outside that role. The
+project owner — M4's named evidence approver in the ownership table —
+performed the confirmation directly instead. The substance being confirmed had
+already passed independent security/release review on 2026-08-01, and the
+closure patch changed no Rust source, manifest, or lockfile.
+
+This acceptance closes MK-054 and completes M4 only. It does not decide R1,
+claim release eligibility, or authorize a release, a version bump, a tag, or a
+push.
