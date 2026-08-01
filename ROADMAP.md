@@ -1,16 +1,16 @@
 # apimokka — Stabilization roadmap
 
-**Planning baseline:** 2026-07-15
+**Baseline revised:** 2026-08-01
 
-**Current release:** v0.10.0
+**Current release:** v0.10.0 (no release is planned from this programme)
 
-**Current decision:** NO-GO for production integration or a new release
+**Current decision:** NO-GO for production integration
 
 **Permitted use:** internal UI/UX exploration with the mockup limitations disclosed
 
-This roadmap turns the architecture preparation review into a dependency-ordered
-stabilization programme. It defines schedule, milestones, review points, and the
-RFC work that follows. Detailed design belongs in RFCs; this file remains the
+This roadmap is **dependency-ordered, not calendar-ordered**. It defines what
+must be done, in what order, and what evidence closes each step. It does not
+assign dates. Detailed design belongs in RFCs; this file remains the
 programme-level source of truth.
 
 The repository is a UI/UX mockup until the Integration Readiness milestone is
@@ -23,53 +23,55 @@ The programme is complete when apimokka is a trustworthy executable
 specification for a production GUI effort:
 
 - match-test behavior is conformant with the supported apimock-rs operators;
-- the editing boundary is either engine-isomorphic or has an explicitly designed,
-  tested mapping;
+- the editing boundary has a mapping verified against the real apimock-rs
+  configuration contract, with every remaining divergence recorded;
 - repository governance records agree and are mechanically checked;
-- formatting, tests, builds, lints, and the security policy pass on the declared
-  toolchains;
+- formatting, tests, builds, lints, and the security policy pass on the
+  declared toolchains;
 - central modules and tests follow the project's maintainability rules;
 - the principal workflows have current visual, keyboard, and EN/JA evidence; and
 - an independent architecture re-review records a GO decision.
 
-## Planning assumptions
+## Working assumptions
 
-- One primary implementer is available for four delivery days per week. The
-  fifth day is reserved for design, review response, gates, and evidence.
-- Independent design review is planned to return within three working days.
-  Longer review turnaround moves the dependent window rather than consuming
-  implementation reserve.
-- No planned leave is included. Reviewer, participant, or implementer absence
-  reduces calendar confidence and must be recorded in the progress table.
-- Independent review and UX preparation may run in parallel when they do not
-  alter the same design baseline.
-- Target dates are planning ranges, not release promises. An RFC review or failed
-  gate may move later milestones.
 - Rust 1.91 remains the declared MSRV until an approved RFC changes it. Current
   stable is an additional verification target.
-- apimock-rs 5.10.1 is the authoritative integration contract unless a newer
-  engine reference is explicitly adopted before the integration-boundary RFC.
+- `apimock-config`, `apimock-routing`, and `apimock-server` 5.10.0 are published
+  on crates.io with MSRV 1.91.0. The documented 5.10.1 GUI integration reference
+  describes the intended contract but was never published; 5.10.0 is the
+  authoritative executable artifact unless a newer release is explicitly
+  adopted.
+- No production file I/O, subprocess control, trace socket, or Rhai editing is
+  added by this programme. Engine crates may be adopted as **test-only**
+  dev-dependencies where that is the only way to verify a contract.
+- **apimokka is intended to be cross-platform** across Linux, macOS, and
+  Windows. Only Linux has been exercised to date. `README.md` currently states
+  a Linux prerequisite and attributes it to iced 0.14; that attribution is
+  incorrect and the statement must be corrected. Platform support is a project
+  scope decision, not a framework constraint.
+- mdBook documentation is **not** required of this mockup. It is a requirement
+  of the production GUI project and is recorded in the deferred list.
 - Existing v0.10.0 behavior remains usable for internal UX review while
   stabilization proceeds, but known match-test limitations must be disclosed.
-- No production file I/O, subprocess control, trace socket, or Rhai editing is
-  added by this programme. Those require a later production-integration roadmap.
+- Independent review and UX preparation may run in parallel when they do not
+  alter the same design baseline.
 
-Calendar confidence is **medium** through M2 and **low** from M3 onward until the
-engine-reuse feasibility check, independent reviewer availability, and UX
-participant availability are recorded. Each milestone includes design/review and
-evidence time; implementation is not assumed to begin on its first day.
+Implementation throughput has not been the programme's constraint. Review and
+decision turnaround, and the availability of real UX participants, have been.
+Sequencing below reflects that.
 
 ## Ownership and approval
 
 These role assignments apply until the project owner records a replacement:
 
-| Milestone | Accountable owner | Delivery owner | Independent reviewer | Evidence approver |
+| Step | Accountable owner | Delivery owner | Independent reviewer | Evidence approver |
 |---|---|---|---|---|
 | M0 | Project owner (nabbisen) | Programme architect | Architecture auditor | Project owner |
 | M1 | Project owner | RFC author / assigned implementer | Architecture auditor | Project owner |
 | M2 | Project owner | RFC author / assigned implementer | Engine-conformance reviewer | Project owner |
 | M3 | Project owner | RFC author / assigned implementer | Architecture auditor | Project owner |
 | M4 | Project owner | Assigned implementer | Security/release reviewer | Project owner |
+| M7 | Project owner | RFC author / assigned implementer | Engine-conformance reviewer | Project owner |
 | R1 | Project owner | — | Architecture auditor | Project owner |
 | M5 | Project owner | RFC author / assigned implementer | Architecture auditor | Project owner |
 | M6 | Project owner and session coordinator | Assigned implementer / UX facilitator | UX/accessibility reviewer | Project owner |
@@ -77,227 +79,184 @@ These role assignments apply until the project owner records a replacement:
 
 The named delivery person must be recorded in the relevant RFC before
 implementation begins. An author or implementer does not independently approve
-their own milestone exit evidence.
+their own milestone exit evidence. When no reviewer independent of the author
+is available for a step, the project owner performs the confirmation directly
+and the deviation is recorded in `docs/src/development-and-gates.md`.
 
-## Schedule at a glance
+## Milestone numbering
 
-| Milestone | Target window | Purpose | Release state |
-|---|---|---|---|
-| M0 — Planning approval | 2026-07-15 to 2026-07-22 | Agree scope, order, gates, ownership, and RFC queue | No release |
-| M1 — Repository truth | 2026-07-23 to 2026-08-05 | RFC/review (1 week), repair/evidence (1 week) | No release |
-| M2 — Match-test conformance | 2026-08-06 to 2026-08-26 | RFC/review (1 week), implementation/evidence (2 weeks) | No release |
-| M3 — Integration boundary | 2026-08-27 to 2026-10-07 | RFC/architecture review (3 weeks), seam preparation and implementation/rework (3 weeks) | No release |
-| M4 — Quality and security gates | 2026-10-08 to 2026-10-21 | Close residual issues and capture final evidence | Stabilization candidate |
-| R1 — Blocking re-review | 2026-10-22 to 2026-10-28 | Frozen-input re-review of architecture findings B1–B5 | Release decision |
-| M5 — Maintainable structure | RFC: 2026-10-08 to 2026-10-21; delivery: 2026-10-29 to 2026-11-18 | Split oversized modules and tests safely | No new behavior |
-| M6 — UX acceptance evidence | Preparation: 2026-10-08 to 2026-11-18; sessions/fix/re-test: 2026-11-19 to 2026-12-09 | Validate usability, visual, input, and EN/JA outcomes | Readiness candidate |
-| R2 — Integration readiness | 2026-12-10 to 2026-12-16 | Frozen-input final evidence review and baseline decision | GO/NO-GO |
+Milestone identifiers are assigned on creation and are **never reused or
+renumbered**, for the same reason RFC numbers are not: dozens of review records
+reference them. An identifier therefore does not indicate sequence position.
+**The work sequence below is the authority on order.**
 
-The critical path is M0 → M1 → M2 → M3 → M4 → R1 → M5/M6 → R2. M5 RFC
-design and M6 protocol/participant preparation may overlap M4 and R1 after the
-M3 boundary is stable. Their implementation and acceptance findings do not
-alter frozen R1 inputs. R2 requires both M5 and M6.
+## Work sequence
 
-R1 and R2 each reserve one full week. Inputs freeze at the end of the preceding
-window; material changes during review invalidate affected evidence and require
-targeted re-review.
+```text
+M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M7 ─ R1 ─┬─ M5 ─┬─ R2
+ (all complete)                    └─ M6 ─┘
+                                   └─ production-integration roadmap (draft only)
+```
+
+| Order | Step | Prerequisite | State |
+|---:|---|---|---|
+| 1 | M0 — Planning approval | — | Complete |
+| 2 | M1 — Repository truth | M0 | Complete |
+| 3 | M2 — Match-test conformance | M1 | Complete |
+| 4 | M3 — Integration boundary | M2 | Complete |
+| 5 | M4 — Quality and security gates | M3 | Complete |
+| 6 | **M7 — Engine contract conformance** | M4 | Not started |
+| 7 | R1 — Blocking re-review | M7 | Not started |
+| 8 | M5 — Maintainable structure | R1 GO | Not started |
+| 9 | M6 — UX acceptance evidence | R1 GO | Not started |
+| 10 | R2 — Integration readiness | M5 and M6 | Not started |
+
+M5 and M6 run in parallel after R1. The production-integration roadmap is
+drafted in parallel after R1 GO; drafting authorizes no features.
+
+**M6 participants are the only prerequisite that cannot be satisfied from
+inside this repository.** Identifying a Guided newcomer and an Expert
+apimock-rs user should begin as soon as M6 protocol design starts, because that
+recruitment — not implementation — will gate R2.
+
+R1 and R2 operate on frozen inputs. Inputs freeze when the preceding step is
+accepted; material changes during review invalidate affected evidence and
+require targeted re-review.
 
 ## Programme-wide gate cadence
 
-Quality and security checks start at M1; M4 is the final remediation and
-evidence milestone, not the first time they run.
-
-At every implementation milestone checkpoint and exit on current stable:
+The canonical gate is the repository-owned script adopted in MK-054:
 
 ```sh
-cargo fmt --check
-cargo test --workspace --lib --bins --locked
-cargo build --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
+bash scripts/check-release-gates.sh
 ```
 
-Rust 1.91 build and test checks run at the M1 baseline, after every dependency or
-feature change, and at each implementation milestone exit:
+It runs the stable and Rust 1.91 test/build gates, strict Clippy, `cargo
+audit`, the matcher-oracle and RFC-integrity checkers, and the whitespace gate,
+stopping on first failure. Its self-test
+(`bash scripts/check-release-gates-self-test.sh`) verifies the exact command
+contract. Future CI should call this script rather than duplicate its command
+list.
 
-```sh
-cargo +1.91 test --workspace --lib --bins --locked
-cargo +1.91 build --workspace --locked
-```
+Run the canonical gate at every implementation checkpoint and at every step
+exit. Documentation-only changes may record which gates were not rerun and why,
+as M1–M4 closures did.
 
-`cargo audit` runs at the M1 baseline, whenever `Cargo.lock` or dependency
-features change, and at milestone exits. Any approved advisory exception must be
-repository-owned and machine-checked. Its record must include advisory ID,
-dependency path, exploitability analysis, decision owner, approval date, expiry,
-and remediation trigger. The policy check must fail for an unapproved or expired
-exception even when `cargo audit` continues to print the advisory.
+Two additions follow from decisions recorded after MK-054:
 
-## Milestones
+- **`cargo doc --workspace --no-deps --locked`** joins the gate. It ran once in
+  M3 to validate model intra-doc links and was never repeated, so link rot goes
+  undetected. `cargo test --workspace --doc` covers doctests, which is a
+  different check.
+- **Cross-platform verification.** The canonical gate proves one host platform.
+  Because the project is intended to support Linux, macOS, and Windows, a
+  build-and-test run on each supported platform is required before R2, and a
+  platform must not be claimed as supported without a recorded run. `cargo
+  audit` is unaffected, since `Cargo.lock` is target-independent.
 
-### M0 — Planning approval
+Cross-platform verification is performed **manually and recorded as evidence**,
+not through CI. MK-054's deferral of hosted CI stands, and cross-platform scope
+does not overturn it:
 
-**Goal:** establish one agreed stabilization plan before detailed RFC design.
+- the mockup contains no filesystem, process, or network code, so a successful
+  build on another platform carries little information;
+- what actually varies across platforms here is rendering, font metrics, window
+  decoration, layout overflow, and high-contrast behaviour, none of which a
+  build gate can assess. Those are validated by human inspection in M6;
+- the number of remaining verification events before this repository is
+  absorbed into the production project is small and bounded, so CI setup and
+  maintenance would not amortize.
 
-Deliverables:
+CI belongs to the production GUI project, which will be long-lived and will
+carry genuinely platform-dependent code — path resolution, subprocess control,
+and a trace transport whose UDS option is Unix-only and needs a TCP path on
+Windows. It is recorded in the deferred list on that basis.
 
-- this roadmap approved or revised by the project owner;
-- milestone scope, ordering, and gate policy accepted;
-- RFC topics ordered for detailed design;
-- accountable owner, delivery role, independent reviewer, and evidence approver
-  assigned for every milestone;
-- reviewer and UX-participant availability risks recorded.
+Any approved advisory exception must be repository-owned and machine-checked.
+Its record must include advisory ID, dependency path, exploitability analysis,
+decision owner, approval date, expiry, and remediation trigger. The policy
+check must fail for an unapproved or expired exception even when `cargo audit`
+continues to print the advisory.
 
-Exit gate:
+## Completed steps
 
-- the project owner approves the roadmap review request;
-- open planning objections are recorded here rather than left implicit.
+Scope and exit criteria for M0–M4 are preserved in their RFCs and in
+`docs/src/development-and-gates.md`. Summary of what each established:
 
-### M1 — Repository truth
+- **M0 — Planning approval.** Agreed scope, ordering, gate policy, ownership,
+  and the RFC queue.
+- **M1 — Repository truth (MK-051).** Rebuilt the RFC index from disk,
+  reconciled versions and Status fields, recorded the snora de-vendoring, and
+  added the executable RFC-integrity checker.
+- **M2 — Match-test conformance (MK-052).** Made Test Rule fail-closed against
+  real `apimock-routing` 5.10.0 matcher primitives, with a published capability
+  matrix and a matcher-oracle guard against unreviewed dependency drift.
+- **M3 — Integration boundary (MK-053).** Replaced direct snapshot mutation
+  with the `WorkspacePort` mapping boundary: typed atomic transactions, stable
+  condition identity, canonical/render correlation, semantic undo/redo, runtime
+  correlation, and typed Global Save reporting.
+- **M4 — Quality and security gates (MK-054).** Cleared the workspace warning
+  backlog without suppression, removed the iced highlighter dependency chain,
+  resolved both `quick-xml` advisories through compatible updates, and added
+  the canonical release-gate script and its self-test.
 
-**Goal:** make the repository a coherent source of truth before behavior and
-architecture changes accumulate.
+## Remaining steps
+
+### M7 — Engine contract conformance
+
+**Goal:** verify the M3 editing boundary against the real apimock-rs
+configuration contract instead of against a locally designed mapping.
+
+**Why this exists.** M3 was designed on the premise that no reproducible
+`apimock-config` artifact was available. That is true only of 5.10.1, which was
+never published. `apimock-config` 5.10.0 has been on crates.io since
+2026-05-16 with MSRV 1.91.0 and exposes the full `Workspace::load / snapshot /
+apply / validate / save / list_directory` surface and the `EditCommand` enum.
+M2 had already adopted `apimock-routing` 5.10.0 as an executable oracle, so the
+programme applied two different standards to the same engine family. B2 is
+currently closed against our own mapping, not against the contract we must
+integrate with.
 
 Scope:
 
-- create the next-numbered M1 RFC in `proposed/` as the bootstrap record; its
-  implementation repairs the index that will then include the RFC itself;
-- rebuild `rfcs/README.md` from the files on disk, including every implemented
-  and archived RFC;
-- correct shipped versions and RFC Status fields against `CHANGELOG.md` and the
-  workspace version;
-- record the snora de-vendoring transition;
-- update stale roadmap, architecture metrics, and historical-document warnings;
-- add a small automated RFC integrity check for index coverage, unique numbers,
-  status/folder agreement, and resolvable local links;
-- capture programme baseline results for current stable, Rust 1.91, and the
-  dependency audit according to the programme-wide cadence.
+- adopt `apimock-config` 5.10.0 as a **test-only dev-dependency**; production
+  targets gain no filesystem, process, or network code;
+- execute the MK-053 port contract suite against a real `Workspace` in a
+  temporary directory, covering `EditCommand` shapes, per-condition `NodeId`
+  addressing, `Option<Vec<_>>` preserve/clear/replace semantics, apply
+  diagnostics, changed nodes, and reload/restart hints;
+- record every mapping divergence with executable evidence;
+- reduce the `ReferenceGap` inventory in `docs/src/architecture.md` to items the
+  real artifact genuinely does not establish;
+- correct the "no reproducible artifact" statements in
+  `docs/src/architecture.md`, `crates/model/README.md`, and
+  `docs/src/match-test-conformance.md`;
+- extend the oracle guard to pin `apimock-config` version, source, checksum,
+  and activated features.
 
 Exit gate:
 
-- governance documents agree on versions and current status;
-- the integrity check passes locally;
-- documentation review confirms that historical material is visibly labeled;
-- baseline stable/MSRV/audit evidence is recorded without overclaiming passes;
-- no product behavior changes are included.
-
-### M2 — Match-test conformance
-
-**Goal:** ensure the Test Rule workflow never reports a false match or false
-non-match for an unsupported or incorrectly evaluated condition.
-
-Scope:
-
-- choose real matcher reuse or exact local equivalence in a detailed RFC;
-- implement URL wildcard, header regex/wildcard, body regex, and exact i64
-  semantics, or explicitly mark an operator unsupported and return a distinct
-  `Unsupported`/`Indeterminate` outcome or precise `TestRuleResult::Error`;
-- add positive and negative conformance cases for every supported URL, header,
-  and body operator, including integers above 2^53;
-- compare conformance results against the adopted apimock-rs version rather than
-  treating a local reimplementation as its own oracle;
-- reconcile README and UI claims with the supported behavior;
-- disable or explain any intentionally unavailable operation.
-
-Exit gate:
-
-- the operator conformance matrix has executable coverage;
-- no skipped or best-effort branch can produce `Matched` or `NoMatch`;
-- supported operators have positive and negative results verified against the
-  adopted engine; unsupported operators produce only the explicit
-  indeterminate/error outcome;
-- test-rule limitations, if any, are visible in both UI and documentation;
-- existing screen-flow tests remain green.
-
-### M3 — Integration boundary
-
-**Goal:** resolve the mismatch between the mock reducer and the authoritative
-apimock-rs editing contract before production integration begins.
-
-Decision required:
-
-1. **Engine-isomorphic adapter:** implement an in-memory workspace adapter whose
-   `apply(EditCommand)` boundary, condition identities, payload semantics,
-   diagnostics, changed nodes, and reload hints mirror apimock-rs; or
-2. **Explicit UI mapping:** retain a UI-specific model and define a tested mapping
-   to and from the engine contract, documenting every non-isomorphic conversion.
-
-Required design coverage:
-
-- stable per-condition `NodeId` addressing;
-- `Option<Vec<_>>` preserve/clear/replace semantics;
-- snapshot refresh and selection stability;
-- apply errors, diagnostics, and reload/restart hints;
-- undo/redo ownership and inverse-command behavior;
-- external-edit and session-lifetime boundaries for later production work.
-
-Preparation slice before adapter implementation:
-
-- extract the inline `app.rs` test modules into the project-required test-file
-  structure;
-- create only the reducer/adapter module seam required by the approved boundary;
-- keep routes, fixtures, and general structural cleanup in M5;
-- preserve behavior and run the continuous gates after each mechanical move.
-
-Exit gate:
-
-- the approved RFC decision is implemented with mapping/adapter contract tests;
-- app mutations use the approved boundary rather than undocumented direct
-  snapshot mutation;
-- model documentation makes no unsupported compatibility claim;
-- Add Rule Set and undo/redo behavior have honest, tested semantics.
-
-### M4 — Quality and security gates
-
-**Goal:** close residual gate issues and capture release-decision evidence after
-continuous checking throughout M1–M3.
-
-Scope:
-
-- clear all warnings in library, binary, and test targets;
-- make clippy pass with warnings denied;
-- verify the final candidate on Rust 1.91 and current stable with locked
-  dependency resolution;
-- resolve the `quick-xml` advisories through dependency changes, feature-surface
-  reduction, or a time-bounded exception with path-specific exploitability
-  analysis and owner/expiry;
-- decide whether iced's `highlighter` feature is justified;
-- finalize exact local gate commands and expected evidence;
-- add CI or a repository-owned repeatable gate script.
-
-Minimum blocking commands:
-
-```sh
-cargo fmt --check
-cargo test --workspace --lib --bins --locked
-cargo build --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo audit
-```
-
-Exit gate:
-
-- all applicable commands pass on the required toolchains, or an explicitly
-  approved, machine-checked security exception is current and scoped;
-- evidence is captured in the repository or review package;
-- documentation does not claim a broader gate than was actually observed.
+- the contract suite runs against real `apimock-config` 5.10.0 and passes, or
+  each failure is recorded as an accepted, documented divergence;
+- no production (non-dev) dependency on `apimock-config` exists;
+- the `ReferenceGap` inventory reflects the artifact rather than its absence;
+- no document claims an unavailable artifact where 5.10.0 establishes the
+  behavior;
+- the canonical gate passes.
 
 ### R1 — Blocking architecture re-review
 
 **Goal:** independently verify that findings B1–B5 are resolved.
 
-Required inputs:
-
-- M1 governance evidence;
-- M2 operator conformance matrix and test output;
-- M3 adapter/mapping RFC, implementation, and contract tests;
-- M4 toolchain and security gate evidence.
+Required inputs: M1 governance evidence; M2 operator conformance matrix and
+test output; M3 adapter/mapping RFC, implementation, and contract tests; M4
+toolchain and security gate evidence; **M7 engine-conformance evidence**.
 
 Decision:
 
-- **GO:** a clearly labeled `v0.11.0-stabilization.N` pre-release may be
-  prepared and M5/M6 continue toward an integration-ready baseline. Its release
-  notes must state `NOT INTEGRATION READY`;
+- **GO:** M5 and M6 proceed toward an integration-ready baseline;
 - **CONDITIONAL GO:** only listed non-production work may proceed;
-- **NO-GO:** return unresolved blockers to the owning milestone.
+- **NO-GO:** return unresolved blockers to the owning step.
 
 ### M5 — Maintainable structure
 
@@ -306,12 +265,14 @@ without changing behavior.
 
 Scope:
 
-- complete the `app.rs` split by state/reducer domain, building on the narrow
-  test extraction and reducer/adapter seam completed in M3;
+- split `app.rs` by state/reducer domain, building on the test extraction and
+  reducer/adapter seam completed in M3;
 - split `screens/routes.rs` by sidebar, rule-set configuration, editor,
   fallback editor, script viewer, and trace activity boundaries;
 - split `model/mock.rs` fixtures and tests;
-- remove dead placeholders and misleading fake commands;
+- remove any remaining dead placeholders. The fake discarded
+  `UndoCommand::AddRule` recorded in the 2026-07-15 architecture review was
+  already removed by MK-053 and is not outstanding;
 - preserve public crate boundaries and behavior through focused tests.
 
 Exit gate:
@@ -320,7 +281,7 @@ Exit gate:
 - files above 300 ELOC have an explicit cohesion justification or follow-up;
 - implementation files contain no inline test modules where the project rule
   requires separate test files;
-- M4 gates remain green after every split.
+- the canonical gate remains green after every split.
 
 ### M6 — UX acceptance evidence
 
@@ -341,8 +302,16 @@ Preparation and scope:
 - visible focus, non-color status communication, high-contrast themes, and 200%
   text-scale checks where the platform supports them;
 - select a representative matrix across Guided/Expert, EN/JA, themes, supported
-  window sizes, and input methods. Full Cartesian coverage is not required, but
-  every dimension must appear in a risk-based combination.
+  window sizes, input methods, **and supported platforms**. Full Cartesian
+  coverage is not required, but every dimension must appear in a risk-based
+  combination;
+- correct platform-conditional user-facing copy. `screens/command_palette.rs`
+  displays macOS-only shortcut notation (`⌘Z`, `⌘⇧Z`, `⌘S`, `⌘R`) while the
+  handler at `app.rs:4266-4286` correctly accepts Ctrl as well, so Linux and
+  Windows users are shown a key their keyboard does not have. `README.md:64`
+  repeats the notation. These literals also sit outside the i18n system, so
+  they belong to the localization inventory above. This defect is independently
+  fixable ahead of M6 and need not wait for the acceptance sessions.
 
 Outcome criteria:
 
@@ -353,7 +322,7 @@ Outcome criteria:
   accessibility failure, and non-blocking polish;
 - fixes receive targeted re-test with the same scenario and build identity;
 - deferral is allowed only for a named owner, rationale, user impact, and target
-  milestone, and never for a release-blocking workflow failure.
+  step, and never for a release-blocking workflow failure.
 
 Exit gate:
 
@@ -378,68 +347,72 @@ GO requires:
 - R1 did not leave blocking findings;
 - M5 and M6 exit gates pass;
 - current docs, RFC index, changelog, gate evidence, and archive contents agree;
+- every platform claimed as supported has a recorded build-and-test run;
 - the no-I/O mockup boundary and the next production-integration risks are
   documented;
-- the project owner approves the release/review package.
+- the project owner approves the review package.
 
-A GO decision permits creation of a separate production-integration roadmap for
-file I/O, subprocess lifecycle, trace transport, external edits, persistence,
-and Rhai editing. It does not itself authorize those features.
+A GO decision permits adoption of the separately drafted production-integration
+roadmap for file I/O, subprocess lifecycle, trace transport, external edits,
+persistence, and Rhai editing. It does not itself authorize those features.
 
 ## RFC design queue
 
-RFC identifiers are assigned only when files are created. After M0 approval,
-prepare detailed RFCs in this order:
+RFC identifiers are assigned only when files are created.
 
-1. **Repository governance repair and automated RFC integrity** — M1.
-2. **Test-rule matcher conformance** — M2.
-3. **GUI editing boundary and apimock-rs mapping/adapter** — M3.
-4. **Release gates, dependency policy, and security exceptions** — M4.
-5. **Reducer, routes, fixtures, and test modularization** — M5.
-6. **UX and accessibility acceptance protocol** — M6.
-
-The first four RFCs form the blocking re-review package. RFCs 5 and 6 may be
-designed while earlier implementation proceeds, but must not assume an
-unapproved editing boundary.
+| Order | Topic | Step | State |
+|---:|---|---|---|
+| 1 | Repository governance repair and automated RFC integrity | M1 | MK-051 Implemented |
+| 2 | Test-rule matcher conformance | M2 | MK-052 Implemented |
+| 3 | GUI editing boundary and apimock-rs mapping/adapter | M3 | MK-053 Implemented |
+| 4 | Release gates, dependency policy, and security exceptions | M4 | MK-054 Implemented |
+| 5 | **Engine contract conformance against apimock-config 5.10.0** | M7 | To be created |
+| 6 | Reducer, routes, fixtures, and test modularization | M5 | To be created |
+| 7 | UX and accessibility acceptance protocol | M6 | To be created |
 
 Optional developer handoffs should be created only where the RFC is too large
-to implement safely from the design alone. The integration-boundary and
-modularization RFCs are expected to benefit from task breakdowns and acceptance
-checklists; the governance repair likely does not. M3's package should include a
-decision log, engine/UI mapping matrix, task breakdown, and acceptance checklist.
-M5's package should include a file-move sequence and regression checklist. M2
-should include an operator-conformance matrix, with a full developer handoff only
-if the accepted matcher-reuse approach needs one.
+to implement safely from the design alone. M5's package should include a
+file-move sequence and regression checklist. M7's package should include a
+divergence matrix if the conformance run finds more than a few differences.
 
-## Release policy during stabilization
+## Release and delivery policy
 
-- No release is cut from the current NO-GO baseline.
-- A stabilization pre-release is considered only after R1 records GO and all
-  release gates applicable to that revision are observed passing. Its reserved
-  label is `v0.11.0-stabilization.N`, and its release notes must prominently say
-  `NOT INTEGRATION READY`.
-- Integration-ready labeling is reserved for R2 GO.
-- Release archives must follow the project rule: files at archive root, version
-  suffix in the archive name, and no `.git`, `.git-exclude`, or `target` content.
-- Do not create commits, tags, archives, or pushes without explicit project-owner
-  authorization for that task.
+This programme produces **no release**. apimokka is a mockup whose delivery is
+integration into the production GUI project, not publication. Accordingly:
 
-## Risks and schedule controls
+- no version bump, tag, push, registry publication, or release archive is
+  produced by this programme;
+- `v0.10.0` remains the recorded version; completed RFCs are recorded as
+  `Implemented (Unreleased)`;
+- integration-ready labeling is reserved for R2 GO and refers to specification
+  readiness, not to a released artifact;
+- do not create commits, tags, archives, or pushes without explicit
+  project-owner authorization for that task.
 
-| Risk | Schedule effect | Control |
+If the project owner later wants a distributable snapshot for archival or
+handoff, it follows the project rule — files at archive root, version suffix in
+the archive name, and no `.git`, `.git-exclude`, or `target` content — and is
+requested explicitly rather than produced on a cadence.
+
+## Risks and controls
+
+| Risk | Effect | Control |
 |---|---|---|
-| Engine semantics differ from the 5.10.1 reference | M2/M3 rework | Confirm the authoritative engine version at RFC start and test against it |
-| Adapter decision expands into production I/O | M3 overrun | Keep I/O and live server control explicitly out of scope |
-| Transitive advisories have no immediate upstream fix | M4 delay | Evaluate feature removal first; otherwise require a scoped exception with expiry |
-| Structural split overlaps behavior changes | Regression risk | Complete M2/M3 behavior first; keep M5 behavior-neutral |
-| Reviewer or UX participant availability | R1/M6/R2 delay | Confirm R1/R2 reviewer before M3 implementation; book M6 roles during protocol design |
-| MSRV dependency incompatibility | M4 delay | Run Rust 1.91 checks early, not only at milestone exit |
+| Real `apimock-config` reveals material mapping divergence | M7 rework, possible M3 amendment | Test against the real artifact before R1, not after; record divergences rather than hiding them |
+| `apimock-config` pulls a conflicting `apimock-routing` resolution | M7 blocked | Verify the resolved graph and extend the oracle guard before accepting |
+| Test-only engine dependency leaks into production targets | Scope breach | Dev-dependency only; verify no production target references it |
+| Adapter work expands into production I/O | M7 overrun | Keep filesystem and live server control explicitly out of scope |
+| Structural split overlaps behavior changes | Regression risk | Keep M5 behavior-neutral; run the canonical gate after each split |
+| UX participants unavailable | R2 blocked | Identify participants at M6 protocol design, not at session time |
+| Reviewer independence unavailable for a step | Weakened evidence | Project owner confirms directly and the deviation is recorded |
+| New advisory disclosed after M4 | Gate regression | Canonical gate runs `cargo audit` at every step exit |
+| MSRV dependency incompatibility | Late failure | Rust 1.91 checks run in the canonical gate, not only at exits |
 
 ## Progress tracking
 
-Milestone status is one of `Not started`, `Designing`, `Implementing`,
-`In review`, `Complete`, or `Blocked`. Update this table whenever a milestone
-changes state; detailed task progress belongs in its RFC or handoff.
+Step status is one of `Not started`, `Designing`, `Implementing`, `In review`,
+`Complete`, or `Blocked`. Update this table whenever a step changes state;
+detailed task progress belongs in its RFC or handoff.
 
 Allowed transitions are:
 
@@ -450,16 +423,17 @@ Not started → Designing → Implementing → In review → Complete
 
 `Complete` means the independent reviewer accepted the exit-gate evidence and
 the evidence approver recorded acceptance. Finishing implementation alone moves
-the milestone to `In review`, not `Complete`. A blocked milestone records the
-blocking condition, owner, and next decision date.
+the step to `In review`, not `Complete`. A blocked step records the blocking
+condition, owner, and next decision.
 
-| Milestone | Status | Decision/evidence |
+| Step | Status | Decision/evidence |
 |---|---|---|
 | M0 — Planning approval | Complete | Approved 2026-07-15; evidence: `.git-exclude/reviewed/2026-07-15-apimokka-stabilization-roadmap-m0-confirmation-review.md` |
 | M1 — Repository truth | Complete | Accepted 2026-07-15; MK-051 Implemented (Unreleased); evidence: `.git-exclude/reviewed/2026-07-15-rfc-mk051-repository-truth-closure-confirmation-review.md` |
 | M2 — Match-test conformance | Complete | Accepted 2026-07-16; MK-052 Implemented (Unreleased); implementation evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-test-rule-matcher-conformance-implementation-second-rereview.md`; dependency-policy evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-compatible-manifest-lockfile-authority-amendment-rereview.md`; closure evidence: `.git-exclude/reviewed/2026-07-16-rfc-mk052-closure-confirmation-rereview.md` |
 | M3 — Integration boundary | Complete | Accepted 2026-07-23; MK-053 Implemented (Unreleased); integrated implementation evidence: `.git-exclude/reviewed/2026-07-22-rfc-mk053-integrated-implementation-review.md`; closure evidence: `.git-exclude/reviewed/2026-07-23-rfc-mk053-closure-confirmation-review.md` |
 | M4 — Quality and security gates | Complete | Accepted 2026-08-01; MK-054 Implemented (Unreleased); implementation evidence: `.git-exclude/reviewed/2026-08-01-rfc-mk054-quality-and-security-gates-implementation-rereview.md`, committed `160456c`; lifecycle closure prepared by the programme architect and confirmed directly by the project owner on 2026-08-01, without the separate independent closure-confirmation session used for M1–M3 |
+| M7 — Engine contract conformance | Not started | — |
 | R1 — Blocking re-review | Not started | — |
 | M5 — Maintainable structure | Not started | — |
 | M6 — UX acceptance evidence | Not started | — |
@@ -469,14 +443,26 @@ blocking condition, owner, and next decision date.
 
 These remain outside the mockup stabilization programme:
 
-- real `apimock_config::Workspace` file I/O and persistence;
+- real `apimock_config::Workspace` file I/O and persistence in production
+  targets;
 - helper subprocess start/stop/reload/restart control;
 - live trace UDS/TCP connection and reconnection;
 - external-edit detection and conflict handling;
 - remembered workspace/theme/locale/audience preferences;
 - editable Rhai scripts and runtime validation;
 - drag-and-drop rule ordering and transition animation;
-- multi-user synchronization.
+- multi-user synchronization;
+- mdBook documentation build and link validation. `docs/src` has no `book.toml`
+  or `SUMMARY.md` and is therefore not a buildable book. This is accepted for
+  the mockup and is a requirement of the production GUI project;
+- continuous integration, including a cross-platform build matrix. Deferred
+  here because this repository is short-lived and has no platform-specific
+  code; required by the production project, which will be long-lived and will
+  carry path resolution, subprocess lifecycle, and a trace transport whose UDS
+  option is unavailable on Windows;
+- packaging reproducibility and source-archive-matches-tree validation. These
+  are moot under the no-release policy; if an archival snapshot is ever
+  requested, note that no validation check exists for it.
 
 They must be reconsidered only after R2, with threat modeling for new file,
 process, socket, and script-execution data flows.
