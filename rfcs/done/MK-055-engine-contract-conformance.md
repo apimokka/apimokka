@@ -1,6 +1,6 @@
 # RFC MK-055 — Engine contract conformance
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M7 — Engine contract conformance.
 **Touches.** `crates/model` dev-dependencies and conformance tests, the
 `WorkspacePort` mapping types, the `ReferenceGap` inventory, the matcher-oracle
@@ -329,12 +329,16 @@ folded into the text above.
 
 ## Status
 
-Design accepted by the project owner on 2026-08-01. Under the four-folder
-lifecycle this RFC remains `Proposed` until its implementation ships, at which
-point it moves to `done/`; design acceptance is not a folder transition.
+Design accepted by the project owner on 2026-08-01, and implementation
+authorized separately on the same date, assigned to the dev team. Authorization
+covered the scope defined here and nothing beyond it.
 
-Acceptance of this design is recorded separately from authorization to
-implement. The project owner authorized implementation on 2026-08-01, assigned
-to the dev team. Authorization covers the scope defined here and nothing beyond
-it; the non-goals remain binding, and a design conflict under decision 5 stops
-work for an MK-053 amendment rather than being absorbed.
+Implementation was delivered in two reviewed stages — a harness checkpoint
+(steps 1–3) and the full suite (steps 4–7) — accepted in
+`.git-exclude/reviewed/2026-08-02-rfc-mk055-harness-checkpoint-review.md` and
+`.git-exclude/reviewed/2026-08-02-rfc-mk055-implementation-review.md`, and
+committed as `fec0fbf`. Nine divergences were classified, one was a genuine
+defect and was corrected, and **no MK-053 decision was contradicted**, so
+decision 5's design-conflict path was never taken and no amendment was required.
+
+This RFC moved to `done/` at its lifecycle closure on 2026-08-02.

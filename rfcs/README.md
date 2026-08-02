@@ -11,7 +11,8 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-| [MK-055](./proposed/MK-055-engine-contract-conformance.md) | Engine contract conformance | Stabilization roadmap M7 |
+
+No RFCs are currently proposed.
 
 ---
 
@@ -53,6 +54,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-052](./done/MK-052-test-rule-matcher-conformance.md) | Test Rule matcher conformance | Unreleased |
 | [MK-053](./done/MK-053-integration-boundary-and-workspace-adapter.md) | Integration boundary and workspace adapter | Unreleased |
 | [MK-054](./done/MK-054-quality-and-security-gates.md) | Quality and security gates | Unreleased |
+| [MK-055](./done/MK-055-engine-contract-conformance.md) | Engine contract conformance | Unreleased |
 
 ---
 

@@ -2,6 +2,16 @@
 
 ### Changed
 
+- The MK-053 editing boundary is now verified by executing against the real
+  `apimock-config` 5.10.0 crate, adopted as a test-only dev-dependency and
+  pinned by a repository-owned oracle guard. Nine divergences from the
+  never-published 5.10.1 prose reference are classified and documented; one was
+  a genuine defect and is fixed (response delay is now range-checked to the
+  engine's `u32`). No MK-053 decision was contradicted. `MemoryWorkspace`
+  remains the application's only workspace implementation — no production
+  dependency, filesystem access, or production engine call was added
+  (RFC MK-055).
+
 - Release-decision checks now run through one repository-owned stable/MSRV,
   strict-Clippy, audit, and governance gate. The full workspace is warning-free
   under denied Clippy warnings. The fallback JSON editor remains editable as

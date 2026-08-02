@@ -392,3 +392,79 @@ R1 should expect six allowed warnings when it re-runs the canonical gate, and
 should treat this addendum rather than the 2026-07-23 count as the current
 inventory. Warning counts are expected to drift with the advisory database
 between milestones; that drift is not by itself a gate regression.
+
+## M7 engine-contract conformance implementation — 2026-08-02
+
+RFC MK-055 adopted `apimock-config` 5.10.0 as a test-only dev-dependency of
+`crates/model` and executed the MK-053 `WorkspacePort` mapping against it, in
+place of the never-published 5.10.1 prose reference. Delivery came in two
+independently reviewed stages: a harness checkpoint (implementation sequence
+steps 1–3) and the full suite (steps 4–7). Committed as `fec0fbf`.
+
+This section was added at closure. RFC MK-055's documentation decision named
+`architecture.md`, `crates/model/README.md`, and `match-test-conformance.md`
+but omitted this page, unlike every prior milestone — an RFC-authoring gap, not
+a delivery gap.
+
+| Command / probe | Observed result |
+|---|---|
+| `bash scripts/check-release-gates.sh` | Pass: `Release gates: all checks passed` |
+| `cargo doc --workspace --no-deps --locked` | Pass — new gate step added by MK-055 |
+| `cargo test --workspace --locked` | Pass: app 202, model 56, engine_conformance 26, model doctests 4 |
+| Conformance suite composition | 13 Tier 1 mapping-totality, 12 Tier 2 scenario, 1 harness proof |
+| `cargo +1.91 test`/`build --workspace --locked` | Pass on MSRV |
+| `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | Pass, no warnings |
+| `cargo audit` | Pass: zero vulnerabilities; six allowed warnings, unchanged set per the addendum above |
+| `bash scripts/check-engine-oracle-self-test.sh` | Pass: 5 checks |
+| `bash scripts/check-engine-oracle.sh` | Pass: `apimock-config 5.10.0 contract verified` |
+| `bash scripts/check-release-gates-self-test.sh` | Pass: 11 checks against the extended gate |
+| `cargo tree --locked --workspace -e normal,build` | No `apimock-config` edge from any workspace member |
+
+Reviewed dependency identities:
+
+| Package | Version | Source | Checksum |
+|---|---:|---|---|
+| `apimock-config` | 5.10.0 | `registry+https://github.com/rust-lang/crates.io-index` | `87b84070260c09db1ce2f18ef360cdaf32ff32fbdc860014bb31b6cfe9646a16` |
+| `apimock-routing` | 5.10.0 | `registry+https://github.com/rust-lang/crates.io-index` | unchanged from the MK-052 contract |
+
+`apimock-config` 5.10.0 declares `apimock-routing >= 5.6.0` and deduplicated
+against the existing 5.10.0 pin rather than resolving a second copy. Both
+oracle guards now run in the canonical gate, so neither identity can drift
+without failing it.
+
+### Outcome
+
+Nine divergences from the prose reference were classified with evidence and are
+recorded in `docs/src/architecture.md`. One was a genuine defect and was
+corrected: response delay is now range-checked against the engine's `u32`,
+with a regression test. **No MK-053 decision was contradicted**, so the RFC's
+design-conflict path was never taken and no amendment was required.
+
+Two findings are carried to R1 as production-adapter requirements rather than
+mockup defects: the engine performs no path containment or traversal
+protection, and this UI's strategy/log-format vocabulary is rejected verbatim
+by the engine. Both are recorded in `architecture.md`'s production-adapter
+inheritance list.
+
+## M7 lifecycle-closure candidate — 2026-08-02
+
+MK-055 moved to `rfcs/done/` with `Implemented (Unreleased)`, its index entry
+moved to Implemented, the Proposed section became explicitly empty, and the
+Unreleased changelog records the verification without claiming production
+integration.
+
+| Closure check | Exit | Observed result |
+|---|---:|---|
+| `bash scripts/check-rfcs-self-test.sh` | 0 | 25 checks passed |
+| `bash scripts/check-rfcs.sh` | 0 | `RFC integrity: 0 error(s)` |
+| `bash scripts/check-matcher-oracle.sh` | 0 | apimock-routing 5.10.0 and http 1.4.2 verified |
+| `bash scripts/check-engine-oracle.sh` | 0 | apimock-config 5.10.0 verified |
+| `git diff --check` | 0 | No tracked-file whitespace diagnostics |
+
+The closure patch changes lifecycle, index, changelog, roadmap, and evidence
+documentation only. No Rust source, manifest, or lockfile changed, so the
+stable, MSRV, audit, and full-gate runs were not repeated; the independently
+accepted implementation evidence above remains the observed record.
+
+M7 remains `In review` with closure confirmation pending. Marking it `Complete`
+requires closure confirmation and recorded project-owner acceptance.
