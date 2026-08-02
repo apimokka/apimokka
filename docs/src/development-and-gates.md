@@ -507,6 +507,25 @@ a middle gate, the final gate) and the successful-run ordered-argv comparison
 already catching an omitted, duplicated, or reordered command. No Rust
 source, `Cargo.toml`, or `Cargo.lock` changed.
 
+**MSRV extension.** The implementation review
+(`.git-exclude/reviewed/2026-08-02-r1-1-gate-integration-coverage-review.md`)
+found the delivered change correctly scoped to only the two named
+stable-toolchain lines, per handoff 004's explicit non-change scope — but
+identified that this left `cargo +1.91 test --workspace --lib --bins
+--locked` uncorrected, so the conformance suite still ran unguarded on the
+MSRV toolchain. The review authorized the same fix there as a scope
+amendment. `cargo +1.91 test --workspace --lib --bins --locked` became
+`cargo +1.91 test --workspace --locked`, with `write_expected()` updated to
+match. The full gate was rerun rather than assumed to pass:
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `bash scripts/check-release-gates.sh` (rerun) | 0 | `Release gates: all checks passed`; the `cargo +1.91 test --workspace --locked` section shows app 202, model 56, `Running tests/engine_conformance.rs` with `26 passed`, and doctests `0`/`0`/`4` — identical composition to the stable pass |
+| `bash scripts/check-release-gates-self-test.sh` | 0 | 11 checks passed against the further-modified gate |
+
+Both toolchains now run the full workspace test surface inside the canonical
+gate. R1-1 closes with this correction.
+
 **The living command contract is `check-release-gates-self-test.sh`'s
 `write_expected()` function, which asserts the gate's argv byte-for-byte —
 not any prose list, including the one in this document or in MK-054's RFC

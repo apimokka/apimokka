@@ -130,7 +130,7 @@ write_expected() {
     [[ "$stop_after" == doc ]] && return
     record "$destination" cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
     [[ "$stop_after" == clippy ]] && return
-    record "$destination" cargo +1.91 test --workspace --lib --bins --locked
+    record "$destination" cargo +1.91 test --workspace --locked
     [[ "$stop_after" == test_191 ]] && return
     record "$destination" cargo +1.91 build --workspace --locked
     [[ "$stop_after" == build_191 ]] && return

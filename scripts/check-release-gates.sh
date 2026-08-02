@@ -75,7 +75,7 @@ run_gate cargo test --workspace --locked || exit $?
 run_gate cargo build --workspace --locked || exit $?
 run_gate cargo doc --workspace --no-deps --locked || exit $?
 run_gate cargo clippy --workspace --all-targets --all-features --locked -- -D warnings || exit $?
-run_gate cargo +1.91 test --workspace --lib --bins --locked || exit $?
+run_gate cargo +1.91 test --workspace --locked || exit $?
 run_gate cargo +1.91 build --workspace --locked || exit $?
 run_gate cargo audit || exit $?
 run_gate bash scripts/check-matcher-oracle-self-test.sh || exit $?
