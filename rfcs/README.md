@@ -11,8 +11,7 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-
-No RFCs are currently proposed.
+| [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
 
 ---
 
