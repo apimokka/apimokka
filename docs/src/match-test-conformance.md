@@ -7,7 +7,12 @@ line, but a later resolved artifact is not an adopted matcher until its
 provenance and conformance evidence are reviewed. The repository's 5.10.1 GUI
 integration reference remains the intended M3 contract, but no reproducible
 5.10.1 engine artifact was available when RFC MK-052 adopted the executable M2
-oracle.
+oracle — 5.10.1 was never published. RFC MK-055 (M7) separately adopted the
+real `apimock-config` 5.10.0 crate as a test-only dev-dependency and verified
+the MK-053 editing boundary (not matching) against it by execution; see
+[Architecture § Contract provenance](./architecture.md#contract-provenance).
+Test Rule's matching contract above is unaffected — `apimock-config` does not
+own request matching.
 
 Test Rule fails closed:
 

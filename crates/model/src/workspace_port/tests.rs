@@ -218,6 +218,23 @@ fn response_mapping_distinguishes_mode_status_and_delay() {
     assert!(map_response(ResponseMode::Inline, "", "", "200", "-1").is_err());
 }
 
+/// RFC MK-055: `apimock-config` 5.10.0's `RespondPayload.delay_milliseconds`
+/// is `Option<u32>`, not `Option<u64>` as the never-published 5.10.1 prose
+/// reference stated. A value above `u32::MAX` is our defect, not an accepted
+/// divergence: nothing needs it, and the engine could not represent it.
+#[test]
+fn response_mapping_rejects_delay_beyond_engine_u32_range() {
+    assert_eq!(
+        map_response(ResponseMode::Inline, "x", "", "", &u32::MAX.to_string())
+            .unwrap()
+            .delay_milliseconds(),
+        Some(u64::from(u32::MAX))
+    );
+    let just_over = u64::from(u32::MAX) + 1;
+    assert!(map_response(ResponseMode::Inline, "x", "", "", &just_over.to_string()).is_err());
+    assert!(map_response(ResponseMode::Inline, "x", "", "", "18446744073709551615").is_err());
+}
+
 #[test]
 fn every_root_key_has_a_typed_mapping_and_effect() {
     use WorkspaceEditValue as V;

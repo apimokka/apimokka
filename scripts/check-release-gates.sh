@@ -74,12 +74,15 @@ run_gate cargo fmt --all -- --check || exit $?
 run_gate cargo test --workspace --lib --bins --locked || exit $?
 run_gate cargo test --workspace --doc --locked || exit $?
 run_gate cargo build --workspace --locked || exit $?
+run_gate cargo doc --workspace --no-deps --locked || exit $?
 run_gate cargo clippy --workspace --all-targets --all-features --locked -- -D warnings || exit $?
 run_gate cargo +1.91 test --workspace --lib --bins --locked || exit $?
 run_gate cargo +1.91 build --workspace --locked || exit $?
 run_gate cargo audit || exit $?
 run_gate bash scripts/check-matcher-oracle-self-test.sh || exit $?
 run_gate bash scripts/check-matcher-oracle.sh || exit $?
+run_gate bash scripts/check-engine-oracle-self-test.sh || exit $?
+run_gate bash scripts/check-engine-oracle.sh || exit $?
 run_gate bash scripts/check-rfcs-self-test.sh || exit $?
 run_gate bash scripts/check-rfcs.sh || exit $?
 run_gate git diff --check || exit $?

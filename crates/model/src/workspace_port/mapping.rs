@@ -241,11 +241,20 @@ pub fn map_response(
     let delay_milliseconds = if delay_milliseconds.is_empty() {
         None
     } else if delay_milliseconds.bytes().all(|byte| byte.is_ascii_digit()) {
-        Some(
-            delay_milliseconds
-                .parse::<u64>()
-                .map_err(|_| FieldError::new("response_delay", FieldErrorKind::InvalidDelay))?,
-        )
+        let value = delay_milliseconds
+            .parse::<u64>()
+            .map_err(|_| FieldError::new("response_delay", FieldErrorKind::InvalidDelay))?;
+        // RFC MK-055: the engine's `RespondPayload.delay_milliseconds` is
+        // `Option<u32>`, not `Option<u64>` as the unpublished 5.10.1 prose
+        // reference stated. Reject values the engine cannot represent rather
+        // than silently truncating or letting a later engine call fail.
+        if value > u64::from(u32::MAX) {
+            return Err(FieldError::new(
+                "response_delay",
+                FieldErrorKind::InvalidDelay,
+            ));
+        }
+        Some(value)
     } else {
         return Err(FieldError::new(
             "response_delay",

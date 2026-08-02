@@ -128,6 +128,8 @@ write_expected() {
     [[ "$stop_after" == doctest ]] && return
     record "$destination" cargo build --workspace --locked
     [[ "$stop_after" == build ]] && return
+    record "$destination" cargo doc --workspace --no-deps --locked
+    [[ "$stop_after" == doc ]] && return
     record "$destination" cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
     [[ "$stop_after" == clippy ]] && return
     record "$destination" cargo +1.91 test --workspace --lib --bins --locked
@@ -140,6 +142,10 @@ write_expected() {
     [[ "$stop_after" == matcher_self_test ]] && return
     record "$destination" bash scripts/check-matcher-oracle.sh
     [[ "$stop_after" == matcher ]] && return
+    record "$destination" bash scripts/check-engine-oracle-self-test.sh
+    [[ "$stop_after" == engine_self_test ]] && return
+    record "$destination" bash scripts/check-engine-oracle.sh
+    [[ "$stop_after" == engine ]] && return
     record "$destination" bash scripts/check-rfcs-self-test.sh
     [[ "$stop_after" == rfc_self_test ]] && return
     record "$destination" bash scripts/check-rfcs.sh

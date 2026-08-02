@@ -87,6 +87,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "apimock-config"
+version = "5.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87b84070260c09db1ce2f18ef360cdaf32ff32fbdc860014bb31b6cfe9646a16"
+dependencies = [
+ "apimock-routing",
+ "console",
+ "indexmap",
+ "log",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml",
+ "uuid",
+]
+
+[[package]]
 name = "apimock-routing"
 version = "5.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -123,8 +141,10 @@ version = "0.10.0"
 name = "apimokka-model"
 version = "0.10.0"
 dependencies = [
+ "apimock-config",
  "http",
  "serde_json",
+ "tempfile",
  "uuid",
 ]
 
