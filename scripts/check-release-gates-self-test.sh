@@ -122,10 +122,8 @@ write_expected() {
 
     record "$destination" cargo fmt --all -- --check
     [[ "$stop_after" == fmt ]] && return
-    record "$destination" cargo test --workspace --lib --bins --locked
+    record "$destination" cargo test --workspace --locked
     [[ "$stop_after" == test ]] && return
-    record "$destination" cargo test --workspace --doc --locked
-    [[ "$stop_after" == doctest ]] && return
     record "$destination" cargo build --workspace --locked
     [[ "$stop_after" == build ]] && return
     record "$destination" cargo doc --workspace --no-deps --locked

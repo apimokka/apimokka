@@ -468,3 +468,52 @@ accepted implementation evidence above remains the observed record.
 
 M7 remains `In review` with closure confirmation pending. Marking it `Complete`
 requires closure confirmation and recorded project-owner acceptance.
+
+## R1-1 gate correction — 2026-08-02
+
+R1's blocking architecture re-review
+(`.git-exclude/reviewed/2026-08-02-r1-blocking-architecture-re-review.md`)
+found that `scripts/check-release-gates.sh` ran `cargo test --workspace --lib
+--bins --locked` plus a separate `cargo test --workspace --doc --locked`,
+neither of which selects targets under `tests/`. The MK-055
+`engine_conformance` suite — the entire evidentiary basis for architecture
+finding B2's closure — therefore never ran inside the gate; it passed, but a
+change that broke it would have left every gate green. This was not an
+MK-055 defect: MK-054 defined the `--lib --bins` contract when no workspace
+crate had a `tests/` directory, and MK-055 created the first one. Flagged as
+R1-1, a condition of R1's CONDITIONAL GO that had to close before M5
+implementation could begin.
+
+Both lines are replaced with one command:
+
+```sh
+cargo test --workspace --locked
+```
+
+Verified to cover all four target classes in one invocation: lib unittests,
+bin unittests, `tests/engine_conformance.rs`, and the doctests for all three
+crates. The gate now contains exactly one stable-toolchain `cargo test`
+command instead of two.
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `bash scripts/check-release-gates.sh` | 0 | `Release gates: all checks passed`; log now contains `Running tests/engine_conformance.rs` and `test result: ok. 26 passed` |
+| `bash scripts/check-release-gates-self-test.sh` | 0 | 11 checks passed against the modified gate |
+
+`scripts/check-release-gates-self-test.sh`'s `write_expected()` was updated
+to the same ordered contract; no new failure-injection case was added, per
+MK-054's three-representative-point sampling policy (first substantive gate,
+a middle gate, the final gate) and the successful-run ordered-argv comparison
+already catching an omitted, duplicated, or reordered command. No Rust
+source, `Cargo.toml`, or `Cargo.lock` changed.
+
+**The living command contract is `check-release-gates-self-test.sh`'s
+`write_expected()` function, which asserts the gate's argv byte-for-byte —
+not any prose list, including the one in this document or in MK-054's RFC
+body.** MK-054 §5's "complete ordered external-command contract" is a
+frozen design-time record of what the gate ran when MK-054 shipped; it does
+not update itself when the gate's contract later changes, as it just did
+here. This was flagged as NB1 in the MK-055 checkpoint review
+(`.git-exclude/reviewed/2026-08-01-rfc-mk055-harness-checkpoint-review.md`)
+and is stated plainly here so a future reader of MK-054 does not mistake its
+historical list for the current gate.

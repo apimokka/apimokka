@@ -71,8 +71,7 @@ run_probe cargo audit --version
 run_probe mkdir -p "$TMPDIR"
 
 run_gate cargo fmt --all -- --check || exit $?
-run_gate cargo test --workspace --lib --bins --locked || exit $?
-run_gate cargo test --workspace --doc --locked || exit $?
+run_gate cargo test --workspace --locked || exit $?
 run_gate cargo build --workspace --locked || exit $?
 run_gate cargo doc --workspace --no-deps --locked || exit $?
 run_gate cargo clippy --workspace --all-targets --all-features --locked -- -D warnings || exit $?
