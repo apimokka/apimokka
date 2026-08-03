@@ -2,280 +2,333 @@
 
 **Status.** Proposed
 **Tracks.** Stabilization roadmap M6 — UX acceptance evidence.
-**Touches.** User-visible string localization, known no-op controls, the
-acceptance protocol and its recorded evidence, platform verification scope, and
-the accessibility requirements inherited by production.
+**Touches.** User-visible string localization, known no-op controls, a
+cross-platform CI workflow, scripted GUI verification, the acceptance protocol
+and its recorded evidence, and the accessibility requirements inherited by
+production.
 
 ## Summary
 
 Define how apimokka is validated for the purpose it exists to serve:
-stakeholder review of workflows and interaction design. This RFC specifies the
-personas, scenarios, severity taxonomy, facilitator rules, environment sampling,
-and evidence format — and the preparation work that must land *before* any
-session runs, so participant time is spent finding unknown problems rather than
-rediscovering known ones.
+stakeholder review of workflows and interaction design.
 
-M6 is the only milestone whose critical input cannot be produced inside this
-repository. Everything else in the programme is work; this needs people.
+Verification is **layered**, because the alternative — running every scenario on
+every platform with human participants — is not achievable and pretending
+otherwise would produce a dishonest result. Machine-checkable facts go to CI and
+to scripted GUI automation; human sessions are reserved for the one thing
+neither can measure, which is whether people understand what they are looking
+at.
 
 ## Problem and motivation
 
-The mockup's stated purpose is to validate screen flows and interaction design
-before production integration cost is committed. That validation has never
-happened. Every milestone so far has improved correctness, governance, or
-verifiable contracts; none has put the interface in front of a person.
+The mockup exists to validate screen flows before production integration cost is
+committed. That validation has never happened. Every milestone so far improved
+correctness, governance, or verifiable contracts; none put the interface in
+front of a person.
 
-R1 recorded this plainly: the programme's largest unretired question is not
-technical. A GO at R2 without UX evidence would certify a specification nobody
-has exercised.
+R1 recorded this as the programme's largest unretired question, and it is not a
+technical one. A GO at R2 without UX evidence would certify a specification
+nobody has exercised.
+
+Two constraints shape the design:
+
+- **Three platforms are required** — Linux, macOS, and Windows — and only Linux
+  has ever been built or run.
+- **Participants are the scarce resource.** Everything a machine can check must
+  be checked by a machine, so session time is spent on comprehension.
 
 ## Goals
 
 1. Produce recorded, reproducible evidence that the principal workflows are
    completable by their intended audiences.
-2. Distinguish blocking workflow failure from confusion from polish, by a rule
-   applied consistently rather than by judgement in the moment.
-3. Cover pointer and keyboard paths, both audience modes, both locales, the
-   accessible themes, and the declared platforms — by risk-based sampling, not
-   exhaustive combination.
-4. Convert what cannot be validated here into explicit production requirements
-   rather than silent gaps.
+2. Obtain cross-platform evidence without requiring human sessions on every
+   platform.
+3. Make accessibility and layout checks repeatable, so a fix can be re-verified
+   without booking a person.
+4. Distinguish blocking workflow failure from confusion from polish by rule.
+5. Convert what cannot be validated here into explicit production requirements.
 
 ## Non-goals
 
-- Redesigning the interface. M6 measures; it does not re-architect. A finding
-  that implies redesign is recorded and escalated, not fixed in place.
-- Fixing accessibility gaps that iced 0.14 does not expose (see decision 7).
+- Redesigning the interface. M6 measures; a finding implying redesign is
+  recorded and escalated, not fixed in place.
+- Fixing accessibility gaps iced 0.14 does not expose (decision 6).
 - Production integration, file I/O, or any deferred feature.
-- Module splitting; that is M5.
+- Module splitting; that is M5 / MK-057.
 
 ## Decision
 
-### 1. Preparation gate — known defects are fixed before sessions run
+### 1. Three verification layers
 
-No session runs until the following are closed. Participant time is the
-scarcest resource in this programme, and spending it on defects already known to
-the team produces noise rather than findings.
+| Layer | Answers | Where it runs |
+|---|---|---|
+| **L1 — Cross-platform CI** | Does it build, and does the logic hold, on every supported platform? | GitHub Actions: Linux, macOS, Windows |
+| **L2 — Scripted GUI verification** | Is every control reachable, focus visible, layout intact at each window size and text scale? | Local Linux, `niri msg action` / `xdotool` |
+| **L3 — Human sessions** | Do people understand what they are seeing, and can they complete real tasks? | Local, Linux-primary |
 
-**a. Enabled no-op controls.** `crates/app/src/screens/routes.rs:132` and `:191`
-dispatch `Message::Noop` behind enabled buttons ("Add fallback file", "Add
-.rhai"). An enabled control that does nothing is the single most reliable way to
-destroy a participant's model of what the application can do. Each must be
-removed, disabled with a visible reason, or implemented. Given the no-I/O
-boundary, **disabled-with-reason is the expected resolution**; implementing them
-would require file I/O and is out of scope.
+Each layer answers a question the layer above cannot. A platform is "supported"
+when L1 passes on it, not when a person has used it there — which is what makes
+three-platform support achievable at all.
 
-**b. Localization inventory.** A repeatable sweep of user-visible string
-literals in `screens/`, `shell/`, and `widgets/`. At the time of writing it
-returns **14 candidates across three files** (`screens/routes.rs`,
-`screens/wizard.rs`, `shell/bottom_drawer.rs`) — a bounded task, not an open
-audit. Each literal is either migrated to an `apimokka_i18n::Key` or given a
-recorded exemption. The accelerator-notation exemption established by handoff
-002 is the precedent for the exemption form: platform or protocol notation is
-exempt; prose is not.
+### 2. L1 — cross-platform CI
 
-The sweep command must be recorded in the evidence so the inventory is
-reproducible rather than a one-time manual pass.
+Add a GitHub Actions workflow running, on `ubuntu-latest`, `macos-latest`, and
+`windows-latest`, for both stable and Rust 1.91:
 
-**Preparation exit gate:** no enabled no-op controls remain; the inventory
-returns no unexplained user-visible English; the canonical gate passes.
+```sh
+cargo build --workspace --locked
+cargo test --workspace --locked
+```
 
-### 2. Personas — two floors, not two targets
+**Scope is deliberately narrow.** The canonical gate's shell checkers, `cargo
+audit`, `cargo doc`, and Clippy remain a local Linux concern; portability of
+Bash checkers to Windows runners is a distraction from the question CI is being
+added to answer. CI proves the workspace compiles and its logic holds on each
+platform, which is exactly the evidence currently missing.
 
-At minimum:
+This reverses MK-054's deferral of CI, and the reversal is deliberate. That
+deferral was sound for a single-platform mockup. With three platforms required,
+CI is the only practical source of multi-platform evidence, and no amount of
+local discipline substitutes.
 
-- **Guided newcomer.** Has not used apimock-rs. Understands HTTP APIs and JSON.
-  Has never seen this interface. Recruited to exercise the Guided audience mode,
-  the first-launch flow, and the wizard.
-- **Expert apimock-rs user.** Has written apimock-rs TOML by hand. Knows rule
-  sets, matching, and fallback behaviour. Recruited to exercise Expert mode, the
-  rule builder, and Test Rule — and to judge whether the model the GUI presents
-  matches the model the engine actually has.
+`README.md:40` currently states a Linux prerequisite and attributes it to iced
+0.14. That attribution is false — iced supports all three — and the line is
+corrected as part of this work.
 
-Two is the floor. A third participant in either role materially improves
-confidence, because a single participant's confusion is indistinguishable from
-that participant's idiosyncrasy. Where only two are available, findings from a
-single participant are recorded as **unreplicated** and cannot alone establish a
-blocking severity.
+### 3. L2 — scripted GUI verification
+
+`niri msg action` and `xdotool` make GUI operation scriptable on the development
+host. Use them for the checks that are mechanical and must be repeatable after
+every fix:
+
+- every primary-scenario control reachable by keyboard alone;
+- focus visible at each step, wherever iced exposes focus at all;
+- layout intact at each supported window size, in both audience modes;
+- layout intact at 200% text scale;
+- no clipping or overlap in Japanese, which expands relative to English.
+
+These produce a recorded pass/fail per configuration, re-runnable on demand. A
+layout regression found after a fix does not require rebooking a participant.
+
+### 4. L3 — human sessions
+
+#### Personas
+
+- **Guided newcomer.** Has not used apimock-rs; understands HTTP and JSON; has
+  never seen this interface. Exercises Guided mode, first-launch, and the wizard.
+- **Expert apimock-rs user.** Has hand-written apimock-rs TOML. Exercises Expert
+  mode, the rule builder, and Test Rule — and judges whether the model the GUI
+  presents matches the model the engine actually has.
 
 Participants must not have contributed to this repository.
 
-### 3. Primary scenarios
+#### Entry state is a first-class dimension
 
-These five are release-blocking. Each is scripted as a goal, never as
-instructions:
+The same person gets different results depending on the state the application
+was in. This matters more than participant count, and it has a consequence that
+constrains scheduling:
 
-1. Open an existing workspace and find the rule that serves a given path.
+**First-boot is one-shot per participant.** Once someone has seen the mode
+picker and the first-launch flow, they cannot un-see it. That observation cannot
+be repeated with the same person at any price, so first-boot scenarios are
+scheduled **first**, before anything else that would spend the participant's
+naivety.
+
+Declared entry states, one named per scenario:
+
+| State | Meaning |
+|---|---|
+| **First boot** | No audience mode chosen; mode picker shown. One-shot per participant. |
+| **Returning** | Audience mode already set; opens to Welcome. |
+| **Empty workspace** | Workspace open, no rules. |
+| **Populated workspace** | Workspace open with seeded rules. |
+| **Dirty** | Unsaved edits and non-empty undo history present. |
+
+Coverage is judged across states, not across headcount. A scenario verified only
+from a populated, clean workspace is not verified for the empty or dirty case.
+
+#### Primary scenarios
+
+Release-blocking, each scripted as a goal and never as instructions, each
+declaring its entry state:
+
+1. Open an existing workspace and find the rule serving a given path.
 2. Create a workspace from the wizard and add a rule matching a stated request.
 3. Edit a rule's conditions and verify the change with Test Rule.
 4. Inspect a trace event and determine why a request did not match.
 5. Save and then revert a fallback-file draft.
+6. Change theme and locale, and switch audience mode.
 
-Plus one settings task: change theme and locale, and switch audience mode.
+### 5. Findings, severity, and the facilitator
 
-Each is run on both pointer and keyboard paths — not necessarily by the same
-participant, but every scenario must have both paths covered somewhere in the
-session set.
-
-### 4. Severity taxonomy
-
-Applied by rule, recorded per finding:
+#### Severity
 
 | Severity | Definition |
 |---|---|
-| **S1 — Blocking** | The participant cannot complete a primary scenario without facilitator rescue; or state is lost, corrupted, or silently discarded; or an accessibility failure prevents completion on a supported configuration. |
-| **S2 — Serious** | The scenario completes, but with a wrong mental model, significant hesitation or backtracking, or an accessibility failure that degrades without preventing. |
-| **S3 — Polish** | Cosmetic or preference-level; does not affect completion or comprehension. |
+| **S1 — Blocking** | A primary scenario cannot be completed without facilitator rescue; or state is lost, corrupted, or silently discarded; or an accessibility failure prevents completion on a supported configuration. |
+| **S2 — Serious** | Completed, but with a wrong mental model, significant hesitation or backtracking, or a degrading accessibility failure. |
+| **S3 — Polish** | Cosmetic or preference-level. |
 
-S1 findings block R2. S2 findings are fixed or explicitly deferred under
-decision 8. S3 findings are recorded and may be deferred freely.
+**Objective findings establish severity on a single observation.** A participant
+failing to complete a task without help, a lost edit, or an unreachable control
+is observed fact, not opinion — one sighting is sufficient, and S1 applies.
 
-### 5. Facilitator rules — "rescue" is defined, not judged
+**Interpretive findings** — confusion, a misleading label, a wrong mental model
+— are graded S2 on a single observation and escalate to S1 only if seen again,
+whether by another participant or by the same participant in a different entry
+state. This is the axis that matters: the same wording can read clearly from a
+populated workspace and mislead from an empty one.
 
-Without a precise definition, "no scenario required facilitator rescue" is
-unmeasurable and will be graded generously by the person who wants to pass.
+S1 blocks R2. S2 is fixed or explicitly deferred under decision 8. S3 may be
+deferred freely.
 
-**A rescue is any facilitator utterance or gesture that conveys task-relevant
-information the participant had not derived.** Naming a control, pointing at
-one, confirming a choice ("yes, that one"), or correcting a wrong path all count.
+#### Facilitator rules
 
-**Not rescues:** reading the scenario script verbatim; repeating it unchanged;
-encouraging think-aloud ("what are you looking at?"); answering questions about
-the session itself; and answering domain questions unrelated to the interface
-("what is a rule set?" — answerable, since domain ignorance is a recruiting
-variable, not an interface defect).
+A rescue is any facilitator utterance or gesture conveying task-relevant
+information the participant had not derived — naming a control, pointing at one,
+confirming a choice, or correcting a wrong path.
 
-When in doubt, record it as a rescue. The count matters more than any single
-judgement.
+**The facilitator does not classify during the session.** They log every
+deviation from the script verbatim; classification happens in analysis. Judging
+live imposes cognitive load at the worst moment and invites the person running
+the session to grade their own performance. Where analysis is unsure, it records
+a rescue.
 
-### 6. Environment sampling
+Not rescues: reading or repeating the script unchanged, encouraging think-aloud,
+answering questions about the session itself, and answering domain questions
+unrelated to the interface — domain ignorance is a recruiting variable, not an
+interface defect.
 
-Full Cartesian coverage across audience mode (2), locale (2), theme (4),
-platform (3), window size (2), and input method (2) is 192 configurations and is
-not required. The rule instead:
-
-- **Every value of every dimension appears at least once** across the session
-  set.
-- These high-risk combinations are **mandatory**, because this is where layout
-  and contrast defects cluster:
-  - Japanese locale at the smallest supported window size — text expansion and
-    clipping;
-  - High-contrast theme with keyboard-only input — focus visibility against
-    high-contrast borders;
-  - Guided mode at 200% text scale — the mode with the most inline hint text.
-- The exact build identity (commit SHA), platform, theme, locale, mode, window
-  size, and input method are recorded per session. A finding without its
-  configuration is not reproducible and does not count as evidence.
-
-### 7. Accessibility scope — verify what is verifiable, inherit the rest
+### 6. Accessibility scope
 
 iced 0.14 exposes no button focus status and no assistive-technology API. These
-are upstream gaps, and failing the mockup for them would be recording an
-upstream limitation as a project defect.
+are upstream gaps; failing the mockup for them would record an upstream
+limitation as a project defect.
 
-**Verified here:** non-colour status communication (every status carries glyph
-and label), high-contrast theme contrast in practice, 200% text scale where the
-platform supports it, keyboard reachability of every primary scenario, and
-visible focus wherever iced provides it.
+**Verified here**, largely at L2: non-colour status communication, high-contrast
+theme contrast in practice, 200% text scale, keyboard reachability of every
+primary scenario, and visible focus wherever iced provides it.
 
-**Inherited by production, recorded explicitly as requirements:** screen-reader
-and assistive-technology support, and custom focus-ring rendering. These join
-the production-adapter inheritance list in `docs/src/architecture.md` rather
-than being logged as M6 failures.
+**Inherited by production**, recorded in `architecture.md`'s production-adapter
+inheritance list: screen-reader and assistive-technology support, and custom
+focus-ring rendering.
 
-### 8. Platform verification is separate from UX sessions
+### 7. Environment sampling
 
-Cross-platform is declared scope, but only Linux has ever been built or run.
-These are two different questions and conflating them will produce a dishonest
-result.
+Full coverage across audience mode (2), locale (2), theme (4), window size (2),
+input method (2), and entry state (5) is not required. Instead:
 
-- **UX sessions** may be Linux-primary. Interaction design does not vary
-  materially by platform, and participant availability should not be constrained
-  by hardware.
-- **Platform verification** — build, run, and a visual smoke pass of each
-  primary screen — must be performed on every platform claimed as supported.
+- **every value of every dimension appears at least once** across L2 and L3
+  combined;
+- these combinations are **mandatory**, being where defects cluster:
+  - Japanese at the smallest supported window — text expansion and clipping;
+  - high-contrast theme with keyboard-only input — focus against high-contrast
+    borders;
+  - Guided mode at 200% text scale — the mode carrying the most inline hints;
+  - **Expert mode at the smallest supported window** — Expert shows every
+    control at once, and this is where that density fails;
+- build identity (commit SHA), platform, theme, locale, mode, window size, input
+  method, and entry state are recorded per session and per L2 run. A finding
+  without its configuration is not reproducible and is not evidence.
 
-**If a platform cannot be exercised, it must be removed from the supported
-claim** in `README.md` and the roadmap, not silently carried. A supported
-platform with no evidence is a claim, and this programme does not make claims it
-has not tested. This is a decision the project owner must make explicitly if
-macOS or Windows hardware is unavailable.
+### 8. Deferral rule
 
-### 9. Deferral rule
+A finding may be deferred only with a named owner, rationale, user impact, and
+target step. **S1 may never be deferred.** Fixes are re-tested with the same
+scenario and a recorded build identity — at L2 by re-running the script, at L3
+by re-running the scenario. An untested fix does not close a finding.
 
-A finding may be deferred only with a named owner, a stated rationale, the user
-impact, and a target step. **S1 findings may never be deferred.** Fixes receive
-targeted re-test using the same scenario script and a recorded build identity;
-an untested fix does not close a finding.
+## Preparation gate — a separate reviewed unit
 
-## Evidence format
+Sessions do not begin until the following is delivered **and independently
+reviewed as its own unit**, not folded into the acceptance review. Participant
+time is the scarcest resource in the programme; spending it rediscovering known
+defects produces noise, and burying the confirmation inside a later review means
+nobody checks before the booking is made.
 
-Per session: participant role, build SHA, full configuration, per-scenario
-completion, rescue count, critical-error count, elapsed time where useful, and
-verbatim participant observations where informative.
+**a. Enabled no-op controls.** `crates/app/src/screens/routes.rs:132` and `:191`
+dispatch `Message::Noop` behind enabled buttons. An enabled control that does
+nothing is the most reliable way to destroy a participant's model of what the
+application can do. Given the no-I/O boundary, **disabled-with-visible-reason is
+the expected resolution**.
 
-Per finding: severity, scenario, configuration, reproduction steps, whether
-replicated across participants, disposition, and — where fixed — the re-test
-record.
+**b. Localization inventory.** A recorded, repeatable sweep of user-visible
+literals in `screens/`, `shell/`, and `widgets/`. At the time of writing it
+returns **14 candidates across three files** — a bounded task. Each is migrated
+to an `apimokka_i18n::Key` or given a recorded exemption, following the
+accelerator-notation precedent: platform or protocol notation is exempt, prose
+is not.
 
-Stored under `.git-exclude/release-evidence/`, following the existing dated
-convention.
+**c. `README.md:40`** corrected per decision 2.
+
+**Exit:** no enabled no-op controls; no unexplained user-visible English; the
+canonical gate green.
 
 ## Acceptance criteria
 
-- The preparation gate (decision 1) closed before the first session.
-- Every primary scenario completed by at least one participant of the intended
-  persona, on both pointer and keyboard paths across the session set.
+- Preparation gate delivered and separately accepted.
+- L1 green on all three platforms, both toolchains.
+- L2 recorded pass for every mandatory combination in decision 7.
+- Every primary scenario completed by a participant of the intended persona,
+  across the declared entry states, on both pointer and keyboard paths.
 - No unresolved S1 finding.
-- Every dimension value covered, and all three mandatory high-risk combinations
-  run.
-- Platform verification recorded for every claimed platform, or the claim
-  reduced.
-- Accessibility items either verified or recorded as inherited production
-  requirements.
-- All deferrals satisfy decision 9.
+- Accessibility items verified or recorded as inherited production requirements.
+- All deferrals satisfy decision 8.
 
 ## Alternatives considered
 
-**Expert-only sessions.** Cheaper to recruit and more articulate feedback.
-Rejected: Guided mode and the first-launch flow exist specifically for people
+**Human sessions on all three platforms.** Rejected as unachievable and
+unnecessary; L1 and L2 supply platform and mechanical evidence, leaving sessions
+to measure comprehension, which does not vary materially by platform.
+
+**Skip CI, verify platforms by hand.** Rejected. Manual multi-platform runs decay
+precisely because they are tedious, and they cannot be re-run cheaply after a
+fix.
+
+**Expert-only sessions.** Rejected: Guided mode and first-launch exist for people
 who have never used apimock-rs, and an expert cannot report a newcomer's
 confusion.
 
-**Skip UX and rely on the reducer and view-build test suites.** Rejected. Those
-prove construction, not comprehension. No test in this repository can tell you
-that a label misleads.
+**Rely on the reducer and view-build suites.** Rejected. They prove
+construction, not comprehension. No test here can tell you a label misleads.
 
-**Defer M6 to production.** Rejected — it inverts the mockup's purpose. The
-entire justification for building a prototype before production integration is
-to learn this now, while changing it is cheap.
-
-**Full Cartesian environment coverage.** Rejected as disproportionate at 192
-configurations; decision 6's sampling rule with mandatory high-risk combinations
-gives most of the signal at a fraction of the cost.
+**Defer M6 to production.** Rejected — it inverts the mockup's purpose, which is
+to learn this while changing it is still cheap.
 
 ## Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Participants unavailable | The single unmitigable risk, and the reason recruitment should start before this RFC is accepted rather than after |
-| Findings imply redesign rather than repair | Record and escalate; M6 measures, it does not redesign. A redesign finding is an owner decision, not an M6 fix |
-| Two participants cannot distinguish idiosyncrasy from defect | Unreplicated single-participant findings cannot alone establish S1 |
-| Facilitator grades rescues generously | Decision 5 defines rescue explicitly; ties resolve toward recording a rescue |
-| macOS/Windows hardware unavailable | Decision 8 forces an explicit scope reduction rather than an untested claim |
-| Session findings arrive after M5 restructuring | M5 is behaviour-neutral, so findings remain valid against it; re-test uses the recorded build SHA |
+| Participants unavailable | The one unmitigable risk, and why recruitment should begin before this RFC is accepted |
+| First-boot naivety spent accidentally | First-boot scenarios scheduled first, by rule |
+| Windows/macOS CI runners diverge from real desktop behaviour | L1 claims only build and logic; interaction claims come from L2/L3 and are scoped to what was actually run |
+| Facilitator grades generously | Classification moves out of the session; ties record a rescue |
+| Findings imply redesign | Recorded and escalated; M6 measures, it does not redesign |
+| Session findings arrive after M5 restructuring | M5 is behaviour-neutral, so scenarios stay valid; re-tests cite build SHAs |
 
-## Review questions
+## Resolved review questions
 
-1. Is the two-persona floor sufficient, given that unreplicated findings cannot
-   establish S1 — or should three participants be a hard requirement?
-2. Is the rescue definition in decision 5 workable for a facilitator applying it
-   live, or too strict to use in practice?
-3. Are the three mandatory high-risk combinations the right ones, and is
-   "every dimension value at least once" a sufficient sampling floor?
-4. Does decision 8's forced choice — verify each platform or drop the claim —
-   correctly reflect available hardware?
-5. Should the preparation gate (decision 1) be a separate reviewed unit before
-   this RFC's sessions are authorized, or is it fine as this RFC's first step?
+Raised at design review and settled by the project owner on 2026-08-02:
 
-Creation of this Proposed RFC does not authorize implementation.
+1. **Participant count versus situation.** The material axis is **entry state**,
+   not headcount — the same person gets different results on first boot than on
+   later boots. Replication-by-headcount is replaced by state coverage plus the
+   objective/interpretive split in decision 5, which also removes a
+   contradiction in the original draft, where a two-participant floor combined
+   with a replication requirement made S1 unreachable.
+2. **Facilitator classification** moves out of the live session into analysis.
+3. **Expert mode at the smallest window** added as a fourth mandatory
+   combination; the original three all stressed Guided.
+4. **All three platforms are required**, satisfied through the layered model
+   rather than a verify-or-drop-the-claim choice.
+5. **The preparation gate is a separate reviewed unit.**
+
+## Status
+
+Design accepted by the project owner on 2026-08-02, including the five
+resolutions above. Under the four-folder lifecycle this RFC remains `Proposed`
+until its implementation ships, at which point it moves to `done/`; design
+acceptance is not a folder transition.
+
+Acceptance of this design is recorded separately from authorization to
+implement. Creation and acceptance of this RFC do not authorize implementation.
