@@ -132,7 +132,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let form = column![
         text(t(Key::WizardTitle)).size(size::TITLE),
         Space::new().height(space::S1),
-        text("Fill in your workspace name and folder. Advanced sections have sensible defaults.")
+        text(t(Key::WizardIntroHint))
             .size(size::CAPTION)
             .color(theme::muted(&app.theme())),
         widgets::divider(),

@@ -39,7 +39,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         .collect();
 
     let content = if rows.is_empty() {
-        widgets::empty_state("No workspaces found.")
+        widgets::empty_state(app.t(Key::DashNoWorkspacesFound))
     } else {
         column(rows).spacing(space::S2).into()
     };

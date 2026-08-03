@@ -4,6 +4,8 @@ pub fn t(key: Key) -> &'static str {
     match key {
         Key::AppName => "apimokka",
         Key::Tagline => "HTTP モックをビジュアルに作成",
+        Key::EmptyNoWorkspaceOpen => "ワークスペースが開いていません。",
+        Key::DisabledNoFileIo => "このモックアップではファイル I/O は未対応です",
         Key::BtnClose => "閉じる",
         Key::BtnCancel => "キャンセル",
         Key::BtnCreate => "ワークスペースを作成",
@@ -64,7 +66,11 @@ pub fn t(key: Key) -> &'static str {
         Key::DashRecentSection => "最近使用",
         Key::DashLastOpened => "最終開封",
         Key::DashPinToggle => "ピン留め",
+        Key::DashNoWorkspacesFound => "ワークスペースが見つかりません。",
         Key::WizardTitle => "ワークスペースを作成",
+        Key::WizardIntroHint => {
+            "ワークスペース名とフォルダを入力してください。詳細セクションには適切な初期値が設定されています。"
+        }
         Key::WizardFieldName => "ワークスペース名",
         Key::WizardFieldFolder => "親フォルダ",
         Key::WizardSectionServer => "サーバー設定",
@@ -99,11 +105,16 @@ pub fn t(key: Key) -> &'static str {
         Key::RoutesRuleSets => "ルールセット",
         Key::RoutesFallbackFiles => "フォールバックファイル",
         Key::RoutesMiddleware => "ミドルウェアスクリプト",
+        Key::RoutesRuleCountNoun => "ルール",
         Key::BtnAddRuleSet => "ルールセット追加",
         Key::BtnAddRule => "ルール追加",
         Key::WhenLabel => "WHEN",
         Key::RespondLabel => "RESPOND",
         Key::WhenArrow => "→",
+        Key::RoutesRecentTraceActivity => "最近のトレースアクティビティ",
+        Key::RoutesViewAllInTrace => "トレースですべて表示 →",
+        Key::RoutesNoRecentMatches => "このルールに最近のマッチはありません。",
+        Key::RoutesJumpToTraceEvent => "ジャンプ →",
         Key::UrlPathCardTitle => "URL パス",
         Key::UrlPathField => "/api/orders",
         Key::UrlPathOperator => "演算子",
@@ -120,6 +131,7 @@ pub fn t(key: Key) -> &'static str {
         Key::BodyColumnOp => "演算子",
         Key::BodyColumnValue => "値",
         Key::BtnAddBodyCondition => "ボディ条件追加",
+        Key::BodyValuePlaceholder => "値",
         Key::BodyJsonpathWarn => {
             "ドット記法を使用してください（例: user.id）。JSONPath はサポートされていません。"
         }
@@ -127,6 +139,7 @@ pub fn t(key: Key) -> &'static str {
         Key::RespondCardTitle => "レスポンス",
         Key::RespondModeInline => "インラインテキスト",
         Key::RespondModeFile => "ファイル提供",
+        Key::RespondBodyPlaceholder => "レスポンス本文…",
         Key::RespondStatusLabel => "ステータス",
         Key::RespondDelayLabel => "遅延",
         Key::RespondDelayUnit => "ms",
@@ -225,6 +238,9 @@ pub fn t(key: Key) -> &'static str {
         Key::ScriptsEmptyExplanation => {
             "ミドルウェアスクリプトはルールマッチングの前に実行され、リクエストを変換できます。"
         }
+        Key::ScriptsReadOnlyBadge => "読み取り専用",
+        Key::ScriptsSelectToView => "表示するスクリプトを選択してください。",
+        Key::BtnAddScript => "スクリプト追加 (.rhai)",
         Key::DrawerValidationTitle => "バリデーション",
         Key::DrawerValidationErrors => "エラー",
         Key::DrawerValidationWarnings => "警告",
@@ -238,6 +254,9 @@ pub fn t(key: Key) -> &'static str {
         Key::DrawerViewDiff => "差分を表示",
         Key::DrawerLastSaveAttempt => "前回の保存試行",
         Key::DrawerCurrentUnsaved => "現在の未保存の変更",
+        Key::DrawerNoUnsavedChanges => "未保存の変更はありません。",
+        Key::DrawerUnsavedCountSingular => "件の未保存の変更があるファイル",
+        Key::DrawerUnsavedCountPlural => "件の未保存の変更があるファイル",
         Key::SaveCompletionComplete => "完了",
         Key::SaveCompletionPartial => "一部完了",
         Key::SaveCompletionFailed => "失敗",
@@ -417,6 +436,7 @@ pub fn t(key: Key) -> &'static str {
         Key::FallbackStatusLabel => "ステータスコード",
         Key::FallbackFormatJson => "JSON整形",
         Key::BtnAddFallbackFile => "ファイル追加",
+        Key::BtnSaveFilePrefix => "保存",
         Key::FallbackEmptyHint => "サイドバーからファイルを選択して内容を編集してください。",
         Key::BtnRevert => "元に戻す",
         Key::FallbackJsonValid => "✓ 有効なJSON",

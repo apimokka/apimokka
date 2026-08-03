@@ -11,7 +11,7 @@ use iced::{Element, Length, Padding};
 pub fn view(app: &App) -> Element<'_, Message> {
     let snap = match &app.snapshot {
         Some(s) => s,
-        None => return widgets::empty_state("No workspace open."),
+        None => return widgets::empty_state(app.t(Key::EmptyNoWorkspaceOpen)),
     };
 
     if snap.middleware_scripts.is_empty() {
@@ -83,7 +83,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             .height(Length::Fill)
             .into()
     } else {
-        container(widgets::empty_state("Select a script to view it."))
+        container(widgets::empty_state(app.t(Key::ScriptsSelectToView)))
             .width(Length::Fill)
             .height(Length::Fill)
             .into()

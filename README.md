@@ -37,7 +37,7 @@ Use this mockup to:
 ### Prerequisites
 
 - Rust 1.91 or later
-- A Linux desktop with Wayland or X11 (iced 0.14 requirement)
+- A Linux, macOS, or Windows desktop — iced 0.14 supports all three
 
 ### Build and run
 

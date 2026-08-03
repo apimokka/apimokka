@@ -10,7 +10,7 @@ use iced::{Alignment, Element, Length, Padding};
 pub fn view(app: &App) -> Element<'_, Message> {
     let snap = match &app.snapshot {
         Some(s) => s,
-        None => return widgets::empty_state("No workspace open."),
+        None => return widgets::empty_state(app.t(Key::EmptyNoWorkspaceOpen)),
     };
     let s = &snap.root_settings;
     let drafts = &snap.root_drafts;

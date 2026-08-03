@@ -4,6 +4,8 @@ pub fn t(key: Key) -> &'static str {
     match key {
         Key::AppName => "apimokka",
         Key::Tagline => "Visual HTTP mock authoring",
+        Key::EmptyNoWorkspaceOpen => "No workspace open.",
+        Key::DisabledNoFileIo => "No file I/O in this mockup",
 
         Key::BtnClose => "Close",
         Key::BtnCancel => "Cancel",
@@ -68,8 +70,12 @@ pub fn t(key: Key) -> &'static str {
         Key::DashRecentSection => "Recent",
         Key::DashLastOpened => "Last opened",
         Key::DashPinToggle => "Pin workspace",
+        Key::DashNoWorkspacesFound => "No workspaces found.",
 
         Key::WizardTitle => "Create workspace",
+        Key::WizardIntroHint => {
+            "Fill in your workspace name and folder. Advanced sections have sensible defaults."
+        }
         Key::WizardFieldName => "Workspace name",
         Key::WizardFieldFolder => "Parent folder",
         Key::WizardSectionServer => "Server defaults",
@@ -104,11 +110,16 @@ pub fn t(key: Key) -> &'static str {
         Key::RoutesRuleSets => "Rule sets",
         Key::RoutesFallbackFiles => "Fallback files",
         Key::RoutesMiddleware => "Middleware scripts",
+        Key::RoutesRuleCountNoun => "rules",
         Key::BtnAddRuleSet => "Add rule set",
         Key::BtnAddRule => "Add rule",
         Key::WhenLabel => "WHEN",
         Key::RespondLabel => "RESPOND",
         Key::WhenArrow => "→",
+        Key::RoutesRecentTraceActivity => "Recent trace activity",
+        Key::RoutesViewAllInTrace => "View all in Trace →",
+        Key::RoutesNoRecentMatches => "No recent matches for this rule.",
+        Key::RoutesJumpToTraceEvent => "Jump →",
 
         Key::UrlPathCardTitle => "URL path",
         Key::UrlPathField => "/api/orders",
@@ -129,12 +140,14 @@ pub fn t(key: Key) -> &'static str {
         Key::BodyColumnOp => "Operator",
         Key::BodyColumnValue => "Value",
         Key::BtnAddBodyCondition => "Add body condition",
+        Key::BodyValuePlaceholder => "value",
         Key::BodyJsonpathWarn => "Use dotted path syntax, e.g. user.id. JSONPath is not supported.",
         Key::BodyDottedPathHint => "Dotted path such as user.id or items.0.name.",
 
         Key::RespondCardTitle => "Response",
         Key::RespondModeInline => "Inline text",
         Key::RespondModeFile => "Serve file",
+        Key::RespondBodyPlaceholder => "Response body…",
         Key::RespondStatusLabel => "Status",
         Key::RespondDelayLabel => "Delay",
         Key::RespondDelayUnit => "ms",
@@ -234,6 +247,9 @@ pub fn t(key: Key) -> &'static str {
         Key::ScriptsEmptyExplanation => {
             "Middleware scripts run before rule matching and can transform requests."
         }
+        Key::ScriptsReadOnlyBadge => "read-only",
+        Key::ScriptsSelectToView => "Select a script to view it.",
+        Key::BtnAddScript => "Add .rhai",
 
         Key::DrawerValidationTitle => "Validation",
         Key::DrawerValidationErrors => "Errors",
@@ -248,6 +264,9 @@ pub fn t(key: Key) -> &'static str {
         Key::DrawerViewDiff => "View diff",
         Key::DrawerLastSaveAttempt => "Last save attempt",
         Key::DrawerCurrentUnsaved => "Current unsaved changes",
+        Key::DrawerNoUnsavedChanges => "No unsaved changes.",
+        Key::DrawerUnsavedCountSingular => "file with unsaved changes",
+        Key::DrawerUnsavedCountPlural => "files with unsaved changes",
         Key::SaveCompletionComplete => "Complete",
         Key::SaveCompletionPartial => "Partial",
         Key::SaveCompletionFailed => "Failed",
@@ -437,6 +456,7 @@ pub fn t(key: Key) -> &'static str {
         Key::FallbackStatusLabel => "Status code",
         Key::FallbackFormatJson => "Format JSON",
         Key::BtnAddFallbackFile => "Add file",
+        Key::BtnSaveFilePrefix => "Save",
         Key::FallbackEmptyHint => "Select a file from the sidebar to edit its content.",
         Key::BtnRevert => "Revert",
         Key::FallbackJsonValid => "✓ Valid JSON",

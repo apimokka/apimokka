@@ -207,7 +207,7 @@ pub(crate) fn durable_diagnostic_rows(app: &App) -> Vec<DurableDiagnosticRow> {
 
 fn save_diff_content(app: &App) -> Element<'_, Message> {
     let Some(snap) = &app.snapshot else {
-        return widgets::empty_state("No workspace open.");
+        return widgets::empty_state(app.t(Key::EmptyNoWorkspaceOpen));
     };
 
     let dirty_rule_sets: Vec<_> = snap.rule_sets.iter().filter(|rs| rs.file.dirty).collect();
@@ -230,7 +230,7 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                 text("✓")
                     .size(size::TITLE)
                     .color(Color::from_rgb(0.1, 0.65, 0.1)),
-                text("No unsaved changes.").size(size::BODY),
+                text(app.t(Key::DrawerNoUnsavedChanges)).size(size::BODY),
             ]
             .spacing(space::S2)
             .align_x(iced::Alignment::Center),
@@ -241,13 +241,13 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
     }
 
     let count_text = format!(
-        "{} {} unsaved changes",
+        "{} {}",
         total,
-        if total == 1 {
-            "file with"
+        app.t(if total == 1 {
+            Key::DrawerUnsavedCountSingular
         } else {
-            "files with"
-        }
+            Key::DrawerUnsavedCountPlural
+        })
     );
 
     let mut col = column![]
@@ -282,7 +282,7 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                     text("✓")
                         .size(size::TITLE)
                         .color(Color::from_rgb(0.1, 0.65, 0.1)),
-                    text("No unsaved changes.").size(size::BODY),
+                    text(app.t(Key::DrawerNoUnsavedChanges)).size(size::BODY),
                 ]
                 .spacing(space::S2)
                 .align_x(iced::Alignment::Center),

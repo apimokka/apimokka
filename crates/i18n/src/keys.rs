@@ -8,6 +8,8 @@ pub enum Key {
     // ── Shared / global ──────────────────────────────────────────────────
     AppName,
     Tagline,
+    EmptyNoWorkspaceOpen, // "No workspace open." — routes sidebar + save-diff drawer
+    DisabledNoFileIo,     // reason shown beside a control this mockup's no-I/O boundary blocks
     BtnClose,
     BtnCancel,
     BtnCreate,
@@ -76,9 +78,11 @@ pub enum Key {
     DashRecentSection,
     DashLastOpened,
     DashPinToggle,
+    DashNoWorkspacesFound, // "No workspaces found." — search yields nothing
 
     // ── Wizard (S-02) ─────────────────────────────────────────────────────
     WizardTitle,
+    WizardIntroHint, // "Fill in your workspace name and folder. Advanced sections have sensible defaults."
     WizardFieldName,
     WizardFieldFolder,
     WizardSectionServer,
@@ -113,11 +117,18 @@ pub enum Key {
     RoutesRuleSets,
     RoutesFallbackFiles,
     RoutesMiddleware,
+    RoutesRuleCountNoun, // "rules" — formatted as "{n} {noun}"
     BtnAddRuleSet,
     BtnAddRule,
     WhenLabel,
     RespondLabel,
     WhenArrow, // "→"
+
+    // Recent trace activity strip (within a selected rule)
+    RoutesRecentTraceActivity, // "Recent trace activity"
+    RoutesViewAllInTrace,      // "View all in Trace →"
+    RoutesNoRecentMatches,     // "No recent matches for this rule."
+    RoutesJumpToTraceEvent,    // "Jump →"
 
     // URL path card
     UrlPathCardTitle,
@@ -144,11 +155,13 @@ pub enum Key {
     BtnAddBodyCondition,
     BodyJsonpathWarn, // "Use dotted path, not JSONPath"
     BodyDottedPathHint,
+    BodyValuePlaceholder, // "value" — body condition value input placeholder
 
     // Respond card
     RespondCardTitle,
     RespondModeInline,
     RespondModeFile,
+    RespondBodyPlaceholder, // "Response body…" — inline text input placeholder
     RespondStatusLabel,
     RespondDelayLabel,
     RespondDelayUnit, // "ms"
@@ -263,6 +276,9 @@ pub enum Key {
     ScriptsTitle,
     ScriptsEmptyMessage,
     ScriptsEmptyExplanation,
+    ScriptsReadOnlyBadge, // "read-only" chip on the selected script's viewer
+    BtnAddScript,         // "Add .rhai" — disabled, no-I/O boundary
+    ScriptsSelectToView,  // "Select a script to view it."
 
     // ── Bottom drawer ─────────────────────────────────────────────────────
     DrawerValidationTitle,
@@ -278,6 +294,9 @@ pub enum Key {
     DrawerViewDiff,
     DrawerLastSaveAttempt,
     DrawerCurrentUnsaved,
+    DrawerNoUnsavedChanges,     // "No unsaved changes."
+    DrawerUnsavedCountSingular, // "file with unsaved changes" (n == 1)
+    DrawerUnsavedCountPlural,   // "files with unsaved changes" (n != 1)
     SaveCompletionComplete,
     SaveCompletionPartial,
     SaveCompletionFailed,
@@ -386,6 +405,7 @@ pub enum Key {
     BtnAddFallbackFile,
     FallbackEmptyHint,
     BtnRevert,
+    BtnSaveFilePrefix, // "Save" — formatted as "{label}  {filename}"
     FallbackJsonValid,
     FallbackJsonInvalid,
     FallbackSavedHint,

@@ -26,7 +26,7 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
     let snap = match &app.snapshot {
         Some(s) => s,
         None => {
-            return container(widgets::empty_state("No workspace open."))
+            return container(widgets::empty_state(t(Key::EmptyNoWorkspaceOpen)))
                 .width(Length::Fixed(280.0))
                 .height(Length::Fill)
                 .style(theme::panel_style)
@@ -128,11 +128,19 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
             );
         }
         col = col.push(
-            button(text(format!("+ {}", t(Key::BtnAddFallbackFile))).size(size::CAPTION))
-                .on_press(Message::Noop)
-                .padding(Padding::from([space::S1, space::S3]))
-                .style(iced::widget::button::text)
-                .width(Length::Fill),
+            column![
+                button(text(format!("+ {}", t(Key::BtnAddFallbackFile))).size(size::CAPTION))
+                    .padding(Padding::from([space::S1, space::S3]))
+                    .style(iced::widget::button::text)
+                    .width(Length::Fill),
+                container(
+                    text(t(Key::DisabledNoFileIo))
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme()))
+                )
+                .padding(Padding::from([0.0, space::S3])),
+            ]
+            .spacing(2.0),
         );
     }
 
@@ -187,11 +195,19 @@ fn left_sidebar(app: &App) -> Element<'_, Message> {
             );
         }
         col = col.push(
-            button(text("+ Add .rhai").size(size::CAPTION))
-                .on_press(Message::Noop) // stub
-                .padding(Padding::from([space::S1, space::S3]))
-                .style(iced::widget::button::text)
-                .width(Length::Fill),
+            column![
+                button(text(format!("+ {}", t(Key::BtnAddScript))).size(size::CAPTION))
+                    .padding(Padding::from([space::S1, space::S3]))
+                    .style(iced::widget::button::text)
+                    .width(Length::Fill),
+                container(
+                    text(t(Key::DisabledNoFileIo))
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme()))
+                )
+                .padding(Padding::from([0.0, space::S3])),
+            ]
+            .spacing(2.0),
         );
     }
 
@@ -411,9 +427,13 @@ fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message
                 text(rs.file.path.as_str())
                     .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
-                text(format!("{} rules", rs.rules.len()))
-                    .size(size::CAPTION)
-                    .color(theme::muted(&app.theme())),
+                text(format!(
+                    "{} {}",
+                    rs.rules.len(),
+                    t(Key::RoutesRuleCountNoun)
+                ))
+                .size(size::CAPTION)
+                .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S1)
             .width(Length::Fill),
@@ -998,7 +1018,7 @@ fn fallback_file_editor<'a>(
 
     // Save: primary, only actionable when dirty. Label includes the filename
     // so users know exactly which file they are saving.
-    let save_label = format!("Save  {}", file.name);
+    let save_label = format!("{}  {}", t(Key::BtnSaveFilePrefix), file.name);
     let save_btn: Element<Message> = {
         let b = button(text(save_label).size(size::BODY))
             .padding(Padding::from(pad::BUTTON_PRIMARY))
@@ -1062,7 +1082,7 @@ fn script_viewer<'a>(
     let header = column![
         row![
             text(name).size(size::SECTION).width(Length::Fill),
-            container(text("read-only").size(size::CAPTION),)
+            container(text(app.t(Key::ScriptsReadOnlyBadge)).size(size::CAPTION),)
                 .padding(Padding::from([2.0, space::S2]))
                 .style(theme::chip_style),
         ]
@@ -1070,7 +1090,7 @@ fn script_viewer<'a>(
         text(script.path.as_str())
             .size(size::CAPTION)
             .color(theme::muted(&app.theme())),
-        text("Middleware scripts run before rule matching and can transform requests.")
+        text(app.t(Key::ScriptsEmptyExplanation))
             .size(size::CAPTION)
             .color(theme::muted(&app.theme())),
     ]
@@ -1102,11 +1122,11 @@ fn trace_activity_section<'a>(
     let recent = recent_matching_events(app, rule);
 
     let header = row![
-        text("Recent trace activity")
+        text(app.t(Key::RoutesRecentTraceActivity))
             .size(size::BODY)
             .color(theme::muted(&app.theme()))
             .width(Length::Fill),
-        button(text("View all in Trace →").size(size::CAPTION))
+        button(text(app.t(Key::RoutesViewAllInTrace)).size(size::CAPTION))
             .on_press(Message::ViewAllInTrace)
             .padding(Padding::from([space::S1, space::S2]))
             .style(iced::widget::button::text),
@@ -1114,7 +1134,7 @@ fn trace_activity_section<'a>(
     .align_y(Alignment::Center);
 
     let body: Element<Message> = if recent.is_empty() {
-        text("No recent matches for this rule.")
+        text(app.t(Key::RoutesNoRecentMatches))
             .size(size::CAPTION)
             .color(theme::muted(&app.theme()))
             .into()
@@ -1130,13 +1150,17 @@ fn trace_activity_section<'a>(
                         .size(size::CAPTION)
                         .color(theme::muted(&app.theme()))
                         .width(Length::Fill),
-                    text(format!("{}ms", ev.duration_ms))
-                        .size(size::CAPTION)
-                        .color(theme::muted(&app.theme())),
+                    text(format!(
+                        "{}{}",
+                        ev.duration_ms,
+                        app.t(Key::RespondDelayUnit)
+                    ))
+                    .size(size::CAPTION)
+                    .color(theme::muted(&app.theme())),
                     text(ev.time.as_str())
                         .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
-                    button(text("Jump →").size(size::CAPTION))
+                    button(text(app.t(Key::RoutesJumpToTraceEvent)).size(size::CAPTION))
                         .on_press(Message::JumpToTraceEvent(eid))
                         .padding(Padding::from([space::S1, space::S2]))
                         .style(iced::widget::button::text),
@@ -1296,7 +1320,12 @@ fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
             } else {
                 Message::RuleSetMethod(m.to_string())
             };
-            button(text(*m).size(size::CAPTION))
+            let label = if *m == "Any" {
+                app.t(Key::MethodAny)
+            } else {
+                *m
+            };
+            button(text(label).size(size::CAPTION))
                 .on_press(msg)
                 .padding(Padding::from([space::S2, space::S3 + 2.0]))
                 .style(if active {
@@ -1402,7 +1431,7 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
                     .width(Length::Fixed(120.0)),
                     {
                         let bval: Element<Message> = if show_val {
-                            text_input("value", &b.value)
+                            text_input(app.t(Key::BodyValuePlaceholder), &b.value)
                                 .on_input(move |v| Message::BodySetValue { index: i, value: v })
                                 .size(size::CAPTION)
                                 .padding(Padding::from([space::S2, space::S2]))
@@ -1469,7 +1498,7 @@ fn respond_card<'a>(
     .into();
 
     let body_el: Element<Message> = if is_inline {
-        text_input("Response body…", &p.respond.text)
+        text_input(app.t(Key::RespondBodyPlaceholder), &p.respond.text)
             .on_input(Message::RespondSetText)
             .size(size::BODY)
             .padding(Padding::from([space::S2, space::S3]))
