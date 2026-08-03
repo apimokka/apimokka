@@ -526,6 +526,80 @@ match. The full gate was rerun rather than assumed to pass:
 Both toolchains now run the full workspace test surface inside the canonical
 gate. R1-1 closes with this correction.
 
+## M6 layer L1 — first cross-platform evidence — 2026-08-03
+
+RFC MK-056 defines three verification layers. This records the first run of
+**L1 — cross-platform CI**, which is also the first time this workspace has ever
+been compiled on macOS or Windows.
+
+Before this run, the branch had never been pushed: 46 commits spanning M1
+through M7, R1, and five RFCs existed only on the development machine. The push
+of `mockup-v0-01` at `469e6cf` both established the remote and triggered the
+workflow.
+
+**Run:** GitHub Actions ID `30824280662`, branch `mockup-v0-01`, commit
+`469e6cf`, 2026-08-03 14:46:08Z → 14:51:08Z (five minutes, cold, no populated
+cache).
+
+| Platform | stable | Rust 1.91 |
+|---|---|---|
+| `ubuntu-latest` | success | success |
+| `macos-latest` | success | success |
+| `windows-latest` | success | success |
+
+All six legs ran `cargo build --workspace --locked` then `cargo test --workspace
+--locked`. `fail-fast: false` ensured every leg reported independently rather
+than the first failure cancelling the rest.
+
+### Verification performed
+
+Leg conclusions were read from the run summary. Because a green leg could in
+principle build without running tests, **two legs were spot-checked against
+their raw logs** — `windows-latest / stable` and `macos-latest / 1.91`. Both
+report the same composition as the local Linux gate:
+
+| Target class | Count |
+|---|---:|
+| `apimokka` (app) | 202 |
+| `apimokka-model` | 56 |
+| `engine_conformance` integration suite | 26 |
+| Doctests | 4 |
+
+The remaining four legs were not individually log-checked.
+
+The 26 is the load-bearing number. The MK-055 conformance suite creates real
+workspaces on disk in temporary directories and drives
+`apimock_config::Workspace::load` against them — genuine file I/O, path
+handling, and TOML loading. It is the most platform-sensitive code in the
+repository, and it passes unmodified under Windows path semantics.
+
+### The predicted failure did not occur
+
+The implementation review recorded a candidate explanation should the Linux legs
+fail: GitHub-hosted `ubuntu-latest` runners not shipping Wayland/X11/xkbcommon
+development headers that iced's winit/wgpu stack can need at link time. An
+`apt-get` step was pre-authorized to avoid a round trip.
+
+It was not needed. The image ships what the stack requires. The decision not to
+add an unverified step for an unobserved problem was correct, and the
+pre-authorization goes unused.
+
+### What this establishes, and what it does not
+
+**Establishes:** the workspace builds, and its logic holds, on Linux, macOS, and
+Windows, on both stable and the declared MSRV. The roadmap's cross-platform
+support claim has evidence behind it for the first time.
+
+**Does not establish** anything about how the application looks or behaves on
+macOS or Windows. This is build-and-test evidence only. MK-056's layer L2
+(scripted GUI verification) and layer L3 (human sessions) are both entirely
+undone, and no interaction, layout, focus, or visual claim may be made from this
+run.
+
+`README.md:40` states a Linux desktop prerequisite and attributes it to iced
+0.14. This run demonstrates both halves of that statement to be false. Its
+correction is already in scope for the M6 preparation gate.
+
 **The living command contract is `check-release-gates-self-test.sh`'s
 `write_expected()` function, which asserts the gate's argv byte-for-byte —
 not any prose list, including the one in this document or in MK-054's RFC
