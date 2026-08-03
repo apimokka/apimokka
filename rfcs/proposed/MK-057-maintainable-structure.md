@@ -282,4 +282,7 @@ until its implementation ships, at which point it moves to `done/`; design
 acceptance is not a folder transition.
 
 Acceptance of this design is recorded separately from authorization to
-implement. Creation and acceptance of this RFC do not authorize implementation.
+implement. The project owner authorized implementation on 2026-08-02, assigned to the dev
+team. Authorization covers the scope defined here and nothing beyond it; the
+non-goals remain binding. A split that cannot be made behaviour-neutral stops
+for a design decision rather than being absorbed.

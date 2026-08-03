@@ -98,18 +98,23 @@ M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M7 ─ R1 ─┬─ M5 ─┬─ R2
                                    └─ production-integration roadmap (draft only)
 ```
 
-| Order | Step | Prerequisite | State |
-|---:|---|---|---|
-| 1 | M0 — Planning approval | — | Complete |
-| 2 | M1 — Repository truth | M0 | Complete |
-| 3 | M2 — Match-test conformance | M1 | Complete |
-| 4 | M3 — Integration boundary | M2 | Complete |
-| 5 | M4 — Quality and security gates | M3 | Complete |
-| 6 | **M7 — Engine contract conformance** | M4 | Not started |
-| 7 | R1 — Blocking re-review | M7 | Not started |
-| 8 | M5 — Maintainable structure | R1 GO | Not started |
-| 9 | M6 — UX acceptance evidence | R1 GO | Not started |
-| 10 | R2 — Integration readiness | M5 and M6 | Not started |
+| Order | Step | Prerequisite |
+|---:|---|---|
+| 1 | M0 — Planning approval | — |
+| 2 | M1 — Repository truth | M0 |
+| 3 | M2 — Match-test conformance | M1 |
+| 4 | M3 — Integration boundary | M2 |
+| 5 | M4 — Quality and security gates | M3 |
+| 6 | M7 — Engine contract conformance | M4 |
+| 7 | R1 — Blocking re-review | M7 |
+| 8 | M5 — Maintainable structure | R1 GO |
+| 9 | M6 — UX acceptance evidence | R1 GO |
+| 10 | R2 — Integration readiness | M5 and M6 |
+
+This table owns **order and prerequisites only**. Current state is owned solely
+by the progress table at the end of this document. Two tables recording the same
+fact is how the work-sequence column silently went stale while the progress
+table stayed correct.
 
 M5 and M6 run in parallel after R1. The production-integration roadmap is
 drafted in parallel after R1 GO; drafting authorizes no features.
@@ -435,8 +440,8 @@ condition, owner, and next decision.
 | M4 — Quality and security gates | Complete | Accepted 2026-08-01; MK-054 Implemented (Unreleased); implementation evidence: `.git-exclude/reviewed/2026-08-01-rfc-mk054-quality-and-security-gates-implementation-rereview.md`, committed `160456c`; lifecycle closure prepared by the programme architect and confirmed directly by the project owner on 2026-08-01, without the separate independent closure-confirmation session used for M1–M3 |
 | M7 — Engine contract conformance | Complete | Accepted 2026-08-02; MK-055 Implemented (Unreleased), committed `fec0fbf`, closure `5534192`; checkpoint evidence: `.git-exclude/reviewed/2026-08-02-rfc-mk055-harness-checkpoint-review.md`; implementation evidence: `.git-exclude/reviewed/2026-08-02-rfc-mk055-implementation-review.md`. Lifecycle closure was prepared by the programme architect and confirmed directly by the project owner, without a separate independent closure session, as recorded for M4. |
 | R1 — Blocking re-review | Complete | **CONDITIONAL GO** recorded 2026-08-02 on frozen input `5534192`; evidence: `.git-exclude/reviewed/2026-08-02-r1-blocking-architecture-re-review.md`. B1–B5 all resolved. Condition R1-1 — the canonical gate did not run integration-test targets, leaving the MK-055 conformance suite unguarded — **closed 2026-08-02**; both toolchains now run the full workspace test surface inside the gate. Evidence: `.git-exclude/reviewed/2026-08-02-r1-1-gate-integration-coverage-review.md` and `.git-exclude/reviewed/2026-08-02-r1-1-msrv-extension-review.md`. M5 implementation is unblocked. Non-blocking findings R1-2 (stale source-size baseline) and R1-3 (two conformance test files above the split threshold) carry into M5 planning. Conducted as a **self-audit** by the programme architect at the project owner's direction, with the reviewer-independence conflict recorded in the verdict; it is not an independent review. |
-| M5 — Maintainable structure | Not started | — |
-| M6 — UX acceptance evidence | Not started | — |
+| M5 — Maintainable structure | Implementing | MK-057 design accepted and implementation authorized by the project owner 2026-08-02, including resolution of all five review questions; assigned to the dev team via `.git-exclude/tasks/dev-team/007-mk057-maintainable-structure.md`. Unblocked by R1-1's closure. |
+| M6 — UX acceptance evidence | Implementing | MK-056 design accepted and implementation authorized by the project owner 2026-08-02, including resolution of all five review questions. Delivered as three units: cross-platform CI (`.git-exclude/tasks/dev-team/005-mk056-cross-platform-ci.md`), the preparation gate (`006-mk056-preparation-gate.md`), then scripted GUI verification and human sessions. Participant recruitment is the project owner's and is the critical path to R2. |
 | R2 — Integration readiness | Not started | — |
 
 ## Deferred beyond this roadmap
