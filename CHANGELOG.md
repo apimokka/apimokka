@@ -2,6 +2,14 @@
 
 ### Changed
 
+- Source structure now follows module boundaries rather than accumulated size.
+  The central reducer, the routes screen, the mock fixtures, and the workspace
+  session test suite were split at their real boundaries; three inline test
+  modules moved to separate files; and `scripts/check-source-size.sh` now
+  enforces that every file above the 500-line signal carries a recorded
+  boundary decision — replacing a hand-maintained table that had gone stale
+  twice. No behaviour changed (RFC MK-057).
+
 - The MK-053 editing boundary is now verified by executing against the real
   `apimock-config` 5.10.0 crate, adopted as a test-only dev-dependency and
   pinned by a repository-owned oracle guard. Nine divergences from the

@@ -1,6 +1,6 @@
 # RFC MK-057 — Maintainable structure
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M5 — Maintainable structure.
 **Touches.** `crates/app/src/app.rs`, `screens/routes.rs`, `model/mock.rs`, the
 three implementation files carrying inline test bodies, the source-size record,
@@ -73,14 +73,27 @@ The line count is not the finding. The structure is:
 | **477–4035** | **~3,558** | **A single `impl App` block** |
 | 4035–4181 | ~146 | Free helpers — history rebinding, mutation classification, subtree bindings |
 
-**Fifteen `app/` sibling modules already exist** — `runtime`, `history`,
-`themes`, `drawers`, `strategy`, `navigation`, `density`, `global_save`,
-`rule_duplication`, `rule_set_creation`, `workspace_creation`, `trace`,
-`workspace_session` and others. The extraction pattern is established and
-working; the residual `impl App` block is simply the domains nobody has pulled
-out yet, and they are visible in its own method names: root settings
-(`update_root_setting`), rule prototype, rule core, response drafts, header
-drafts, body drafts.
+**Correction (2026-08-04, slice 1 review).** An earlier draft of this audit
+claimed fifteen `app/` sibling modules established the extraction pattern. That
+was wrong, and it was the stated evidence for this mandate. Only **three** are
+production siblings — `workspace_session`, `global_save`, `runtime` — of which
+only `runtime.rs` extends `impl App` from a child module. The rest are
+`#[cfg(test)] #[path = "app/X.rs"] mod tests_mkNNN;` test files whose filenames
+read as production modules: `app/history.rs` is 198 lines, 8 `#[test]`
+functions, zero `pub fn`. The precedent is `runtime.rs` alone, which is
+sufficient and correct.
+
+The residual `impl App` block is the domains nobody has pulled out yet, visible
+in its own method names: root settings (`update_root_setting`), rule prototype,
+rule core, response drafts, header drafts, body drafts.
+
+**Additional finding (slice 1 review).** That the error was easy to make is
+itself a defect worth fixing. Eight files under `app/` — `history`, `density`,
+`trace`, `strategy`, `navigation`, `workspace_creation`, `rule_set_creation`,
+`rule_duplication` — read as production modules and are pure test files reached
+under different module names. Rename them to the `_tests.rs` suffix three
+siblings already use (`workspace_session_tests.rs`, `runtime_tests.rs`,
+`global_save_tests.rs`), or make the `mod` name match the file.
 
 **Boundary:** the draft-editing domains. Extract them as siblings following the
 existing pattern. The state types and free helpers may follow if they read
@@ -117,13 +130,17 @@ mandate would be delegating the decision while appearing to make it.
 
 ### Everything else the signal flags
 
-`workspace_session_tests.rs` (2,216), `memory_tests.rs` (1,463), `memory.rs`
-(1,272), `global_save_tests.rs` (893), `workspace_port.rs` (878),
-`runtime_tests.rs` (840), `tier2_scenarios.rs` (831), `workspace_port/tests.rs`
-(547), `mock.rs` (543), `bottom_drawer.rs` (526), `mapping.rs` (515),
-`tier1_mapping.rs` (501).
+**This list is superseded and is retained only as the audit's original state.**
+It went stale during the milestone that was fixing stale lists: it omits
+`app/drafts.rs`, `routes/rule_editor.rs`, and
+`workspace_session_tests/edit_history_round_trips.rs`, created by slices 1, 4
+and 5, and still names `mock.rs`, `routes.rs`, and `workspace_session_tests.rs`,
+all now sub-threshold hub files. That is precisely the failure decision 4 exists
+to end, demonstrated on this document.
 
-Each receives a recorded boundary decision under decision 3.
+**`scripts/check-source-size.sh` is the authoritative inventory.** Run it.
+
+Each flagged file receives a recorded boundary decision under decision 3.
 
 ## Decision
 
@@ -281,8 +298,27 @@ resolutions above. Under the four-folder lifecycle this RFC remains `Proposed`
 until its implementation ships, at which point it moves to `done/`; design
 acceptance is not a folder transition.
 
-Acceptance of this design is recorded separately from authorization to
-implement. The project owner authorized implementation on 2026-08-02, assigned to the dev
-team. Authorization covers the scope defined here and nothing beyond it; the
-non-goals remain binding. A split that cannot be made behaviour-neutral stops
-for a design decision rather than being absorbed.
+Design accepted and implementation authorized by the project owner on
+2026-08-02, assigned to the dev team.
+
+Delivered in seven independently reviewed slices between 2026-08-02 and
+2026-08-04: four mandatory splits, three inline test bodies relocated, the
+structure checker and its self-test wired into the canonical gate, and a
+recorded boundary decision for every flagged file. No behaviour changed; every
+relocated test kept its name and body. Reviews are recorded as
+`.git-exclude/reviewed/2026-08-04-mk057-*.md`.
+
+Three factual corrections were made to this document during delivery, each
+prompted by the implementer checking its claims rather than accepting them: the
+sibling-module count, the misleading test-filename finding, and this audit's own
+stale inventory. All are marked in place above.
+
+**Exit taken under an amended gate.** Four implementation files carry a recorded
+`split` decision that was not executed — `app.rs`, `app/workspace_session.rs`,
+`shell/bottom_drawer.rs`, `workspace_port/mapping.rs` — together with a fourth
+inline test body at `app/workspace_session.rs:1304`. The project owner amended
+M5's 500-ELOC exit clause on 2026-08-04 to admit a recorded boundary decision
+with a named follow-up, and deferred these. Each has an analysed boundary, so
+the follow-up is execution rather than design.
+
+This RFC moved to `done/` at its lifecycle closure on 2026-08-04.

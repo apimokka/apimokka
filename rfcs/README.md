@@ -12,7 +12,6 @@ record. The lifecycle policy is the MK-000 entry below.
 | RFC | Title | Tracks |
 |---|---|---|
 | [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
-| [MK-057](./proposed/MK-057-maintainable-structure.md) | Maintainable structure | Stabilization roadmap M5 |
 
 ---
 
@@ -55,6 +54,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-053](./done/MK-053-integration-boundary-and-workspace-adapter.md) | Integration boundary and workspace adapter | Unreleased |
 | [MK-054](./done/MK-054-quality-and-security-gates.md) | Quality and security gates | Unreleased |
 | [MK-055](./done/MK-055-engine-contract-conformance.md) | Engine contract conformance | Unreleased |
+| [MK-057](./done/MK-057-maintainable-structure.md) | Maintainable structure | Unreleased |
 
 ---
 
