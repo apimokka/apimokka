@@ -1,4 +1,9 @@
 //! Rule editor — WHEN / RESPOND columns and their card builders.
+//!
+//! Boundary decision: single-responsibility — `rule_editor()` plus its nine
+//! card-builder helpers, all exclusively used within this file (confirmed
+//! crate-wide), are one screen's construction vocabulary. Deferred to this
+//! step by slice 4's review.
 
 use super::trace_activity::trace_activity_section;
 use crate::app::App;

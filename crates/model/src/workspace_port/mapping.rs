@@ -1,3 +1,10 @@
+//! Boundary decision: split — two distinct directions share this file: the
+//! `pub map_*` functions (UI value to edit domain, consumed crate-wide) and
+//! the `pub(super) project_*` functions (edit domain to storage payload,
+//! consumed only by `memory.rs`). Different callers, different visibility,
+//! opposite data-flow direction. Deferred to a follow-up slice; recorded
+//! here rather than executed to keep this slice to decisions only.
+
 use std::net::IpAddr;
 use std::str::FromStr;
 

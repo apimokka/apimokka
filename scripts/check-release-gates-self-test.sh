@@ -148,6 +148,10 @@ write_expected() {
     [[ "$stop_after" == rfc_self_test ]] && return
     record "$destination" bash scripts/check-rfcs.sh
     [[ "$stop_after" == rfc ]] && return
+    record "$destination" bash scripts/check-source-size-self-test.sh
+    [[ "$stop_after" == source_size_self_test ]] && return
+    record "$destination" bash scripts/check-source-size.sh
+    [[ "$stop_after" == source_size ]] && return
     record "$destination" git diff --check
 }
 

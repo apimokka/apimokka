@@ -1,3 +1,11 @@
+//! Boundary decision: single-responsibility — draft editing. Every method
+//! here mutates an in-progress edit before it is committed to the canonical
+//! workspace, following one repeated shape (parse, diff against current,
+//! apply, push an undo entry, sync the draft back) across all six editable
+//! domains (root settings, rule prototype, rule core, response, headers,
+//! body). Splitting would separate six instances of the same concern
+//! rather than separate different concerns.
+
 use super::{
     App, ConditionFamily, DraftBinding, HistoryEntry, RespondDraftField, RuleMatchDraftField,
     TransientOperation, workspace_session,

@@ -3,6 +3,15 @@
 //! MK-044 makes both panels actionable:
 //! - Validation: groups by rule set, click-to-navigate, proper empty state.
 //! - Save diff: shows rule summaries and fallback-file change indicators.
+//!
+//! Boundary decision: split — two parallel, independently-called panels
+//! share only dispatch and two small helpers: validation
+//! (`validation_content` + `durable_diagnostic_rows`, called from
+//! `app/drawers.rs`) and save-diff (`save_diff_content` +
+//! `last_save_report_lines`, called from `global_save_tests.rs`). A clean
+//! two-way boundary at the same shape as `routes.rs`'s. Deferred to a
+//! follow-up slice; recorded here rather than executed to keep this slice
+//! to decisions only.
 
 use crate::app::{
     App, FallbackSaveReport, GlobalSaveCompletion, ProgressTrust, SaveIntegrity,

@@ -1,3 +1,10 @@
+//! Boundary decision: single-responsibility — unit tests for the complete
+//! workspace-port value-type and mapping-function vocabulary, organized in
+//! the same sub-domain order the production types are defined in
+//! `workspace_port.rs` and `mapping.rs`. One test file for one contract,
+//! mirroring the single-responsibility read given to `workspace_port.rs`
+//! itself.
+
 use serde_json::json;
 
 use super::*;

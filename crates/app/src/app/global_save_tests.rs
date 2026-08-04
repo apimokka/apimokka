@@ -1,3 +1,11 @@
+//! Boundary decision: single-responsibility — tests for the global-save
+//! path (workspace and fallback files saved together), all built on one
+//! shared fault-injection harness (`SaveProbePort`/`SaveMutation`)
+//! exercising malformed envelopes, fallback-versus-workspace failure
+//! ordering and retry, save-report history, and the drawer's presentation
+//! of save state. One subject tested from multiple angles, not multiple
+//! subjects.
+
 use super::*;
 use crate::message::Message;
 use crate::selection::DrawerMode;

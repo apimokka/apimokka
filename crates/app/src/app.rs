@@ -1,4 +1,15 @@
 //! Central app state and update (MK-021, MK-035).
+//!
+//! Boundary decision: split — beyond the draft-editing domains already
+//! extracted to `app/drafts.rs`, the residual `impl App` block still holds
+//! several distinguishable groups that mirror the shape of domains already
+//! pulled out elsewhere: undo/redo history and its draft-resynchronization,
+//! archiving, and the save/workspace-open-close-create lifecycle.
+//! `update()` itself (~968 lines of `Message` dispatch) is a single
+//! function and not decomposable the same way. This extraction is beyond
+//! RFC MK-057's mandated scope (which named only the draft-editing
+//! extraction for this file) and is recorded here as a follow-up rather
+//! than executed in this task.
 
 use apimokka_i18n::{Key, Locale};
 use apimokka_model::workspace_port::{map_response, map_rule_match, parse_rule_set_path};

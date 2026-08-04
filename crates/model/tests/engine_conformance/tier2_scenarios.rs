@@ -1,5 +1,10 @@
 //! RFC MK-055 Tier 2 — behavioural equivalence (representative).
 //!
+//! Boundary decision: single-responsibility — every test compares
+//! `MemoryWorkspace` and the real engine's observable behaviour for one
+//! representative scenario. Mirrors one contract tier exactly, per RFC
+//! MK-057's own boundary audit.
+//!
 //! For each required scenario, the same logical edit is applied to our
 //! `MemoryWorkspace` (via `WorkspacePort`) and to a real
 //! `apimock_config::Workspace`, and the *observable* result is compared —

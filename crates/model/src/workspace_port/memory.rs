@@ -1,3 +1,12 @@
+//! Boundary decision: single-responsibility — the complete in-memory
+//! `WorkspacePort` implementation: one struct, one trait impl, and helper
+//! functions used exclusively by that impl (id generation and lookup,
+//! root-settings validation, archived-subtree restoration) with zero
+//! external cross-references beyond the trait surface itself. This is the
+//! reference adapter; splitting its internals would scatter one
+//! implementation's private mechanics across files with no independent
+//! caller to justify the seam.
+
 use std::collections::{HashMap, HashSet};
 
 use super::mapping::{

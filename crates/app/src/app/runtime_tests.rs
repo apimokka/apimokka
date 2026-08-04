@@ -1,3 +1,10 @@
+//! Boundary decision: single-responsibility — tests for the runtime
+//! request/completion/revision/fault-source contract
+//! (`RuntimeCompletionDisposition`, `RuntimeRequestId`,
+//! `SavedConfigRevision`, `SessionGeneration`), all built on one shared
+//! fault-injection harness. One subject — the `runtime` module's
+//! contract — tested exhaustively.
+
 use super::runtime::{
     RuntimeCompletionDisposition, RuntimeRequestId, SavedConfigRevision, SessionGeneration,
 };

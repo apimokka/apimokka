@@ -2,6 +2,15 @@
 //!
 //! These types intentionally describe the local UI contract. They do not claim
 //! to be source- or binary-isomorphic with an unavailable engine crate.
+//!
+//! Boundary decision: single-responsibility — the complete value-type
+//! vocabulary the `WorkspacePort` contract is expressed in, plus the trait
+//! itself: errors and paths, conditions and edits, rule/respond views, root
+//! settings, the edit-intent/transaction vocabulary, archived-subtree/undo
+//! types, and outcomes. This is the contract's grammar, not independent
+//! concerns — implementations are small accessors and constructors, not
+//! logic. Splitting would scatter one contract's vocabulary across several
+//! files a reader must open together anyway.
 
 mod mapping;
 mod memory;

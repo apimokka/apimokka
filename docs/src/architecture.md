@@ -203,34 +203,8 @@ modules match every key, so missing match arms are compile errors. The app uses
 
 ## Source-size baseline
 
-The project guideline is to aim below 300 lines per Rust file and split files
-above 500 lines. The M3 implementation materially changed the 2026-07-15
-baseline, and the M4 warning and highlighter work changed several counts again,
-so the physical counts below were refreshed on 2026-08-01 at the MK-054
-lifecycle closure, before M5 planning:
-
-| File | Lines | Kind |
-|---|---:|---|
-| `crates/app/src/app.rs` | 4,343 | Implementation |
-| `crates/app/src/app/workspace_session_tests.rs` | 2,216 | Test |
-| `crates/app/src/screens/routes.rs` | 1,542 | Implementation |
-| `crates/model/src/workspace_port/memory_tests.rs` | 1,463 | Test |
-| `crates/app/src/app/workspace_session.rs` | 1,307 | Implementation |
-| `crates/model/src/workspace_port/memory.rs` | 1,272 | Implementation |
-| `crates/app/src/app/global_save_tests.rs` | 893 | Test |
-| `crates/model/src/workspace_port.rs` | 878 | Implementation |
-| `crates/app/src/app/runtime_tests.rs` | 840 | Test |
-| `crates/model/src/mock.rs` | 543 | Implementation |
-| `crates/model/src/workspace_port/tests.rs` | 530 | Test |
-| `crates/app/src/shell/bottom_drawer.rs` | 526 | Implementation |
-| `crates/model/src/workspace_port/mapping.rs` | 506 | Implementation |
-| `crates/i18n/src/keys.rs` | 453 | Implementation |
-| `crates/i18n/src/en.rs` | 449 | Implementation |
-| `crates/i18n/src/ja.rs` | 429 | Implementation |
-| `crates/app/src/theme.rs` | 417 | Implementation |
-| `crates/app/src/app/tests.rs` | 398 | Test |
-| `crates/app/src/screens/trace.rs` | 356 | Implementation |
-| `crates/app/src/match_test/tests/body.rs` | 307 | Test |
-
-These are recorded facts, not exceptions to the guideline. Structural
-remediation is scheduled for roadmap milestone M5.
+The project guideline is to aim below 300 lines per Rust file. Files above the
+500-line signal threshold are enumerated and checked for a recorded boundary
+decision by `scripts/check-source-size.sh` (RFC MK-057) — run it for the
+current inventory rather than reading a transcribed count here, which is the
+staleness this checker replaces.

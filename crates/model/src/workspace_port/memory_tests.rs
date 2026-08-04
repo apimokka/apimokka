@@ -1,3 +1,11 @@
+//! Boundary decision: split — five contiguous, non-interleaved scenario
+//! groups: snapshot/projection/canonicalization, apply/transaction
+//! mechanics (atomicity, ordering, receipts, correlation, id stability,
+//! placement bounds), save/dirty-tracking, restore/undo, and validation —
+//! the same shape as `workspace_session_tests.rs`'s split in a prior
+//! slice. Largest file in the repository; deferred to a follow-up slice
+//! rather than executed here to keep this slice to decisions only.
+
 use std::collections::HashSet;
 
 use super::mapping::{project_body_condition, project_header_condition};

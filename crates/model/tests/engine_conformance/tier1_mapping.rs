@@ -1,5 +1,9 @@
 //! RFC MK-055 Tier 1 — mapping totality.
 //!
+//! Boundary decision: single-responsibility — every test proves mapping
+//! totality for one `WorkspacePort`-to-engine type conversion. Mirrors one
+//! contract tier exactly, per RFC MK-057's own boundary audit.
+//!
 //! For every `WorkspacePort` type that corresponds to an engine type, prove
 //! the conversion in `to_engine` is total over our type's domain by driving
 //! it through a real `apimock_config::Workspace::apply`: not just "this

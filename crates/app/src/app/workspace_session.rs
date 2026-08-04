@@ -1,4 +1,17 @@
 //! MK-053 app-owned workspace session and editor-draft state.
+//!
+//! Boundary decision: split — the session-lifecycle methods on
+//! `WorkspaceSession` (`apply`, `validate`, `save`, `acknowledge_*`,
+//! `enter_*fault*`, `retain_live_state`) and the ~400-line free-function
+//! correlation/validation block that exists solely to support `apply`'s
+//! fail-closed contract check (`creation_expectations`,
+//! `validate_correlations`, `validate_snapshot_structure`, and related
+//! helpers, all with exactly one caller) are a separable concern from the
+//! type definitions and the draft/prototype accessors, whose field-touch
+//! points are narrow and well-defined rather than pervasive. RFC MK-057
+//! declined to mandate a split here ("assessed during implementation, not
+//! mandated"); recorded as a genuine candidate rather than executed, to
+//! keep this slice to decisions only.
 
 use std::collections::HashMap;
 use std::ops::Deref;

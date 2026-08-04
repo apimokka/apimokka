@@ -1,6 +1,10 @@
 //! Exhaustive undo/redo round-trip coverage for every edit family: header
 //! and body conditions, root settings, rules and rule sets, duplication,
 //! response fields, and history-depth capping.
+//!
+//! Boundary decision: single-responsibility — nine tests are one scenario
+//! domain applying the same edit-undo-redo pattern across every edit kind,
+//! not several. Deferred to this step by slice 5's review.
 
 use super::*;
 use crate::message::Message;
