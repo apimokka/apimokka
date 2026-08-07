@@ -12,6 +12,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | RFC | Title | Tracks |
 |---|---|---|
 | [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
+| [MK-058](./proposed/MK-058-snora-0-28-adoption.md) | snora 0.28 adoption | Stabilization roadmap M8 |
 
 ---
 

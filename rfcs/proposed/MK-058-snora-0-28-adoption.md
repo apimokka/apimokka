@@ -1,0 +1,333 @@
+# RFC MK-058 — snora 0.28 adoption
+
+**Status.** Proposed
+**Tracks.** Stabilization roadmap M8 — snora 0.28 adoption.
+**Touches.** The `snora` dependency, `main.rs`'s theme wiring,
+`shell/view.rs`'s six render calls, and the appearance M6 will validate.
+
+## Summary
+
+Adopt snora 0.28.0, upgrading from 0.25.2. The jump is **non-breaking** across
+every hop — 0.25.2 → 0.25.3 → 0.26.0 → 0.27.0 → 0.27.1 → 0.28.0 — verified by
+the snora architect against published sources by set comparison of public names
+and signatures.
+
+Three of the migration guide's four adoption phases apply; the fourth has zero
+call sites here. The change remains small: one manifest line, one theme wiring
+point, and six render calls in a single file.
+
+It is proposed ahead of M6's live runs because it fixes a real accessibility
+defect in a preset we ship and advertise, and because validating an appearance
+we intend to replace would waste the milestone whose entire purpose is
+validating appearance.
+
+**This RFC was originally written against 0.27.0.** 0.28.0 superseded it the
+same day, carrying two capabilities that came from our own field feedback. The
+adoption plan is unchanged — target `"0.28"` instead of `"0.27"` — but 0.28
+unlocks work this RFC deliberately does not do (§7).
+
+## Problem and motivation
+
+### A shipped accessibility defect
+
+In the **`high_contrast_dark`** preset, snora's modal dim has been **completely
+invisible**: the dim was a hardcoded 40% black, and 40% black over that preset's
+pure-black background composites to pure black. Modals have had no visual
+modality signal at all — in the preset whose entire purpose is maximum
+legibility.
+
+We ship that preset. `README.md` advertises four themes including it as an
+accessibility feature; MK-050 made high-contrast theming a headline outcome; and
+**MK-056's mandatory combination #2 is "high-contrast theme with keyboard-only
+input"**, so M6 is about to test the exact surface that is broken.
+
+The M6 preparation gate established the principle: known defects are fixed
+before sessions, so participant time finds unknown ones. This is now a known
+defect, and its fix is six call sites in one file. The snora architect
+independently advises prioritising this phase over the others for exactly this
+reason.
+
+### Timing is close to free
+
+M6's L3 sessions are blocked on participant recruitment. M6's L2 live run has
+not happened either — its infrastructure is built and reviewed but unrun. Doing
+this now costs nothing on the critical path, and it means **both** L2's
+screenshots and L3's sessions record the appearance that will actually ship.
+
+Doing it after L2 would invalidate L2's screenshot evidence. Doing it after L3
+would devalue the sessions.
+
+## Sizing — measured, not estimated
+
+| Phase | Guide's framing | Our actual surface |
+|---|---|---|
+| 1 — version bump | one line | **one line** in `Cargo.toml` |
+| 2 — theme emission | "highest value per line changed" | **one wiring point** — `main.rs:16` `.theme(App::theme)`; `App::theme()` (`app.rs:545`) already derives `Tokens` per `ThemeChoice` |
+| 3 — dialog card and modal dim | optional | **six `snora::render` calls, all in `crates/app/src/shell/view.rs`** |
+| 4 — chrome geometry | "most call sites to touch" | **zero** — `snora::widget::*` is used nowhere |
+
+Phase 4 is inapplicable because this application builds its own chrome —
+`shell/top_bar.rs`, `left_rail.rs`, `tab_bar.rs` — and passes it into
+`AppLayout`. The snora architect has recorded this engine-only adoption pattern
+as their only downstream data point on it.
+
+**MSRV:** rustc ≥ 1.88 required from 0.25.3 onward, unchanged at 0.28. This
+workspace declares 1.91.
+
+## Goals
+
+1. Be current on snora, on a non-breaking upgrade.
+2. Fix the invisible `high_contrast_dark` modal dim.
+3. Bring stock iced widgets onto the same token palette as snora's primitives.
+4. Ensure M6 validates the appearance that will ship.
+5. Change no behaviour — this is appearance and dependency only.
+
+## Non-goals
+
+- Redesigning any screen, layout, or interaction.
+- Adopting `snora::design::widget::*` (Phase 4) — no call sites.
+- Implementing responsive breakpoints on `responsive_render` (§7).
+- Rewriting L2's scripted verification around the new identifiers (§7).
+- Changing theme choices, token values, or the four presets we ship.
+- Behaviour, tests, or the `WorkspacePort` boundary.
+
+## Decision
+
+### 1. Phase 1 — upgrade to 0.28, and verify the no-change guarantee
+
+```toml
+snora = { version = "0.28", features = ["widgets", "design"] }
+```
+
+snora guarantees rendered output is unchanged with existing call sites
+untouched. **Treat that as a claim to test, not a fact to assume.** Capture
+screenshots of the principal screens in all four presets before and after the
+bump alone, with no other phase applied. Any visual difference at this point is
+a snora bug, and the handoff asks for it to be reported.
+
+**One exception to read deliberately.** Through 0.27.1 everything added was
+`design`-gated. 0.28's **stable surface identifiers are unconditional** — the
+only thing in the whole jump that is not opt-in. An `Id` has no rendering
+effect, so appearance is still guaranteed, but anything that walks or snapshots
+the widget tree will now see labels that were not there before.
+
+Verified for this codebase: we have no `iced_test`, no `widget::Id` usage, and
+nothing that snapshots a widget tree — every `snapshot` reference in
+`crates/app/src` is our own `WorkspaceSnapshot`. **The unconditional identifiers
+are inert here.** Recorded so the exception is not mistaken for a risk we
+overlooked.
+
+### 2. Phase 2 — theme emission
+
+**This corrects an existing inconsistency, not a cosmetic preference.**
+`ThemeChoice::iced()` (`app.rs:77-99`) returns iced's *own* `Theme::Light` and
+`Theme::Dark` for two of the four presets, and a snora-token-derived custom
+palette only for the two high-contrast ones. So in Light and Dark — the presets
+most users see — stock iced widgets draw from iced's built-in palette while
+everything around them draws from snora tokens. **Two palettes in one window.**
+Only the accessibility presets are internally consistent, which is backwards.
+
+Wire `snora::design::theme(&Tokens)` into iced's `.theme()` hook so stock
+`text_input`, `pick_list`, `scrollable`, and the window background follow the
+same palette across all four presets.
+
+The snora architect has confirmed this is precisely the condition
+`design::theme` was built to remove, and that they had no downstream instance of
+it before ours.
+
+**Expect a visible change in Light and Dark**, and do not mistake it for a
+Phase 1 guarantee violation — that is why Phase 1 is verified separately and
+first.
+
+**Verification:** switch to `high_contrast_dark` and confirm stock controls
+change too. If only snora's own primitives change, the theme is not reaching
+iced.
+
+### 3. Phase 3 — dialog card and modal dim
+
+Replace all six `snora::render(layout)` calls in `shell/view.rs` with
+`snora::design::render(layout, &tokens)`. This is the phase that fixes the
+invisible modal dim.
+
+In the two light presets the card is distinguishable **by its border only** —
+its fill is bitwise identical to the page background by the token data's own
+design. Expected, not a defect to chase.
+
+### 4. Phase 4 — explicitly out of scope
+
+Zero call sites. Recorded so a future reader does not conclude it was
+overlooked.
+
+### 5. Verify every preset, not just the default
+
+The handoff names this as the item most likely to be skipped and most likely to
+surface a problem, and records that the defects found during snora's own
+milestone were nearly all preset-specific and nearly all in high contrast.
+
+All four presets are checked for each phase adopted. A pass recorded only
+against the default is not a pass.
+
+### 6. Feedback — sent, answered, and what remains owed
+
+Our field feedback was sent and has been answered in full
+(`reply-to-feedback-2026-08-04.md`, bundled with the 0.28 handoff). All four
+requests received a disposition; three shipped:
+
+| Request | Disposition | Shipped |
+|---|---|---|
+| Width-responsive layout | Width exposure **accepted**; breakpoint behaviour deliberately deferred pending evidence | `snora::responsive_render`, 0.28.0 |
+| Assistive-technology position | **Accepted** — position stated with an explicit reconsideration trigger (iced exposes an accessibility API) | docs, 0.27.1 |
+| Focus visibility | Already documented; **discoverability fixed** with a consumer-facing guide. Interim wrapper **declined** | 0.27.1 |
+| GUI testing affordances | Stable identifiers **accepted**; a test harness **declined** as a firm non-goal | 9 identifiers + per-toast, 0.28.0 |
+
+**A correction we owe.** Our feedback stated the focus limitation was
+"discoverable only in a migration guide's 'not available' section." That was
+wrong: it is documented in `contributing/semantic-accessibility.md`,
+`contributing/accessibility-checklist.md`, and the API docs. We inferred a claim
+about snora's documentation as a whole from the two migration guides we had been
+sent. The correct statement would have been scoped to the materials in hand.
+
+The underlying observation still landed — snora treated our not finding it as a
+navigation finding and shipped a consumer-facing accessibility guide — but the
+overreach was ours and is recorded here rather than left in their correspondence
+uncorrected.
+
+**Still owed to snora**, after adoption:
+
+- whether the Phase 1 no-visual-change guarantee held across all four presets;
+- which parts of `AppLayout` we use and which we ignore;
+- which breakpoint thresholds we pick, if we implement them, and whether width
+  alone sufficed or we wanted height — this is the evidence that decides whether
+  snora ever ships breakpoint behaviour;
+- whether the identifier set is the right set, and specifically anything our
+  scripted verification reaches for that has no identifier.
+
+## 7. What 0.28 unlocks that this RFC deliberately does not do
+
+Both new capabilities answer problems this programme found. Neither belongs in
+MK-058, whose scope is the dependency and the appearance. Recorded so they are
+not lost.
+
+**`responsive_render` makes MK-024 implementable.** We found this week that
+MK-024's four breakpoints were never implemented, and that neither the app nor
+snora could observe window width. snora now supplies the width. Implementing
+MK-024 is a behaviour change requiring its own decision — including the prior
+question of whether MK-024's `Implemented (v0.6.0)` status should be corrected.
+Note that snora prescribes no thresholds deliberately, and has asked for ours as
+the evidence deciding whether they ever ship breakpoint behaviour.
+
+**Stable identifiers materially change L2's approach.** Task 008's central
+difficulty was that the application is externally unobservable except for its
+window title. `snora-modal-dim`, `snora-dialog-card`, `snora-sheet-panel`,
+`snora-header`, `snora-sidebar`, `snora-body`, `snora-footer`,
+`snora-menu-backdrop`, `snora-toast-stack`, and per-toast identifiers are now
+addressable, and are a compatibility surface — renaming one is a minor bump,
+recorded in their versioning policy.
+
+This does not make L2 trivial: identifiers cover **snora-rendered surfaces
+only**, not our own controls, and snora is explicit that an `Id` is not a role
+and does not narrow the accessibility gap. But dialog and drawer verification
+becomes tractable in a way it was not when task 008 was written. **Task 008
+should be revisited after M8 lands**, before its live run.
+
+## Sequencing
+
+**M8 runs before M6's L2 live run and before L3 sessions.** Both are unrun,
+which is what makes this cheap. Task 008's live run waits for M8, and should be
+revisited in light of §7 before it happens.
+
+M8 does not block participant recruitment.
+
+## Acceptance evidence
+
+- Before/after screenshots in all four presets after **Phase 1 alone**,
+  demonstrating the no-change guarantee held — or reporting it if it did not.
+- Confirmation that the unconditional identifiers changed nothing here.
+- After Phase 2: stock controls following the palette, demonstrated by switching
+  to `high_contrast_dark`.
+- After Phase 3: a dialog distinguishable in all four presets, and specifically
+  the `high_contrast_dark` modal dim now visible.
+- `bash scripts/check-release-gates.sh` green.
+- CI green on all three platforms — this changes a rendering dependency.
+- Resolved `snora` family versions and checksums from `Cargo.lock`.
+- The post-adoption report owed to snora under decision 6.
+
+## Alternatives considered
+
+**Target 0.27.0 as originally drafted.** Rejected. 0.28.0 is current, the plan
+is identical, and 0.27.0 lacks both capabilities that answer this programme's
+own findings.
+
+**Defer everything past R2.** Rejected. It leaves a known accessibility defect
+in an advertised feature, and M6 would validate an appearance we intend to
+replace.
+
+**Phase 1 only.** Rejected. The modal-dim fix arrives specifically through
+`snora::design::render`, which is Phase 3. Bumping without adopting would leave
+the defect in place while implying currency.
+
+**Adopt after M6, before R2.** Rejected. It invalidates L2's screenshots and
+L3's findings, requiring a re-run of the work that is hardest to repeat.
+
+**Fold §7's work into M8.** Rejected. Responsive behaviour is a behaviour
+change gated on a separate governance question; L2 rework belongs to M6. Both
+are unlocked by M8, neither is M8.
+
+## Risks and mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Unconditional identifiers affect something unforeseen | Verified inert here — no widget-tree walking exists; Phase 1's before/after would catch a surprise |
+| We are the only downstream data point on the token mapping | The snora architect states this plainly; treat unexpected geometry as a finding to report |
+| Phase 2 changes appearance broadly | Adopted as its own step with per-preset verification before Phase 3 |
+| The no-change guarantee does not hold | Phase 1 verified separately and first, so a violation is attributable |
+| A rendering dependency behaves differently per platform | CI covers all three |
+| §7's unlocked work quietly expands M8 | Named as non-goals and deferred explicitly |
+
+## Review questions
+
+1. Phase 2 is recommended for adoption now — not as visual unification, but
+   because `ThemeChoice::iced()` currently renders Light and Dark with a split
+   palette (decision 2). Accept, or limit M8 to Phase 1 + Phase 3?
+2. Is M8 the right home, or should this fold into M6's preparation?
+3. Is the Phase 1 before/after screenshot comparison proportionate?
+4. §7 records two unlocked workstreams. Should either be scheduled now — in
+   particular, does MK-024's `Implemented` status need correcting regardless of
+   whether the breakpoints get built?
+
+### Resolutions
+
+Recommended by the programme architect and accepted with the design on
+2026-08-04:
+
+1. **Adopt Phase 2.** Not as visual unification but as a defect fix — Light and
+   Dark currently render stock controls from a different palette than everything
+   around them.
+2. **M8, not folded into M6.** MK-056's non-goals exclude redesign from M6; this
+   is a dependency and appearance change rather than UX measurement; and it
+   gates M6's live runs, which reads more clearly as a prerequisite step than as
+   a sub-item of the thing it gates.
+3. **Keep the Phase 1 comparison**, and not only as courtesy to snora. Without
+   Phase 1 baselines, an intended Phase 2 change in Light/Dark and an
+   unintended Phase 1 regression are **indistinguishable**. The screenshots are
+   what make attribution possible, and L2 will capture them anyway.
+4. Split:
+   - **MK-024's status is corrected regardless.** An RFC marked
+     `Implemented (v0.6.0)` whose feature exists nowhere is a governance defect
+     of exactly the class R1's finding B3 covered, and it is independent of
+     whether breakpoints are ever built.
+   - **Breakpoints are not scheduled now.** Implementing them is a behaviour
+     change, and M6 is about to validate behaviour. snora has also asked for our
+     thresholds as the evidence deciding whether they ship breakpoint behaviour
+     — and we can only choose thresholds honestly after sessions show what users
+     actually do at small window sizes. Sequence M6 first, then decide.
+   - **Task 008 is revisited after M8**, before its live run, per §7.
+
+## Status
+
+Design accepted by the project owner on 2026-08-04, including the four
+resolutions above. Under the four-folder lifecycle this RFC remains `Proposed`
+until its implementation ships.
+
+Acceptance of this design is recorded separately from authorization to
+implement. Creation and acceptance of this RFC do not authorize implementation.
