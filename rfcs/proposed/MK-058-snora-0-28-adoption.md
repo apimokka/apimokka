@@ -330,4 +330,6 @@ resolutions above. Under the four-folder lifecycle this RFC remains `Proposed`
 until its implementation ships.
 
 Acceptance of this design is recorded separately from authorization to
-implement. Creation and acceptance of this RFC do not authorize implementation.
+implement. The project owner authorized implementation on 2026-08-04, assigned
+to the dev team. Authorization covers the scope defined here and nothing beyond
+it; §7's unlocked workstreams remain out of scope and the non-goals stand.
