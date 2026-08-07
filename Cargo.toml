@@ -24,7 +24,7 @@ http                        = "1.4"
 
 # GUI stack
 iced                        = { version = "0.14", features = ["tokio", "advanced"] }
-snora                       = { version = "0.25", features = ["widgets", "design"] }
+snora                       = { version = "0.28", features = ["widgets", "design"] }
 
 # Utility
 serde_json                  = "1"
