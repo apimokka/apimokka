@@ -21,6 +21,7 @@ use crate::selection::WorkspaceTab;
 use crate::shell;
 
 pub fn view(app: &App) -> Element<'_, Message> {
+    let tokens = app.theme_choice.tokens();
     let header = shell::top_bar::view(app);
     let tab_bar = shell::tab_bar::view(app);
 
@@ -65,42 +66,49 @@ pub fn view(app: &App) -> Element<'_, Message> {
     //    dismissible: the user must choose before using the app. No
     //    on_close_modals sink, so Esc / backdrop cannot close it.
     if app.audience_mode.is_none() {
-        return snora::render(layout.dialog(Dialog::new(screens::mode_picker::view(app))));
+        return snora::design::render(
+            layout.dialog(Dialog::new(screens::mode_picker::view(app))),
+            &tokens,
+        );
     }
     // 1. Confirm dialog
     if app.confirm_dialog.is_some() {
-        return snora::render(
+        return snora::design::render(
             layout
                 .dialog(Dialog::new(screens::confirm_dialog::view(app)))
                 .on_close_modals(Message::ConfirmCancel),
+            &tokens,
         );
     }
     // 2. Command palette
     if app.command_palette.open {
-        return snora::render(
+        return snora::design::render(
             layout
                 .dialog(Dialog::new(screens::command_palette::view(app)))
                 .on_close_modals(Message::ToggleCommandPalette),
+            &tokens,
         );
     }
     // 3. Test rule
     if app.test_rule.open {
-        return snora::render(
+        return snora::design::render(
             layout
                 .dialog(Dialog::new(screens::test_rule::view(app)))
                 .on_close_modals(Message::TestRuleClose),
+            &tokens,
         );
     }
     // 4. Dotted-path assistant
     if app.path_assistant.open {
-        return snora::render(
+        return snora::design::render(
             layout
                 .dialog(Dialog::new(screens::dotted_path::view(app)))
                 .on_close_modals(Message::PathAssistantClose),
+            &tokens,
         );
     }
 
-    snora::render(layout)
+    snora::design::render(layout, &tokens)
 }
 
 /// MK-039 feedback banner. Priority: friendly error > undo > success notice.
