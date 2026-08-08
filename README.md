@@ -13,7 +13,7 @@ apimokka is a UI/UX prototype demonstrating the full screen flow of a desktop
 GUI for apimock-rs. It covers workspace management, visual rule editing,
 live-request tracing, server settings, and audience-mode switching — built on
 [iced 0.14](https://github.com/iced-rs/iced) and
-[snora 0.25](https://crates.io/crates/snora) with the Snora Design system.
+[snora 0.28](https://crates.io/crates/snora) with the Snora Design system.
 
 This is a **mockup only** — no file I/O, no live server connection. All workspace
 data is mock data seeded at startup. The goal is to validate screen flows and UX
@@ -65,7 +65,7 @@ to reach the full Routes workbench.
   ⌘⇧Z on macOS) applies compensating port transactions and rebinds recreated
   node identities.
 - **MK-038 fallback file lifecycle** — two-buffer (saved baseline + draft), explicit Save, confirmed Revert, live JSON validity badge
-- **Snora Design tokens** — built on snora 0.25's design system: WCAG-AA contrast-tested color presets with four themes (Light, Dark, **High Contrast Light, High Contrast Dark**). High-contrast modes add visible card/panel borders for low-vision users. Selectable in Settings → Appearance.
+- **Snora Design tokens** — built on snora 0.28's design system: WCAG-AA contrast-tested color presets with four themes (Light, Dark, **High Contrast Light, High Contrast Dark**). High-contrast modes add visible card/panel borders for low-vision users. Selectable in Settings → Appearance.
 - **Non-colour status matrix** — every status indicator carries both a glyph and a text label
 - **i18n from day one** — English and Japanese translations compiled into the binary; locale switch in Settings
 - **snora AppLayout shell** — header / left sidebar / screen body / bottom drawer; command palette (all 17 commands wired)

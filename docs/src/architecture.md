@@ -11,7 +11,7 @@ crates/app (apimokka)
   ├── crates/model (apimokka-model)
   ├── crates/i18n (apimokka-i18n)
   ├── iced 0.14
-  └── snora 0.25
+  └── snora 0.28
 
 crates/model
   ├── http 1.4
@@ -22,8 +22,8 @@ crates/i18n
   └── no external dependencies
 ```
 
-The root manifest requests snora 0.25 from crates.io; the lockfile currently
-resolves the snora family to 0.25.2. No `vendor/` tree is part of the current
+The root manifest requests snora 0.28 from crates.io; the lockfile currently
+resolves the snora family to 0.28.0. No `vendor/` tree is part of the current
 workspace.
 
 ## Application structure
