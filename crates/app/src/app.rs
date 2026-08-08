@@ -71,31 +71,16 @@ impl ThemeChoice {
         }
     }
 
-    /// The iced Theme for this choice. Standard Light/Dark use iced's native
-    /// themes for visual continuity; the high-contrast modes build a custom
-    /// iced palette from the snora high-contrast tokens (MK-050).
+    /// The iced Theme for this choice. Derived from the same snora Design
+    /// tokens as `tokens()` via `snora::design::theme`, so stock iced
+    /// widgets (`text_input`, `pick_list`, `scrollable`, the window
+    /// background) follow the same palette as snora's own primitives in
+    /// all four presets (RFC MK-058 phase 2) — previously only the two
+    /// high-contrast presets were token-derived; Light and Dark drew stock
+    /// widgets from iced's own built-in palette, a second, inconsistent
+    /// source.
     pub fn iced(self) -> Theme {
-        use snora::design::style::color::to_iced_color;
-        match self {
-            Self::Light => Theme::Light,
-            Self::Dark => Theme::Dark,
-            Self::HighContrastLight | Self::HighContrastDark => {
-                let t = self.tokens();
-                let pal = iced::theme::Palette {
-                    background: to_iced_color(t.palette.background),
-                    text: to_iced_color(t.palette.text_primary),
-                    primary: to_iced_color(t.palette.accent),
-                    success: to_iced_color(t.palette.success),
-                    warning: to_iced_color(t.palette.warning),
-                    danger: to_iced_color(t.palette.danger),
-                };
-                let name = match self {
-                    Self::HighContrastLight => "apimokka-hc-light",
-                    _ => "apimokka-hc-dark",
-                };
-                Theme::custom(name.to_string(), pal)
-            }
-        }
+        snora::design::theme(&self.tokens())
     }
 
     /// Whether this is a dark-family theme (for glyph/contrast decisions).

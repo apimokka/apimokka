@@ -12,19 +12,37 @@ use iced::{Background, Border, Color, Shadow, Theme, Vector, widget::container};
 use snora::design::Tokens;
 use snora::design::style::color::to_iced_color;
 
+/// Whether `t`'s base palette exactly matches the given tokens' background
+/// and text — the two base-Palette slots `snora::design::theme` carries
+/// through unmodified from the source token (base tiers equal their
+/// source token role exactly, never passed through a correcting
+/// heuristic). Background alone is not sufficient: `light` and
+/// `high_contrast_light` share an identical pure-white background,
+/// differing only in text and border strength.
+fn matches_tokens(t: &Theme, tokens: Tokens) -> bool {
+    let p = t.palette();
+    p.background == to_iced_color(tokens.palette.background)
+        && p.text == to_iced_color(tokens.palette.text_primary)
+}
+
 /// MK-050: whether the given theme is one of the high-contrast presets.
 /// High-contrast modes get visible borders on cards/panels (shadows alone are
 /// insufficient for low-vision users — a WCAG non-text-contrast consideration).
+///
+/// RFC MK-058 phase 2: all four presets are now built by
+/// `snora::design::theme`, which names every emitted theme "Snora Design
+/// (dark)" or "Snora Design (light)" — light-vs-dark only, not
+/// standard-vs-high-contrast — so the theme's name string can no longer
+/// distinguish a preset. Matched against the token-derived (background,
+/// text) pair instead.
 pub fn is_high_contrast(t: &Theme) -> bool {
-    matches!(t, Theme::Custom(_)) && {
-        let n = t.to_string();
-        n.contains("hc-light") || n.contains("hc-dark")
-    }
+    matches_tokens(t, Tokens::high_contrast_light())
+        || matches_tokens(t, Tokens::high_contrast_dark())
 }
 
 /// MK-050: the border color for high-contrast surfaces, from snora tokens.
 pub fn hc_border(t: &Theme) -> Color {
-    let tokens = if t.to_string().contains("hc-dark") {
+    let tokens = if matches_tokens(t, Tokens::high_contrast_dark()) {
         Tokens::high_contrast_dark()
     } else {
         Tokens::high_contrast_light()
@@ -92,21 +110,21 @@ pub mod touch {
 
 /// Secondary text — mid-grey legible on both light and dark surfaces.
 pub fn muted(t: &Theme) -> Color {
-    // MK-050: derive the muted text color from the matching snora Design preset
-    // so high-contrast themes get a properly-contrasted muted grey instead of a
-    // fixed value. The theme name distinguishes the high-contrast customs; the
-    // standard Light/Dark are detected by background luminance.
-    let tokens = match t {
-        Theme::Custom(_) if t.to_string().contains("hc-dark") => Tokens::high_contrast_dark(),
-        Theme::Custom(_) if t.to_string().contains("hc-light") => Tokens::high_contrast_light(),
-        _ => {
-            let ep = t.extended_palette();
-            if ep.background.base.color.r < 0.5 {
-                Tokens::dark()
-            } else {
-                Tokens::light()
-            }
-        }
+    // MK-050: derive the muted text color from the matching snora Design
+    // preset so high-contrast themes get a properly-contrasted muted grey
+    // instead of a fixed value. RFC MK-058 phase 2: every preset is now
+    // named "Snora Design (dark)"/"(light)" by snora::design::theme
+    // (light-vs-dark only), so the high-contrast pair is identified by its
+    // token-derived (background, text) pair via `matches_tokens`, same as
+    // `is_high_contrast`, rather than by theme name.
+    let tokens = if matches_tokens(t, Tokens::high_contrast_dark()) {
+        Tokens::high_contrast_dark()
+    } else if matches_tokens(t, Tokens::high_contrast_light()) {
+        Tokens::high_contrast_light()
+    } else if t.extended_palette().background.base.color.r < 0.5 {
+        Tokens::dark()
+    } else {
+        Tokens::light()
     };
     to_iced_color(tokens.palette.text_muted)
 }
