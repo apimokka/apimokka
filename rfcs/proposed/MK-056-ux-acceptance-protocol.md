@@ -35,7 +35,9 @@ Two constraints shape the design:
 - **Three platforms are required** — Linux, macOS, and Windows — and only Linux
   has ever been built or run.
 - **Participants are the scarce resource.** Everything a machine can check must
-  be checked by a machine, so session time is spent on comprehension.
+  be checked by a machine, so session time is spent on comprehension. Decision 3
+  records that the machine-checkable set on this host turned out smaller than
+  assumed, which makes this constraint tighter rather than looser.
 
 ## Goals
 
@@ -63,7 +65,7 @@ Two constraints shape the design:
 | Layer | Answers | Where it runs |
 |---|---|---|
 | **L1 — Cross-platform CI** | Does it build, and does the logic hold, on every supported platform? | GitHub Actions: Linux, macOS, Windows |
-| **L2 — Scripted GUI verification** | Is every control reachable, focus visible, layout intact at each window size and text scale? | Local Linux, `niri msg action` / `xdotool` |
+| **L2 — Scripted GUI verification** | Does it launch and stay responsive at each window size, and what does each size actually look like? (Narrowed 2026-08-04 — see decision 3) | Local Linux, `niri msg action` |
 | **L3 — Human sessions** | Do people understand what they are seeing, and can they complete real tasks? | Local, Linux-primary |
 
 Each layer answers a question the layer above cannot. A platform is "supported"
@@ -97,18 +99,44 @@ corrected as part of this work.
 
 ### 3. L2 — scripted GUI verification
 
-`niri msg action` and `xdotool` make GUI operation scriptable on the development
-host. Use them for the checks that are mechanical and must be repeatable after
-every fix:
+**Amended 2026-08-04, after the capability probe.** This decision as originally
+written assumed `xdotool` could drive the application. It cannot on this host,
+and the amendment below records what L2 actually is rather than leaving an
+aspiration in an accepted design.
 
-- every primary-scenario control reachable by keyboard alone;
-- focus visible at each step, wherever iced exposes focus at all;
-- layout intact at each supported window size, in both audience modes;
-- layout intact at 200% text scale;
-- no clipping or overlap in Japanese, which expands relative to English.
+**The probe result.** `scripts/ux/probe.sh` confirmed that apimokka's window is
+a native-Wayland surface and therefore invisible to X11 clients by Wayland's
+security model. `xdotool` is installed and functional; it simply cannot see or
+target the window. No workaround was adopted: `ydotool` and `wtype` were
+declined rather than installing kernel-level input injection on a live desktop,
+for a short-lived repository, to automate checks a human performs anyway in L3.
 
-These produce a recorded pass/fail per configuration, re-runnable on demand. A
-layout regression found after a fix does not require rebooking a participant.
+**What L2 is.** Compositor IPC (`niri msg action`) still provides launch,
+resize, and screenshot. Those work, are repeatable, and are genuinely useful:
+
+- the application launches and stays responsive at each supported window size;
+- resize is honoured rather than clamped, verified against physical pixels;
+- screenshots per configuration, for human review.
+
+**What L2 is not, and where those checks went.** Everything requiring
+navigation needs input synthesis, which is unavailable. The application has no
+CLI, environment, or persistence hooks, so every launch begins at the mode
+picker in `Light` with no workspace — meaning no other screen, preset, or locale
+is reachable without input. These therefore **migrate to L3**:
+
+- keyboard reachability of primary-scenario controls;
+- focus visibility;
+- per-preset and per-locale layout, including Japanese expansion;
+- 200% text scale, which decision 7 already records as not exercised here.
+
+**The consequence for L3, stated plainly:** participants now carry verification
+load this design assigned to a script. That raises what the sessions must cover
+and should be reflected when scenarios are finalised — it is not a free
+reassignment.
+
+The layered model itself stands. Separating machine-checkable facts from human
+judgement was correct; this host simply has a smaller machine-checkable set than
+the design assumed.
 
 ### 4. L3 — human sessions
 
@@ -158,6 +186,20 @@ declaring its entry state:
 4. Inspect a trace event and determine why a request did not match.
 5. Save and then revert a fallback-file draft.
 6. Change theme and locale, and switch audience mode.
+
+**Carried in from L2's first captures (2026-08-04).** The mode-picker card is
+fixed-width and centred — measured at ~645 physical pixels across window widths
+from 1056 to 2304, with only the surrounding whitespace changing. At the
+smallest tested size it fills roughly 61% of the width; at 1920×1080 it occupies
+under 10% of the window's area.
+
+Nothing clips, so this is not a defect. But "the layout does not respond to
+window size" reads as benign from small-window evidence and as an under-filled
+screen at large ones, and that is the kind of thing participants remark on
+unprompted. **Watch for it as an observation across window sizes**, and note it
+also sharpens the breakpoint-threshold evidence snora has asked us for: the
+problem is not only content cramping at small sizes, it is content failing to
+use space at large ones.
 
 ### 5. Findings, severity, and the facilitator
 
