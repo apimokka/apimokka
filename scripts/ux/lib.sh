@@ -111,7 +111,18 @@ ux_screenshot() {
     niri msg action screenshot-window --id "$id" --path "$path" \
         --write-to-disk true --show-pointer false ||
         ux_die "screenshot-window failed for window $id"
-    [[ -s "$path" ]] || ux_die "screenshot did not produce a file: $path"
+    # `niri msg action screenshot-window` returns before the file is
+    # written -- the write happens asynchronously, on a later compositor
+    # frame. Checking [[ -s "$path" ]] immediately after the command
+    # returns is a race that loses more often than not; poll briefly
+    # instead.
+    local tick=0
+    while (( tick < 10 )); do
+        [[ -s "$path" ]] && return 0
+        sleep 0.2
+        tick=$(( tick + 1 ))
+    done
+    ux_die "screenshot did not produce a file within 2s: $path"
 }
 
 # ux_kill_app <pid>

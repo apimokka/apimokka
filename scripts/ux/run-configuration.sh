@@ -60,6 +60,12 @@ done
     ux_die "--name, --width, --height, and --out-dir are required"
 
 mkdir -p -- "$out_dir"
+# niri's screenshot-window --path requires an absolute path and silently
+# no-ops (exit 0, no file, no error) on a relative one -- resolve it here
+# so ux_screenshot's documented "<absolute-output-path>" contract holds
+# regardless of what the caller passed.
+out_dir=$(cd -- "$out_dir" && pwd -P) || ux_die "cannot resolve --out-dir to an absolute path"
+
 binary="$repository_root/target/debug/apimokka"
 [[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka"
 
