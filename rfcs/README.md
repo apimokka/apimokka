@@ -11,6 +11,7 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
+| [MK-024](./proposed/MK-024-responsive-behaviour.md) | Responsive and window behaviour | Returned from `done/` 2026-08-12 — never implemented; not scheduled |
 | [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
 | [MK-058](./proposed/MK-058-snora-0-28-adoption.md) | snora 0.28 adoption | Stabilization roadmap M8 |
 
@@ -24,7 +25,6 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-021](./done/MK-021-workflow-centred-ia.md) | Workflow-centred information architecture | v0.6.0 |
 | [MK-022](./done/MK-022-visual-design-system.md) | Visual design system | v0.6.0 |
 | [MK-023](./done/MK-023-accessibility-keyboard.md) | Accessibility and keyboard contract | v0.6.0 |
-| [MK-024](./done/MK-024-responsive-behaviour.md) | Responsive and window behaviour | v0.6.0 |
 | [MK-025](./done/MK-025-welcome-dashboard.md) | Welcome and Dashboard | v0.6.0 |
 | [MK-026](./done/MK-026-workspace-wizard.md) | New workspace wizard | v0.6.0 |
 | [MK-027](./done/MK-027-workspace-shell.md) | Workspace shell (top bar and left rail) | v0.6.0 |

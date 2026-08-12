@@ -1,8 +1,59 @@
 # RFC MK-024 — Responsive and window behaviour
 
-**Status.** Implemented (v0.6.0)
+**Status.** Proposed
 **Tracks.** Window sizing, breakpoints, column widths, overflow rules.
 **Touches.** Routes (three-column), Trace (two-column), Settings (form), every list-bearing surface.
+
+> ## Status correction, 2026-08-12
+>
+> **Returned from `done/`.** This RFC was recorded as `Implemented (v0.6.0)`
+> from the beginning. That was never true of the code.
+>
+> **This RFC's breakpoints were never implemented.** The status field said
+> `Implemented (v0.6.0)` from the beginning; the code has never contained the
+> behaviour it describes. Corrected by project-owner decision after the gap was
+> found during M6 preparation.
+>
+> **It has been returned to `proposed/`**, not archived. Archiving would mean
+> the work will not happen; this is an accepted design still intended, now
+> newly implementable. `scripts/check-rfcs.sh` refused the status edit while the
+> file sat in `done/` — the folder is the source of truth for state under
+> MK-000, and a not-implemented RFC cannot live there. The checker MK-051 added
+> is what caught it.
+>
+> **How it was found.** Writing the L2 scripted-verification task, the intent
+> was to check layout against the four breakpoints below. Verification of the
+> code found:
+>
+> - `crates/app/src/main.rs` declares no window settings — no default size, no
+>   minimum;
+> - the application observes window size nowhere — no `iced::window`, no
+>   `Event::Window`, no `iced::widget::responsive`, no width-based branching
+>   anywhere in `crates/app/src`;
+> - snora 0.25.2 provided no responsive layer either, so nothing supplied the
+>   behaviour from below.
+>
+> **Confirmed empirically on 2026-08-04.** The mode picker was captured at
+> 880×700, 1024×720, 1280×800 and 1920×1080. The card measured ~645 physical
+> pixels wide at *every* size; only the surrounding whitespace changed. Evidence:
+> `.git-exclude/release-evidence/2026-08-04-mk056-l2-mode-picker-sizes/`.
+>
+> **Why the record said otherwise.** M1's repository-truth repair reconciled RFC
+> *indexes* against files on disk. It did not reconcile RFC *claims* against
+> code, so a status field asserting a feature that was never built survived it
+> intact. That is the same class as R1's finding B3, and this is its last known
+> instance.
+>
+> **What is now possible.** snora 0.28's `snora::responsive_render` supplies the
+> layout's available width, which is the capability this RFC needed and never
+> had. Implementing the breakpoints is deliberately **not** scheduled: it is a
+> behaviour change, M6 is about to validate behaviour, and snora has asked for
+> our thresholds as the evidence deciding whether they ship breakpoint behaviour
+> themselves — thresholds we can only choose honestly after sessions show what
+> users do at small sizes. See MK-058 §7 and its resolution 4.
+>
+> The design below is unchanged and remains the intended target. It is a
+> specification awaiting implementation, not a record of work done.
 
 ## Summary
 
