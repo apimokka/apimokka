@@ -224,11 +224,30 @@ window title. `snora-modal-dim`, `snora-dialog-card`, `snora-sheet-panel`,
 addressable, and are a compatibility surface — renaming one is a minor bump,
 recorded in their versioning policy.
 
-This does not make L2 trivial: identifiers cover **snora-rendered surfaces
-only**, not our own controls, and snora is explicit that an `Id` is not a role
-and does not narrow the accessibility gap. But dialog and drawer verification
-becomes tractable in a way it was not when task 008 was written. **Task 008
-should be revisited after M8 lands**, before its live run.
+**Correction, 2026-08-04.** The claim above that identifiers make L2's dialog
+and drawer verification tractable is **wrong**, and it was checked after M8
+landed rather than before it was written.
+
+`iced::widget::Id` lives inside iced's widget tree. It is not surfaced to the
+compositor, to X11, or to any accessibility API — so a process driving the
+application from outside with `xdotool` or `niri msg` cannot see one. L2 is
+external scripted verification; the identifiers are internal. They do not help
+it.
+
+What they do help is **in-process** testing, and snora's own testing guide is
+explicit about the shape it expects: assert against application state, keep
+`update` pure, and accept that "what you cannot test with this approach is the
+rendered pixel output." That is the pattern this codebase already follows in its
+203 reducer tests.
+
+So the identifiers change nothing for L2, and the useful follow-up is narrower
+than stated: they would matter only if this project revisited an in-process
+harness such as `iced_test`, which MK-053's DEC-006 judged immature and which
+snora has suggested — without pressing — may be worth re-examining.
+
+**Task 008 is still revisited after M8**, but for a different reason: M8 changed
+the appearance, so L2's captures must record the post-M8 look, and M8's own
+four-preset capture can share the same live session.
 
 ## Sequencing
 
