@@ -43,10 +43,17 @@ ux_launch_app() {
 ux_find_window_id() {
     local pid=$1
     local timeout=${2:-10}
-    local elapsed=0
     local id=
+    # Poll in half-second ticks, counted as an integer, rather than
+    # accumulating a fractional elapsed-seconds value: bash's `(( ))` is
+    # integer-only, and comparing it against a value like "0.5" is a
+    # runtime arithmetic error, not a false condition — the loop would
+    # silently give up after a single check instead of polling for the
+    # full timeout.
+    local max_ticks=$(( timeout * 2 ))
+    local tick=0
 
-    while (( elapsed < timeout )); do
+    while (( tick < max_ticks )); do
         id=$(niri msg --json windows 2>/dev/null |
             jq -r --argjson pid "$pid" '[.[] | select(.pid == $pid)] | .[0].id // empty')
         if [[ -n "$id" ]]; then
@@ -54,7 +61,7 @@ ux_find_window_id() {
             return 0
         fi
         sleep 0.5
-        elapsed=$(awk -v e="$elapsed" 'BEGIN { print e + 0.5 }')
+        tick=$(( tick + 1 ))
     done
     return 1
 }
