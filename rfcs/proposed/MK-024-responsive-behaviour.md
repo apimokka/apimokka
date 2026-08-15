@@ -82,6 +82,38 @@
 > constraint should be settled **before** any implementation task is written, not
 > discovered inside one.
 >
+> ### Resolved, 2026-08-15 — snora shipped option 1
+>
+> `snora::design::responsive_render` landed in **0.31.0**, taking `&Tokens` as a
+> second argument and keeping the design chrome:
+>
+> ```rust,ignore
+> use snora::design::{Tokens, responsive_render};
+> responsive_render(move |width| { /* AppLayout at this width */ }, &tokens)
+> ```
+>
+> snora recorded the original as a defect in the RFC that shipped width
+> exposure, and noted it had **self-blocked**: they deferred breakpoint
+> behaviour pending real consumer thresholds while making the responsive spec
+> that would produce them unimplementable.
+>
+> **The technical blocker on this RFC is gone.** Responsive layout and design
+> chrome are no longer mutually exclusive, and the fallback in option 2 is not
+> needed.
+>
+> **What still gates it is unchanged and is not technical:** thresholds. Four
+> breakpoints picked without evidence would be a guess dressed as a
+> specification, and snora wants ours as the evidence deciding whether they ship
+> breakpoint behaviour at all. That evidence comes from M6's sessions — the
+> observation carried forward from the 2026-08-04 window-size capture is that our
+> problem is not only content cramping at small sizes but content failing to use
+> space at large ones (a fixed ~645px card at 1920px wide).
+>
+> **So: unblocked, still sequenced after M6, and now genuinely implementable
+> when it is scheduled.** Verify `design::responsive_render` against the shipped
+> crate before writing the implementation task — this records snora's claim, not
+> our own compilation of it.
+>
 > Related: snora's `design` feature requires `widgets`
 > (`design = ["widgets", …]`), so a design-path consumer cannot build engine-only.
 > We have zero `snora::widget::*` call sites and compile the crate regardless.
