@@ -52,6 +52,40 @@
 > themselves — thresholds we can only choose honestly after sessions show what
 > users do at small sizes. See MK-058 §7 and its resolution 4.
 >
+> ### Correction, 2026-08-15 — `responsive_render` is not usable on our path
+>
+> The paragraph above overstates what 0.28 unlocked, and this is a blocking
+> constraint rather than a caveat.
+>
+> `snora::responsive_render` hardcodes the **engine** renderer
+> (`src/responsive.rs`: `Responsive::new(|size| { … crate::render::render(layout) })`).
+> It takes no `Tokens`, and there is no `design::responsive_render` — `grep
+> responsive src/design*` returns nothing at 0.29.0.
+>
+> apimokka renders through `snora::design::render(layout, &tokens)`, which MK-058
+> Phase 3 adopted specifically to fix the `high_contrast_dark` modal dim — a
+> shipped accessibility defect. **So adopting `responsive_render` as written
+> would regress M8's accessibility fix.** Responsive layout and design chrome are
+> mutually exclusive in snora as shipped.
+>
+> **Consequence for scheduling:** the blocker on this RFC is no longer only
+> "thresholds need session evidence." Even with thresholds in hand, implementing
+> it requires one of:
+>
+> 1. snora shipping `design::responsive_render` taking `&Tokens` — requested
+>    2026-08-15; or
+> 2. hand-rolling `iced::widget::responsive(|size| design::render(build(size.width), &tokens))`.
+>    This appears viable — `design::render` is the only public entry point, as
+>    `render_with_style` is private — but it is undocumented and unverified.
+>
+> Option 2 is the fallback if snora declines. Neither is scheduled, and this
+> constraint should be settled **before** any implementation task is written, not
+> discovered inside one.
+>
+> Related: snora's `design` feature requires `widgets`
+> (`design = ["widgets", …]`), so a design-path consumer cannot build engine-only.
+> We have zero `snora::widget::*` call sites and compile the crate regardless.
+>
 > The design below is unchanged and remains the intended target. It is a
 > specification awaiting implementation, not a record of work done.
 
