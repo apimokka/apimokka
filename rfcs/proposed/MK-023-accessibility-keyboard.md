@@ -1,9 +1,50 @@
 # RFC MK-023 — Accessibility and keyboard contract
 
-**Status.** Implemented (v0.6.0)
+**Status.** Proposed
 **Tracks.** ABDD policy, keyboard shortcut catalogue, focus order, screen-reader landmarks.
 **Touches.** Every interactive surface.
 **Supersedes.** MK-015 (accessibility, keyboard, command palette).
+
+> ## Status correction, 2026-08-15
+>
+> **Returned from `done/`.** Recorded as `Implemented (v0.6.0)`; the keyboard
+> contract below was never built. Corrected by project-owner decision.
+>
+> **What is not implemented.** There is no `Named::Tab` handler, no
+> `focus_next`/`focus_previous`, and no `widget::operate` anywhere in
+> `crates/app/src`. iced does not traverse focus on its own — the application
+> must wire it, and this one does not. Keyboard handling is a **global**
+> subscription (`app.rs:3418`): `Escape` plus a six-entry accelerator table
+> (Undo, Redo ×2, Save, ReloadConfig, ToggleCommandPalette). Nothing else.
+>
+> **Consequence.** A keyboard-only user cannot pass the application's **first
+> screen**. `Message::ChooseAudienceMode` fires only from a button `.on_press`
+> (`screens/mode_picker.rs:32`), it is not in the accelerator table, and
+> `view()` short-circuits to the mode picker while `audience_mode.is_none()`.
+> This is more severe than the shipped `high_contrast_dark` modal-dim defect
+> M8 exists to fix, which at least degraded a usable application.
+>
+> **Line 93 of this RFC — `- [ ] Main workflows are keyboard reachable` — is
+> unticked in the shipped document.** The gap was visible in the record and
+> read past.
+>
+> **How it was found.** Attempting to drive the app with `wtype` for M8's
+> capture. The tool works; the application does not accept the input. Evidence:
+> `.git-exclude/reviewed/2026-08-15-wtype-probe-result-and-keyboard-contract-gap.md`.
+>
+> **The satisfiable path is this RFC's own wording.** Line 17 requires every
+> control reachable *"via Tab **or the command palette**"*. Full Tab traversal
+> may not be achievable on iced 0.14 — MK-056 already lists iced-imposed
+> accessibility gaps as a non-goal (its decision 6). A fully keyboard-operable
+> palette satisfies the contract without it, and that is MK-033's unimplemented
+> requirement rather than new design. See MK-033's matching correction.
+>
+> **This is the third RFC found in `done/` whose central mechanism was never
+> built**, after MK-024 (breakpoints) and MK-033 (palette keyboard operation).
+> The common factor is that nothing in this programme executed the UI until
+> `scripts/ux/` existed; all three were verified against design intent.
+>
+> The design below is unchanged and remains the intended target.
 
 ## Summary
 
