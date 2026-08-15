@@ -249,6 +249,85 @@ snora has suggested — without pressing — may be worth re-examining.
 the appearance, so L2's captures must record the post-M8 look, and M8's own
 four-preset capture can share the same live session.
 
+### snora 0.29.0 — adopted before M8's capture (Phase 5)
+
+This RFC keeps its `0-28` filename. It is the snora-adoption RFC, and 0.28.0 is
+what Phases 1–3 shipped, so the name stays historically accurate; 0.29.0 is a
+one-line follow-on folded in here rather than given an RFC of its own, which
+would be overhead disproportionate to a version bump with nothing to migrate.
+
+snora sent an unprompted heads-up
+(`.git-exclude/tmp/note-2026-08-15-upgrade-before-identifier-work.md`) after our
+post-adoption report: **do identifier work on 0.29.0, not 0.28.0.**
+
+**What changed.** On 0.28.0, `snora-dialog-card` is attached to the dialog's
+centring wrapper — a container filling the window — so it resolves to
+window-sized bounds and never to a card. 0.29.0 splits it: `snora-dialog` is the
+centring container, `snora-dialog-card` becomes the actual card on the `design`
+path we adopted in Phase 3.
+
+**Why the warning matters.** These are plain strings. An assertion written
+against 0.28.0's `snora-dialog-card` would, after upgrading, silently resolve a
+much smaller element with no compile error and no failing test. snora shipped
+the rename on the explicit premise that no consumer had adopted 0.28.0
+identifiers — a premise our own report confirmed.
+
+**Sequencing decision, superseded — see below.** The position first recorded here
+was *upgrade after M8 closes, not before*, on the reasoning that a new minor
+version underneath a nearly-closed milestone re-opens it for no benefit. That
+reasoning rested on one unknown: whether 0.29.0 changes rendered appearance. The
+migration guide had been referenced rather than bundled, so the answer was
+snora's claim rather than something we had read.
+
+**Sequencing decision as settled, 2026-08-15: upgrade to 0.29.0 first, then
+capture.** We asked for the guide; snora supplied it
+(`.git-exclude/tmp/app-team-snora-0.28.0-to-0.29.0.tar.gz`) with the appearance
+question answered directly and by evidence, not assertion — a semantic diff of
+the two tags with comments and formatting normalised away. Exactly two files
+change behaviour: `overlay/dialog.rs`, where `.id()` moves to a different
+element, and `identifiers.rs`. Everything else is doc comments, `rustfmt`, or
+tests. `render_semantics`, the suite backing the no-visual-change guarantee, is
+semantically unmodified across the span.
+
+That inverts the decision. The capture's entire value is that it records the
+version we ship. Capturing at 0.28.0 and bumping immediately after would produce
+evidence for a version we are about to leave, and no pixel evidence for the one
+we keep. The cost that argued for waiting — re-opening a closed milestone — is
+one line in `Cargo.toml` with nothing to migrate, verified below.
+
+**Nothing to migrate, verified rather than assumed.** The guide names one risk
+the upgrade cannot catch mechanically: a test asserting on `snora-dialog-card`
+does not fail, it silently starts resolving the styled card instead of the
+window-sized wrapper. `grep -rn 'snora-dialog'` across the tree returns prose in
+two RFCs and no code. There are no identifier assertions to re-read. MSRV is
+unchanged at 1.88, and the public API is 157 items at both tags, compared as
+sets.
+
+**One caveat snora stated unprompted, and it argues for the capture rather than
+against the upgrade.** The no-visual-change guarantee is *test-backed, not
+pixel-verified*: `render_semantics` asserts composition — layer order, which
+surfaces materialise, dismissal, RTL mirroring — and nothing in their CI compares
+pixels. No downstream team has ever checked it visually. That makes the 0.28→0.29
+comparison the one snora most wants and the one nobody has run, which is why
+owner task 001's optional pass has been retargeted onto it. 0.28.1 sits between
+and is documentation only.
+
+**Our §2 correction changed their documentation.** snora had recorded the premise
+behind the rename as "confirmed, then expired", the expiry being an identifier
+task they inferred we had scheduled. `contributing/versioning-policy.md` now says
+the premise holds, with the reason we supplied: `Id`s serve in-process harnesses
+only. They also recorded the process lesson — ask the adopter, do not infer from
+their last reported version — and fixed the twice-repeated bundling gap at its
+root, with a script that walks every link to closure and refuses to produce the
+tarball if one does not resolve inside it.
+
+**Useful detail recorded now so it is not rediscovered:** three of the ten
+identifiers will never render for this application — `snora-sidebar`,
+`snora-footer`, and `snora-toast-stack` with its per-toast scheme — because we
+populate none of those `AppLayout` slots. The seven that will:
+`snora-menu-backdrop`, `snora-modal-dim`, `snora-dialog`, `snora-dialog-card`,
+`snora-sheet-panel`, `snora-header`, `snora-body`.
+
 ## Sequencing
 
 **M8 runs before M6's L2 live run and before L3 sessions.** Both are unrun,
@@ -259,9 +338,11 @@ M8 does not block participant recruitment.
 
 ## Acceptance evidence
 
-- Before/after screenshots in all four presets after **Phase 1 alone**,
-  demonstrating the no-change guarantee held — or reporting it if it did not.
-- Confirmation that the unconditional identifiers changed nothing here.
+All visual evidence is captured **at 0.29.0**, after Phase 5, per the sequencing
+settled in §7.
+
+Required:
+
 - After Phase 2: stock controls following the palette, demonstrated by switching
   to `high_contrast_dark`.
 - After Phase 3: a dialog distinguishable in all four presets, and specifically
@@ -270,6 +351,23 @@ M8 does not block participant recruitment.
 - CI green on all three platforms — this changes a rendering dependency.
 - Resolved `snora` family versions and checksums from `Cargo.lock`.
 - The post-adoption report owed to snora under decision 6.
+
+Optional, and **deliberately reduced to one comparison**, because each costs a
+separate build and a second pass by a human whose time is this milestone's
+binding constraint:
+
+- **Phase 5, 0.28.0 → 0.29.0.** The comparison snora asked for and that no
+  downstream team has ever run; their guarantee here is test-backed, not
+  pixel-verified. This is the one to do.
+- ~~Phase 1 alone, 0.25.2 → 0.28.0~~ — **deferred, not abandoned.** Still a valid
+  isolated test of the same guarantee across the span Phase 1 crossed, but its
+  value has decayed: that span is shipped, reviewed, and CI-green on three
+  platforms, and snora's own `render_semantics` covers it. If it had broken
+  appearance materially, Passes A and B would be reporting a problem. Recorded
+  here so the omission is a decision rather than a gap.
+- Confirmation that the unconditional identifiers changed nothing here — folded
+  into the above; identifiers have no rendering effect, which is now established
+  by semantic diff rather than inference.
 
 ## Alternatives considered
 
