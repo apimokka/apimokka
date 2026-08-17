@@ -16,6 +16,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-033](./proposed/MK-033-command-palette.md) | Command palette | Returned from `done/` 2026-08-15 — renders and filters, but every keyboard requirement unimplemented |
 | [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
 | [MK-058](./proposed/MK-058-snora-0-28-adoption.md) | snora 0.28 adoption | Stabilization roadmap M8 |
+| [MK-059](./proposed/MK-059-typography-and-readability.md) | Typography and readability | Amends MK-022 — proposed 2026-08-15, awaiting owner review |
 
 ---
 
