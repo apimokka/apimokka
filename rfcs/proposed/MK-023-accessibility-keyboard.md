@@ -33,11 +33,34 @@
 > `.git-exclude/reviewed/2026-08-15-wtype-probe-result-and-keyboard-contract-gap.md`.
 >
 > **The satisfiable path is this RFC's own wording.** Line 17 requires every
-> control reachable *"via Tab **or the command palette**"*. Full Tab traversal
-> may not be achievable on iced 0.14 — MK-056 already lists iced-imposed
-> accessibility gaps as a non-goal (its decision 6). A fully keyboard-operable
-> palette satisfies the contract without it, and that is MK-033's unimplemented
-> requirement rather than new design. See MK-033's matching correction.
+> control reachable *"via Tab **or the command palette**"*. A fully
+> keyboard-operable palette satisfies the contract, and that is MK-033's
+> unimplemented requirement rather than new design. See MK-033's matching
+> correction.
+>
+> **Correction, 2026-08-18 — do not record Tab traversal as iced-blocked.** An
+> earlier revision of this block said full Tab traversal "may not be achievable
+> on iced 0.14". That was inherited from snora's documentation, which said a
+> focus ring "cannot be rendered" on iced 0.14 and instructed reviewers not to
+> file it. **snora has withdrawn that as over-scoped**, having probed iced
+> directly:
+>
+> - `operation::focus_next()` and `focus_previous()` **are reachable** and
+>   return a `Task`. **Moving focus works today.**
+> - `focusable::find_focused()` — *querying* where focus is — requires iced's
+>   `advanced` feature. **Knowing where focus is does not.**
+> - A focus **ring** is renderable now for focus the *application* owns: a
+>   `container` style closure is an arbitrary `Fn(&Theme) -> Style`, so a
+>   focused boolean the application already holds can drive border colour and
+>   width. The real constraint is only that iced cannot tell a style closure
+>   that a widget **iced** owns is focused.
+>
+> So Tab traversal and visible focus rings are a **scope choice**, not a
+> framework limitation. What genuinely is not available is modal focus
+> *trapping*, which needs `find_focused` to detect the boundary. Choosing the
+> palette route stays correct on cost grounds; it must not be justified on
+> impossibility grounds, and the production project should not inherit that
+> wrong constraint.
 >
 > **This is the third RFC found in `done/` whose central mechanism was never
 > built**, after MK-024 (breakpoints) and MK-033 (palette keyboard operation).
