@@ -78,6 +78,21 @@ not to look, which is why it survived several releases. Worth recording as a
 pattern, not as their embarrassment: **our own MK-023 line 93 was an unticked
 checklist item that everyone read past.** Same failure, different project.
 
+**Superseded by helpers, 2026-08-19.** snora 0.38.0 (their RFC-068) adds six
+`<role>_line_height` helpers beside the existing size helpers, returning
+`LineHeight::Relative` directly. They withdrew the sentence in `typography.md`
+that told consumers to read the multiplier off the field and wrap it themselves.
+
+We are unaffected by the withdrawal — M10 is unimplemented, so no wrapper of
+ours exists to replace — but **the implementation should use the helpers rather
+than hand-wrapping**, and therefore needs a snora version that has them.
+
+**Verify the exact import path against the shipped crate before writing the
+task.** The helpers live in `snora-style::text`; we reach that layer through
+`snora::design::style::*` and do not depend on `snora-style` directly. This
+records snora's claim, not our compilation of it — the same caution MK-024
+carries about `design::responsive_render`.
+
 ## Goals
 
 - A text scale with a usable secondary tier, so nothing lands at the floor by
@@ -138,8 +153,10 @@ one thing this RFC fixes is that "smaller than body" stops meaning "12.0".
 
 ### 5. Line-height only where text wraps
 
-Apply `LineHeight::Relative(role.line_height)` to prose and secondary prose.
-Do not apply it to labels, chips, or single-line values.
+Apply the role's line height to prose and secondary prose — via snora's
+`<role>_line_height` helper where available (0.38.0+), otherwise
+`LineHeight::Relative(role.line_height)`. Do not apply it to labels, chips, or
+single-line values.
 
 ## Risks and mitigations
 
