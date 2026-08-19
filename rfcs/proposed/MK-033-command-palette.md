@@ -27,12 +27,20 @@
 > session was run.
 >
 > **This RFC is now the critical path for accessibility.** MK-023 line 17
-> requires every control reachable *"via Tab **or the command palette**"*. Full
-> Tab traversal may be unachievable on iced 0.14, and MK-056 lists
-> iced-imposed gaps as a non-goal. **Implementing the three rows above — plus
-> making the palette reachable at the mode picker — satisfies MK-023's contract
-> without Tab traversal, and is this RFC's own specification rather than new
-> design.**
+> requires every control reachable *"via Tab **or the command palette**"*.
+> **Implementing the three rows above — plus making the palette reachable at the
+> mode picker — satisfies MK-023's contract without Tab traversal, and is this
+> RFC's own specification rather than new design.**
+>
+> **Corrected 2026-08-19.** This paragraph previously read "Full Tab traversal
+> may be unachievable on iced 0.14, and MK-056 lists iced-imposed gaps as a
+> non-goal." That is wrong and it was load-bearing: it made the palette route
+> look forced rather than chosen. snora withdrew the claim it came from as
+> over-scoped — `operation::focus_next`/`focus_previous` are reachable and move
+> focus today, and a focus ring is renderable for focus the application owns.
+> Only *querying* focus needs iced's `advanced` feature, which is why modal focus
+> **trapping** is the thing actually unavailable. The palette route stands **on
+> cost grounds**. See MK-023's matching correction.
 >
 > **How it was found.** Establishing how far `wtype` could drive the app for
 > M8's capture. Evidence:
