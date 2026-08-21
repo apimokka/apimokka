@@ -154,9 +154,31 @@ one thing this RFC fixes is that "smaller than body" stops meaning "12.0".
 ### 5. Line-height only where text wraps
 
 Apply the role's line height to prose and secondary prose — via snora's
-`<role>_line_height` helper where available (0.38.0+), otherwise
-`LineHeight::Relative(role.line_height)`. Do not apply it to labels, chips, or
+`<role>_line_height` helper (0.38.0+). Do not apply it to labels, chips, or
 single-line values.
+
+**Qualified 2026-08-19 against the measured baseline.** iced's silent default is
+`LineHeight::Relative(1.3)` (`iced_core-0.14.0/src/text.rs:215-219`), which is
+what every piece of text in this application renders at today. Against that
+baseline the six roles are **not equally worth applying**:
+
+| Role | Line height | vs iced's 1.3 default |
+|---|---|---|
+| `body` | 1.4 | **looser — the clear gain** |
+| `title` | 1.3 | identical; no observable effect |
+| `body_small` | 1.35 | slightly looser |
+| `heading` | 1.25 | **tighter** |
+| `label` | 1.2 | tighter (labels excluded anyway) |
+| `display` | 1.2 | **tighter** |
+
+**Only `body` is unambiguously a readability improvement.** Applying the scale
+reflexively would make headings and display text *tighter* than they are now
+while calling it a readability change. Prioritise `body`; apply the others
+because they are correct for the role, not because they improve legibility, and
+say which is which in the submission.
+
+Measured by the dev team against snora's RFC-070 and confirmed against iced's
+own source.
 
 ## Risks and mitigations
 

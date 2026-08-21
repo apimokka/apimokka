@@ -149,9 +149,26 @@ Replace all six `snora::render(layout)` calls in `shell/view.rs` with
 `snora::design::render(layout, &tokens)`. This is the phase that fixes the
 invisible modal dim.
 
-In the two light presets the card is distinguishable **by its border only** —
-its fill is bitwise identical to the page background by the token data's own
-design. Expected, not a defect to chase.
+In the two light presets the card's fill is bitwise identical to the *undimmed*
+page background by the token data's own design. Expected, not a defect to chase.
+
+> **Correction, 2026-08-19 — this is wrong, and it came from snora.** They
+> described the dialog card as border-defined against the modal dim, citing
+> WCAG 2.1 SC 1.4.11. Measured by arama over photographic content and
+> re-derived across the full content range, **it is not**: the border reaches
+> **1.00:1 against the dim — invisible — in every preset** at some content
+> luminance. What actually separates the card from the dimmed page is the
+> **dim-to-fill step**, 3.16:1 or better everywhere.
+>
+> So the card is **fill-defined against the dim, and border-defined against its
+> own surface**. The 0.34.0 border repair is still real and still necessary — it
+> does its work at the card's *inner* edge, border against the card's own fill,
+> at 3.38:1 (light) and 3.17:1 (dark). It simply does not do the job we were
+> told it did.
+>
+> **Nothing rendered changed and no colour moved.** Only the explanation was
+> wrong, and only the record needs fixing.
+
 
 ### 4. Phase 4 — explicitly out of scope
 

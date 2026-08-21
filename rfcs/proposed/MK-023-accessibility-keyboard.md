@@ -67,6 +67,34 @@
 > The common factor is that nothing in this programme executed the UI until
 > `scripts/ux/` existed; all three were verified against design intent.
 >
+> ### Zone navigation — recorded for the production project, 2026-08-19
+>
+> The half of this contract that M9 does **not** address is movement *between*
+> regions: header to body, or between the Routes workbench's sidebar, editor and
+> respond columns. That has no keyboard story today, documented or otherwise.
+>
+> snora ships a purpose-built answer, available since 0.35.0 and present in our
+> current pin: `snora_core::focus::{FocusZone, Cycle, ZonePresence, next_zone}`
+> with `snora::keyboard::cycle_zones`. `next_zone` is pure — it takes state and
+> returns `Option<FocusZone>`, cycling `Header → SideBar → Body → Footer`,
+> skipping absent slots, and returning `None` while a dialog or sheet is open so
+> that a modal owns focus. snora deliberately **does not take Tab**; F6 /
+> Shift+F6 is their recommendation and the binding is ours to choose.
+>
+> **Deferred, not overlooked.** `ZonePresence` describes `AppLayout`'s
+> `header`/`side_bar`/`body`/`footer` slots, and we populate only two of them —
+> our tab bar and per-screen sidebars are composed into `body` by hand. Adopting
+> it therefore means first modelling our own logical regions, which is design
+> work rather than adoption, and belongs in the production project alongside the
+> rest of this RFC's remaining scope.
+>
+> Recorded here so it is inherited rather than rediscovered.
+>
+> **Also unavailable, and worth knowing before it is promised:** snora ships
+> navigation, not containment. Nothing bounds Tab inside an open modal, because
+> detecting the boundary needs `focusable::find_focused()` and that requires
+> iced's `advanced` feature.
+>
 > The design below is unchanged and remains the intended target.
 
 ## Summary
