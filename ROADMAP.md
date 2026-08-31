@@ -41,6 +41,21 @@ specification for a production GUI effort:
   describes the intended contract but was never published; 5.10.0 is the
   authoritative executable artifact unless a newer release is explicitly
   adopted.
+- **apimock-rs 6.0.0 is published and is being adopted** — milestone M11, RFC
+  MK-060, decided by the project owner 2026-08-21 (spec at
+  `.git-exclude/specs/6.0.0-for-gui-app-team.md`). Its `docs/src/library/`
+  section states the library API was **shaped for a GUI**, and carries an
+  additive-only API gate from 6.0.0 onward. The architect first recommended
+  against adopting, on the cost of re-running MK-052 and MK-055; **that was
+  wrong and is withdrawn.** It applied a cost argument to a correctness
+  question: MK-055's value is that our mapping is checked against the *real*
+  engine contract, and the production project will build against 6.x, so
+  validating against 5.10.0 produces a specification for a contract nobody will
+  use. Measured against the published API baselines, all **89** engine symbols
+  this repository references are present at 6.x with **none removed**.
+- Note the pin is further behind than it looks: `= "5"` is a caret requirement,
+  `Cargo.lock` holds 5.10.0, and the 5.x line reached **5.19.1**. MK-060 goes
+  5.10.0 to 6.x directly rather than stepping through nine unused minors.
 - No production file I/O, subprocess control, trace socket, or Rhai editing is
   added by this programme. Engine crates may be adopted as **test-only**
   dev-dependencies where that is the only way to verify a contract.
@@ -75,6 +90,7 @@ These role assignments apply until the project owner records a replacement:
 | R1 | Project owner | — | Architecture auditor | Project owner |
 | M5 | Project owner | RFC author / assigned implementer | Architecture auditor | Project owner |
 | M8 | Project owner | RFC author / assigned implementer | Architecture auditor | Project owner |
+| M11 | Project owner | RFC author / assigned implementer | Engine-conformance reviewer | Project owner |
 | M9 | Project owner | Assigned implementer | Architecture auditor | Project owner |
 | M10 | Project owner | Assigned implementer | UX/accessibility reviewer | Project owner |
 | M6 | Project owner and session coordinator | Assigned implementer / UX facilitator | UX/accessibility reviewer | Project owner |
@@ -97,7 +113,7 @@ reference them. An identifier therefore does not indicate sequence position.
 
 ```text
 M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M7 ─ R1 ─┬─ M5 (complete) ───────────┬─ R2
-                                   ├─ M8 ─ M9 ─ M10 ─ M6 ──────┤
+                                   ├─ M8 ─ M11 ─ M9 ─ M10 ─ M6 ┤
                                    └─ production-integration roadmap (draft only)
 ```
 
@@ -112,10 +128,11 @@ M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M7 ─ R1 ─┬─ M5 (complete) ───�
 | 7 | R1 — Blocking re-review | M7 |
 | 8 | M5 — Maintainable structure | R1 GO |
 | 9 | M8 — snora adoption | R1 GO |
-| 10 | M9 — Keyboard operability | M8's capture (which it would otherwise invalidate) |
-| 11 | M10 — Typography and readability | M9; last appearance change before M6 |
-| 12 | M6 — UX acceptance evidence | R1 GO; M8 before its live runs; M9 before its keyboard-only session; M10 before its readability probe |
-| 13 | R2 — Integration readiness | M5, M8, M9, M10 and M6 |
+| 10 | M11 — apimock-rs 6.0.0 adoption | M8's capture; before M9, since it may move the editing surface they build on |
+| 11 | M9 — Keyboard operability | M8's capture (which it would otherwise invalidate); M11 |
+| 12 | M10 — Typography and readability | M9; last appearance change before M6 |
+| 13 | M6 — UX acceptance evidence | R1 GO; M8 before its live runs; M11 before it validates an editing surface; M9 before its keyboard-only session; M10 before its readability probe |
+| 14 | R2 — Integration readiness | M5, M8, M11, M9, M10 and M6 |
 
 This table owns **order and prerequisites only**. Current state is owned solely
 by the progress table at the end of this document. Two tables recording the same
@@ -452,6 +469,7 @@ condition, owner, and next decision.
 | R1 — Blocking re-review | Complete | **CONDITIONAL GO** recorded 2026-08-02 on frozen input `5534192`; evidence: `.git-exclude/reviewed/2026-08-02-r1-blocking-architecture-re-review.md`. B1–B5 all resolved. Condition R1-1 — the canonical gate did not run integration-test targets, leaving the MK-055 conformance suite unguarded — **closed 2026-08-02**; both toolchains now run the full workspace test surface inside the gate. Evidence: `.git-exclude/reviewed/2026-08-02-r1-1-gate-integration-coverage-review.md` and `.git-exclude/reviewed/2026-08-02-r1-1-msrv-extension-review.md`. M5 implementation is unblocked. Non-blocking findings R1-2 (stale source-size baseline) and R1-3 (two conformance test files above the split threshold) carry into M5 planning. Conducted as a **self-audit** by the programme architect at the project owner's direction, with the reviewer-independence conflict recorded in the verdict; it is not an independent review. |
 | M5 — Maintainable structure | Complete | Accepted 2026-08-04. MK-057 delivered in seven reviewed slices; four mandatory splits, three inline test bodies relocated, `scripts/check-source-size.sh` wired into the canonical gate, and a recorded boundary decision for all 15 flagged files. Evidence: `.git-exclude/reviewed/2026-08-04-mk057-*.md`. **Exit taken under the amended 500-ELOC clause**: four implementation files carry a recorded `split` decision that was not executed, deferred by project-owner decision on 2026-08-04 — `crates/app/src/app.rs` (3,497), `crates/app/src/app/workspace_session.rs` (1,320), `crates/app/src/shell/bottom_drawer.rs` (535), `crates/model/src/workspace_port/mapping.rs` (522). A fourth inline test body at `crates/app/src/app/workspace_session.rs:1304` is deferred with them. Each has a named boundary already analysed, so the follow-up is execution rather than design. |
 | M8 — snora adoption | Blocked | **Code-complete at 0.28.0, one version bump and one human pass outstanding.** MK-058 Phases 1-3 implemented, reviewed and accepted as code-complete 2026-08-04; evidence: `.git-exclude/reviewed/2026-08-04-mk058-snora-0-28-adoption-implementation-review.md`. Commits `265e9b6` (P1), `8caa826` (P2), `2c191aa` (P3), `b0f62a2` (docs), against baseline `cef5e32`. Gate green; CI run `31229529161` green on all six legs. Phase 2 additionally fixed two pre-existing theme-detection bugs, one of which had no test coverage. **Blocking condition:** the acceptance evidence requires the live GUI, and `scripts/ux/probe.sh` returned `PROBE_RESULT=incapable` — the window is a native-Wayland surface invisible to `xdotool`, and niri's IPC exposes no input injection, so nothing *currently installed* can drive the app except a person. That is a provisioning statement, not an impossibility: niri does support `zwp_virtual_keyboard_manager_v1` and `zwlr_virtual_pointer_manager_v1`, so `wtype` plus a pointer tool would work here. Considered and deliberately deferred 2026-08-15 — the manual pass is what produces the reference screenshots any scripted pass would have to be validated against; reasoning in `.git-exclude/reviewed/2026-08-15-m8-visual-capture-approach-review.md` §3. **Phase 5 complete 2026-08-15:** snora 0.29.0 adopted in `5aeee57` — one line, no source change, whole `Cargo.lock` diff is four versions and four checksums with no transitive dependency moved; reviewed `.git-exclude/reviewed/2026-08-15-snora-0-29-upgrade-review.md`; CI run `31869542368` green on all six legs. Sequencing reversed 2026-08-15 on evidence from snora's migration guide, which established appearance-neutrality by semantic diff of the two tags; reasoning in MK-058 §7. **Task 015 commit 1 complete 2026-08-18:** snora 0.37.1 adopted in `c5f3cf2` — no source change, five crates including the new `snora-style`, nothing outside the family moved in `Cargo.lock`; 289 tests unchanged on both toolchains; reviewed `.git-exclude/reviewed/2026-08-18-snora-0-37-upgrade-commit-1-review.md`; CI run `32141644318` green on all six legs. **Sole remaining step: owner task 001** — roughly 10 minutes at the machine, with the fillable form at `.git-exclude/release-evidence/2026-08-12-m8-visual-capture/RESULTS.md`. Task 015 commit 2 (dropping `snora-widgets`) is deliberately held behind the capture. **The bump now precedes the capture.** snora 0.34.0 raises the dialog-card border from 1.28:1 to 3.12:1 in `light` (1.19:1 to 3.17:1 in `dark`; both high-contrast presets unchanged) after classifying the old value as an accessibility defect — and that border is the boundary of the dialog card Pass A photographs. Capturing first would record a surface we are about to replace, and the task's own "expected, not a fault" note was teaching the owner to accept the defect. **Re-sequenced four times, and now terminated.** A stop rule was written into the owner task after the third; snora triggered its exception clause once more with 0.37.0, which raised `DIM_ALPHA` 0.40 → 0.44 to repair a `light`-preset failure where the dialog card was distinguishable from its own dimmed backdrop at only 2.85:1. **snora now holds the matching commitment** — they will state when a release contains a rendered change, and a note that does not mention one leaves our baseline valid; they record 0.37.0 as the last, with nothing in `proposed/` touching a rendered surface. That is the terminating condition the sequence lacked: our stop rule only ever bound us. The capture also gained a required case: our new-workspace wizard is the one dialog not wrapped by snora's card, uses a border-less style with an 18%-black shadow, and in `high_contrast_dark` may repeat the compositing failure M8 exists to fix. **Owner:** dev team for (1), project owner for (2). No participant recruitment required — this is not a UX session. |
+| M11 — apimock-rs 6.0.0 adoption | Not started | **RFC MK-060, decided by the project owner 2026-08-21.** Bumps `apimock-routing` (production, 4 items) and `apimock-config` (test-only conformance oracle) from a lock pinned at 5.10.0, then re-runs MK-052 matcher conformance and MK-055 engine contract conformance against 6.x, re-classifying all nine recorded divergences rather than assuming they carry over. **Sized against the published API baselines, not estimated:** all 89 engine symbols this repository references are present at 6.x, none removed — which bounds the risk to signatures rather than removals, since that check matches names and not shapes. **Sequenced after M8's capture and before M9**, because it may move the editing surface M9 and M10 build on, and M6 must not validate an editing surface we then change. The architect's initial recommendation against adopting is withdrawn in MK-060's summary. |
 | M9 — Keyboard operability | Not started | **Authorized by the project owner 2026-08-15.** Task: `.git-exclude/tasks/dev-team/014-mk033-keyboard-operable-palette.md`. Implements RFC MK-033 as written — auto-focused search field, `Enter` executes, arrow-key row navigation — plus keyboard reachability of the mode picker, which closes MK-023's first-screen gap. **Why it is a milestone and not a bug fix:** a keyboard-only user cannot pass the application's first screen today, and MK-056 plans a keyboard-only session (line 267) rating accessibility failures that prevent completion as S1 Blocking (line 210). M6 cannot run its own protocol until this lands. **Scope is deliberately narrow:** MK-023 line 17 permits reachability "via Tab *or* the command palette", so the palette is the route; full Tab traversal, focus rings on every control and screen-reader landmarks stay with the production project **as a cost decision, not a framework limit** — snora withdrew the "iced cannot render a focus ring" claim as over-scoped on 2026-08-18, and moving focus and styling an application-owned focus ring both work on iced 0.14. **Sequenced after M8's capture**, which it would otherwise invalidate — auto-focus adds a visible cursor and ring to a Phase 3 capture surface. Evidence: `.git-exclude/reviewed/2026-08-15-wtype-probe-result-and-keyboard-contract-gap.md`. |
 | M10 — Typography and readability | Not started | **RFC MK-059 accepted by the project owner 2026-08-15**, not yet implemented; task issued when its window opens. Adopts snora's six-role text scale, present in the pinned 0.29.0 and reachable with no upgrade. **The finding that motivated it:** 152 of 294 text-sizing call sites render at `CAPTION` 12.0 — snora's stated readability floor — because our scale jumps 16.0 to 12.0 with nothing between, and snora supplies two 14.0 roles for exactly that gap. Line-height is set nowhere in `crates/app/src`. Resolutions: `DISPLAY` stays 36.0 as a recorded divergence (a prior pass raised it from 32 for comfort); triage covers prose-bearing surfaces only, leaving genuine metadata at 12.0 so M6 can judge it on evidence; MK-056 gains a readability probe, **owed before M6's sessions run**. **Main implementation risk:** line-height 1.4 makes prose blocks taller, so fixed-height cards, dense lists and the bottom drawer need visual checking, not just compilation. |
 | M6 — UX acceptance evidence | Implementing | MK-056 design accepted and implementation authorized by the project owner 2026-08-02, including resolution of all five review questions. Delivered as three units. **L1 cross-platform CI complete 2026-08-03**: all six legs green (Linux/macOS/Windows x stable/1.91) on run `30824280662` at commit `469e6cf`; evidence in `docs/src/development-and-gates.md`. Remaining: the preparation gate (`.git-exclude/tasks/dev-team/006-mk056-preparation-gate.md`), then L2 scripted GUI verification and L3 human sessions. Participant recruitment is the project owner's and is the critical path to R2. |
@@ -467,7 +485,14 @@ These remain outside the mockup stabilization programme:
 - live trace UDS/TCP connection and reconnection;
 - external-edit detection and conflict handling;
 - remembered workspace/theme/locale/audience preferences;
-- editable Rhai scripts and runtime validation;
+- editable Rhai scripts and runtime validation. **Security constraint recorded
+  2026-08-21:** apimock-rs's threat model notes that `service.middlewares` lists
+  Rhai scripts the server compiles and runs, so **a configuration file is
+  executable content**. The mockup does not open real files, so this does not
+  arise here — but "open a workspace" becomes "open a directory someone sent
+  you" in production, which is opening executable content by another name. The
+  production integration must settle this deliberately, and apimock-rs has asked
+  to be told what it decides;
 - drag-and-drop rule ordering and transition animation;
 - multi-user synchronization;
 - mdBook documentation build and link validation. `docs/src` has no `book.toml`

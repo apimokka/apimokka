@@ -17,6 +17,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
 | [MK-058](./proposed/MK-058-snora-0-28-adoption.md) | snora 0.28 adoption | Stabilization roadmap M8 |
 | [MK-059](./proposed/MK-059-typography-and-readability.md) | Typography and readability | Amends MK-022 — proposed 2026-08-15, awaiting owner review |
+| [MK-060](./proposed/MK-060-apimock-6-adoption.md) | apimock-rs 6.0.0 adoption | Stabilization roadmap M11 |
 
 ---
 
