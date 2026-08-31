@@ -179,13 +179,35 @@ They asked for four things and we can now answer three:
    first thing that could turn that into a real answer.
 4. **Documentation errors** — one already found, see below.
 
-### A documentation error found while sizing this RFC
+### A documentation error found while sizing this RFC — reported, fixed, and it closed a gap in our own evidence
 
-`docs/src/library/README.md` states the API shapes come from checked-in
+`docs/src/library/README.md` stated the API shapes come from checked-in
 baselines at `crates/*/public-api.txt`, and that **"if this documentation and a
-baseline disagree, the baseline is correct."**
+baseline disagree, the baseline is correct"** — while those files were **not
+present at the `6.0.0` tag.**
 
-Those files are **not present at the `6.0.0` tag.** They exist on the default
-branch. A consumer reading the 6.0.0 documentation and looking in 6.0.0's source
-finds no baseline, and therefore no tiebreaker — for a rule whose whole purpose
-is to be the tiebreaker.
+Reported 2026-08-21. apimock-rs fixed it in `4c77bfb` and found the half we
+could not see from outside: the baselines are **also excluded from every
+published crate tarball** (`exclude = ["public-api.txt"]`, deliberate and
+permanent). So a consumer reading from the tag, from crates.io, or from docs.rs
+had no tiebreaker at all — only the default branch has them. The gate producing
+them landed shortly after 6.0.0 shipped; releases after 6.0.0 will carry them at
+the tag.
+
+**The part that matters for this RFC.** Our sizing above — 89 of 89 symbols
+present, none removed — was measured against **default-branch** baselines while
+reasoning about the **6.0.0 tag**. That was an unstated assumption on our part,
+and it is the kind this programme has been caught by repeatedly.
+
+Their corrected page now closes it explicitly: *"The 6.0.0 baselines are still
+an accurate record of 6.0.0's surface: they were generated from a tree with no
+source changes since the tag."* The assumption holds, and it now holds on the
+record rather than on our inference.
+
+**To re-derive the number** (the tarball exclusion means `~/.cargo/registry`
+will not have these files):
+
+```sh
+gh api repos/apimokka/apimock-rs/contents/crates/apimock-config/public-api.txt \
+  --jq '.content' | base64 -d
+```
