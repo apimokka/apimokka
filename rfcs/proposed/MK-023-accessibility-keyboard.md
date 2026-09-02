@@ -56,11 +56,33 @@
 >   that a widget **iced** owns is focused.
 >
 > So Tab traversal and visible focus rings are a **scope choice**, not a
-> framework limitation. What genuinely is not available is modal focus
-> *trapping*, which needs `find_focused` to detect the boundary. Choosing the
-> palette route stays correct on cost grounds; it must not be justified on
-> impossibility grounds, and the production project should not inherit that
-> wrong constraint.
+> framework limitation. Choosing the palette route stays correct on cost
+> grounds; it must not be justified on impossibility grounds, and the production
+> project should not inherit that wrong constraint.
+> ### Correction, 2026-09-02 — focus *querying* is available to us
+>
+> The bullet above says `find_focused()` needs iced's `advanced` feature and
+> therefore modal focus **trapping** is unavailable. **That is wrong for this
+> application.** It was inherited verbatim from snora, whose statement is
+> *"requires iced's `advanced` feature, which snora does not enable"* — true of
+> them, and carried across as though it bound us.
+>
+> **We enable it.** `Cargo.toml:26`: `iced = { version = "0.14", features =
+> ["tokio", "advanced"] }`. And `iced::advanced::widget` re-exports
+> `core::widget::*`, which carries
+> `operation::focusable::find_focused()` (`iced_core-0.14.0/src/widget/
+> operation/focusable.rs:201`, `pub`), alongside `advanced::widget::operate` for
+> running an `Operation` as a `Task`.
+>
+> **Stated with its limit:** this establishes that querying focus is *reachable*.
+> It does not establish that a working focus trap can be built from those pieces
+> — that needs the modal's content ids, a boundary comparison and a redirect,
+> and none of that has been designed. **Focus containment is therefore
+> unimplemented, not impossible**, and must not be recorded as a framework limit.
+>
+> This is the fourth inherited snora constraint found not to bind us, and the
+> second of that kind I propagated after having already been caught by it.
+
 >
 > **This is the third RFC found in `done/` whose central mechanism was never
 > built**, after MK-024 (breakpoints) and MK-033 (palette keyboard operation).
@@ -90,10 +112,12 @@
 >
 > Recorded here so it is inherited rather than rediscovered.
 >
-> **Also unavailable, and worth knowing before it is promised:** snora ships
-> navigation, not containment. Nothing bounds Tab inside an open modal, because
-> detecting the boundary needs `focusable::find_focused()` and that requires
-> iced's `advanced` feature.
+> **Not shipped by snora, but not closed to us:** snora ships navigation, not
+> containment — nothing bounds Tab inside an open modal. They attribute that to
+> `focusable::find_focused()` requiring iced's `advanced` feature, which snora
+> does not enable. **We do** (`Cargo.toml:26`), so containment is available to
+> design for and is unimplemented rather than impossible. See the 2026-09-02
+> correction above.
 >
 > The design below is unchanged and remains the intended target.
 
