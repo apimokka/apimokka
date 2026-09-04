@@ -6,8 +6,8 @@ LC_ALL=C
 export LC_ALL
 
 readonly expected_source='registry+https://github.com/rust-lang/crates.io-index'
-readonly expected_config_version='5.10.0'
-readonly expected_config_checksum='87b84070260c09db1ce2f18ef360cdaf32ff32fbdc860014bb31b6cfe9646a16'
+readonly expected_config_version='6.0.0'
+readonly expected_config_checksum='70d8972cf7f30193d279d20b67e08250d777c19d8f7ec52cbeff84b909798e67'
 
 usage() {
     printf 'Usage: %s [repository-root]\n' "${0##*/}" >&2

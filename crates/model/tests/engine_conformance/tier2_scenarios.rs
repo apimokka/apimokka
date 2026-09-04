@@ -126,18 +126,17 @@ fn add_update_move_delete_rule_match_rule_count_and_move_ordering() {
     let engine_rule_set = engine_rule_set_id(&engine.snapshot());
     let before = engine_rule_ids(&engine.snapshot()).len();
 
+    // `RulePayload`/`RespondPayload` are `#[non_exhaustive]` as of
+    // apimock-config 6.0.0 (RFC MK-060); build from `Default::default()`
+    // and set fields directly.
+    let mut add_rule = apimock_config::RulePayload::default();
+    add_rule.url_path = Some("/orders".to_owned());
+    add_rule.url_path_op = Some(apimock_config::view::UrlPathOp::Equal);
+    add_rule.respond = to_engine::respond_text_only("ok");
     let add = engine
         .apply(apimock_config::EditCommand::AddRule {
             parent: engine_rule_set,
-            rule: apimock_config::RulePayload {
-                url_path: Some("/orders".to_owned()),
-                url_path_op: Some(apimock_config::view::UrlPathOp::Equal),
-                respond: apimock_config::RespondPayload {
-                    text: Some("ok".to_owned()),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            rule: add_rule,
         })
         .expect("engine AddRule");
     assert_eq!(engine_rule_ids(&engine.snapshot()).len(), before + 1);
@@ -157,18 +156,14 @@ fn add_update_move_delete_rule_match_rule_count_and_move_ordering() {
         })
         .expect("AddRule reports the new rule in changed_nodes");
 
+    let mut update_rule = apimock_config::RulePayload::default();
+    update_rule.url_path = Some("/orders/new".to_owned());
+    update_rule.url_path_op = Some(apimock_config::view::UrlPathOp::Equal);
+    update_rule.respond = to_engine::respond_text_only("updated");
     engine
         .apply(apimock_config::EditCommand::UpdateRule {
             id: new_rule_id,
-            rule: apimock_config::RulePayload {
-                url_path: Some("/orders/new".to_owned()),
-                url_path_op: Some(apimock_config::view::UrlPathOp::Equal),
-                respond: apimock_config::RespondPayload {
-                    text: Some("updated".to_owned()),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            rule: update_rule,
         })
         .expect("engine UpdateRule");
 
@@ -313,18 +308,19 @@ fn update_rule_preserve_clear_replace_semantics_match_for_headers_and_body() {
     let _ = condition_count; // display-name probing is unreliable across engine
     // versions; rely on `None` (preserve) acceptance instead.
 
-    // Preserve: `RulePayload::default()` headers/body are both `None`.
+    // `RulePayload`/`RespondPayload`/`HeaderConditionPayload` are
+    // `#[non_exhaustive]` as of apimock-config 6.0.0 (RFC MK-060); build
+    // from `Default::default()` (or `::new()`, where one exists) and set
+    // fields directly.
+
+    // Preserve: headers/body left `None` => Preserve.
+    let mut preserve_rule = apimock_config::RulePayload::default();
+    preserve_rule.url_path = Some("/api/protected".to_owned());
+    preserve_rule.url_path_op = Some(apimock_config::view::UrlPathOp::Equal);
+    preserve_rule.respond = to_engine::respond_text_only("ok2");
     let preserve_outcome = engine.apply(apimock_config::EditCommand::UpdateRule {
         id: rule_id,
-        rule: apimock_config::RulePayload {
-            url_path: Some("/api/protected".to_owned()),
-            url_path_op: Some(apimock_config::view::UrlPathOp::Equal),
-            respond: apimock_config::RespondPayload {
-                text: Some("ok2".to_owned()),
-                ..Default::default()
-            },
-            ..Default::default() // headers: None, body: None => Preserve
-        },
+        rule: preserve_rule,
     });
     assert!(
         preserve_outcome.is_ok(),
@@ -332,40 +328,33 @@ fn update_rule_preserve_clear_replace_semantics_match_for_headers_and_body() {
     );
 
     // Clear: `Some(vec![])`.
+    let mut clear_rule = apimock_config::RulePayload::default();
+    clear_rule.url_path = Some("/api/protected".to_owned());
+    clear_rule.url_path_op = Some(apimock_config::view::UrlPathOp::Equal);
+    clear_rule.headers = Some(vec![]);
+    clear_rule.body = Some(vec![]);
+    clear_rule.respond = to_engine::respond_text_only("ok3");
     let clear_outcome = engine.apply(apimock_config::EditCommand::UpdateRule {
         id: rule_id,
-        rule: apimock_config::RulePayload {
-            url_path: Some("/api/protected".to_owned()),
-            url_path_op: Some(apimock_config::view::UrlPathOp::Equal),
-            headers: Some(vec![]),
-            body: Some(vec![]),
-            respond: apimock_config::RespondPayload {
-                text: Some("ok3".to_owned()),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        rule: clear_rule,
     });
     assert!(clear_outcome.is_ok(), "engine Clear: {clear_outcome:?}");
 
     // Replace: `Some(vec![...])`.
+    let mut replace_header = apimock_config::view::HeaderConditionPayload::new(
+        "x-api-key".to_owned(),
+        apimock_config::view::HeaderOp::Equal,
+    );
+    replace_header.value = Some("shh".to_owned());
+    let mut replace_rule = apimock_config::RulePayload::default();
+    replace_rule.url_path = Some("/api/protected".to_owned());
+    replace_rule.url_path_op = Some(apimock_config::view::UrlPathOp::Equal);
+    replace_rule.headers = Some(vec![replace_header]);
+    replace_rule.body = Some(vec![]);
+    replace_rule.respond = to_engine::respond_text_only("ok4");
     let replace_outcome = engine.apply(apimock_config::EditCommand::UpdateRule {
         id: rule_id,
-        rule: apimock_config::RulePayload {
-            url_path: Some("/api/protected".to_owned()),
-            url_path_op: Some(apimock_config::view::UrlPathOp::Equal),
-            headers: Some(vec![apimock_config::view::HeaderConditionPayload {
-                name: "x-api-key".to_owned(),
-                op: apimock_config::view::HeaderOp::Equal,
-                value: Some("shh".to_owned()),
-            }]),
-            body: Some(vec![]),
-            respond: apimock_config::RespondPayload {
-                text: Some("ok4".to_owned()),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        rule: replace_rule,
     });
     assert!(
         replace_outcome.is_ok(),
@@ -427,28 +416,32 @@ fn per_condition_add_update_remove_are_addressed_by_node_id_on_both_sides() {
     let (_dir, root) = workspace_with_headers_and_body();
     let mut engine = apimock_config::Workspace::load(root).expect("load fixture workspace");
     let rule_id = engine_rule_ids(&engine.snapshot())[0];
+    // `HeaderConditionPayload` is `#[non_exhaustive]` as of apimock-config
+    // 6.0.0 (RFC MK-060); construct via `new(name, op)`, then set `value`.
+    let mut add_condition = apimock_config::view::HeaderConditionPayload::new(
+        "x-a".to_owned(),
+        apimock_config::view::HeaderOp::Equal,
+    );
+    add_condition.value = Some("1".to_owned());
     let add_outcome = engine
         .apply(apimock_config::EditCommand::AddHeaderCondition {
             rule_id,
-            condition: apimock_config::view::HeaderConditionPayload {
-                name: "x-a".to_owned(),
-                op: apimock_config::view::HeaderOp::Equal,
-                value: Some("1".to_owned()),
-            },
+            condition: add_condition,
         })
         .expect("engine AddHeaderCondition");
     let condition_id = *add_outcome
         .changed_nodes
         .last()
         .expect("AddHeaderCondition reports at least the new condition");
+    let mut update_condition = apimock_config::view::HeaderConditionPayload::new(
+        "x-a".to_owned(),
+        apimock_config::view::HeaderOp::Equal,
+    );
+    update_condition.value = Some("2".to_owned());
     engine
         .apply(apimock_config::EditCommand::UpdateHeaderCondition {
             id: condition_id,
-            condition: apimock_config::view::HeaderConditionPayload {
-                name: "x-a".to_owned(),
-                op: apimock_config::view::HeaderOp::Equal,
-                value: Some("2".to_owned()),
-            },
+            condition: update_condition,
         })
         .expect("engine UpdateHeaderCondition");
     engine
@@ -598,14 +591,11 @@ fn rfc_013_url_path_op_without_url_path_is_rejected_on_both_sides() {
     let (_dir, root) = minimal_workspace();
     let mut engine = apimock_config::Workspace::load(root).expect("load fixture workspace");
     let rule_id = engine_rule_ids(&engine.snapshot())[0];
-    let outcome = engine.apply(apimock_config::EditCommand::UpdateRule {
-        id: rule_id,
-        rule: apimock_config::RulePayload {
-            url_path: None,
-            url_path_op: Some(apimock_config::view::UrlPathOp::Equal),
-            ..Default::default()
-        },
-    });
+    // `RulePayload` is `#[non_exhaustive]` as of apimock-config 6.0.0 (RFC
+    // MK-060); build from `Default::default()` and set fields directly.
+    let mut rule = apimock_config::RulePayload::default();
+    rule.url_path_op = Some(apimock_config::view::UrlPathOp::Equal);
+    let outcome = engine.apply(apimock_config::EditCommand::UpdateRule { id: rule_id, rule });
     assert!(
         outcome.is_err(),
         "expected the engine to reject url_path_op without url_path too: {outcome:?}"
@@ -666,10 +656,7 @@ fn save_reports_a_diff_after_an_edit_and_is_a_no_op_once_clean() {
     engine
         .apply(apimock_config::EditCommand::UpdateRespond {
             id: respond_id,
-            respond: apimock_config::RespondPayload {
-                text: Some("changed".to_owned()),
-                ..Default::default()
-            },
+            respond: to_engine::respond_text_only("changed"),
         })
         .unwrap();
     let saved = engine.save().expect("engine save after edit");
@@ -727,18 +714,17 @@ fn changed_nodes_for_add_rule_correlate_by_class_not_by_count() {
     let (_dir, root) = minimal_workspace();
     let mut engine = apimock_config::Workspace::load(root).expect("load fixture workspace");
     let engine_rule_set = engine_rule_set_id(&engine.snapshot());
+    // `RulePayload`/`RespondPayload` are `#[non_exhaustive]` as of
+    // apimock-config 6.0.0 (RFC MK-060); build from `Default::default()`
+    // and set fields directly.
+    let mut rule = apimock_config::RulePayload::default();
+    rule.url_path = Some("/orders".to_owned());
+    rule.url_path_op = Some(apimock_config::view::UrlPathOp::Equal);
+    rule.respond = to_engine::respond_text_only("ok");
     let outcome = engine
         .apply(apimock_config::EditCommand::AddRule {
             parent: engine_rule_set,
-            rule: apimock_config::RulePayload {
-                url_path: Some("/orders".to_owned()),
-                url_path_op: Some(apimock_config::view::UrlPathOp::Equal),
-                respond: apimock_config::RespondPayload {
-                    text: Some("ok".to_owned()),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            rule,
         })
         .expect("engine AddRule");
     assert!(
@@ -754,10 +740,13 @@ fn changed_nodes_for_add_rule_correlate_by_class_not_by_count() {
 // ── 10. ReloadHint restart-vs-reload classification, all 14 keys ────────
 
 #[test]
-fn reload_hint_classification_matches_across_all_fourteen_root_setting_keys() {
+fn reload_hint_classification_matches_for_twelve_of_fourteen_root_setting_keys() {
     use workspace_port::{RuntimeEffect, WorkspaceRootKey as K};
     // (key, a value our own map_root_setting accepts for it)
-    let cases: [(K, WorkspaceEditValue); 14] = [
+    // `TlsCertFile`/`TlsKeyFile` are covered separately below (RFC MK-060 —
+    // new confirmed divergence as of apimock-config 6.0.0, not present at
+    // 5.10.0).
+    let cases: [(K, WorkspaceEditValue); 12] = [
         (
             K::ListenerIpAddress,
             WorkspaceEditValue::String("127.0.0.1".into()),
@@ -772,8 +761,6 @@ fn reload_hint_classification_matches_across_all_fourteen_root_setting_keys() {
             WorkspaceEditValue::Enum("FirstMatch".into()),
         ),
         (K::TlsEnabled, WorkspaceEditValue::Boolean(false)),
-        (K::TlsCertFile, WorkspaceEditValue::String(String::new())),
-        (K::TlsKeyFile, WorkspaceEditValue::String(String::new())),
         (K::LogLevel, WorkspaceEditValue::Enum("info".into())),
         (K::LogFile, WorkspaceEditValue::String(String::new())),
         (K::LogFormat, WorkspaceEditValue::Enum("plain".into())),
@@ -791,7 +778,7 @@ fn reload_hint_classification_matches_across_all_fourteen_root_setting_keys() {
             WorkspaceEditValue::StringList(vec![".json".into()]),
         ),
     ];
-    assert_eq!(cases.len(), K::ALL.len());
+    assert_eq!(cases.len() + 2, K::ALL.len());
 
     for (key, value) in cases {
         let ours = workspace_port::map_root_setting(key, value)
@@ -809,6 +796,42 @@ fn reload_hint_classification_matches_across_all_fourteen_root_setting_keys() {
         assert_eq!(
             ours, engine_effect,
             "{key:?}: our effect {ours:?} vs engine ReloadHint {engine_hint:?}"
+        );
+    }
+}
+
+/// New confirmed divergence, found by execution against 6.0.0 and absent at
+/// 5.10.0 (RFC MK-060 re-run): apimock-config's own RFC 020 moved TLS
+/// cert/key rotation onto a reloadable resolver, so `ReloadHint::for_key`
+/// now classifies `TlsCertFile`/`TlsKeyFile` as reload-only. Our
+/// `map_root_setting` still classifies both as `RuntimeEffect::Restart`,
+/// matching the engine's own 5.10.0 behaviour at the time MK-053/MK-055
+/// were written. This is the same disposition as `ListenerPort = 0` below:
+/// we are stricter than the engine, never more permissive, so no UI
+/// correctness defect follows and no production change is made here — the
+/// RFC MK-060 task's own non-goals keep `WorkspacePort` boundary changes out
+/// of this task's scope. Recorded rather than silently asserted away, and
+/// worth flagging upstream: 6.0.0's own `ReloadHint` doc comment table still
+/// reads "TlsEnabled, TlsCert*" -> `HardRestart`, which now contradicts its
+/// own `for_key` match arm two lines below it.
+#[test]
+fn tls_cert_and_key_reload_hint_is_a_new_confirmed_stricter_divergence() {
+    use workspace_port::{RuntimeEffect, WorkspaceRootKey as K};
+
+    for key in [K::TlsCertFile, K::TlsKeyFile] {
+        let ours = workspace_port::map_root_setting(key, WorkspaceEditValue::String(String::new()))
+            .unwrap()
+            .effect();
+        assert_eq!(
+            ours,
+            RuntimeEffect::Restart,
+            "{key:?}: our own mapping's classification did not change"
+        );
+
+        let engine_hint = apimock_config::ReloadHint::for_key(to_engine::root_setting_key(key));
+        assert!(
+            engine_hint.requires_reload && !engine_hint.requires_restart,
+            "{key:?}: expected the 6.0.0 engine to now classify this as reload-only (RFC 020): {engine_hint:?}"
         );
     }
 }

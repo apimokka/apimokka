@@ -17,7 +17,7 @@ uuid.workspace              = true
 [dev-dependencies]
 # RFC MK-055: test-only engine-contract conformance oracle. Not a production
 # dependency — see scripts/check-engine-oracle.sh for the pinned identity.
-apimock-config               = "5"
+apimock-config               = "6"
 tempfile                     = "3"
 
 [features]

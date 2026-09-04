@@ -8,11 +8,10 @@
 //! everything built on it" — this test is that fixture's load-bearing
 //! proof, not a conformance scenario in its own right.
 
-use apimock_config::{
-    ConfigFileKind, EditCommand, NodeKind, RespondPayload, RulePayload, Workspace,
-};
+use apimock_config::{ConfigFileKind, EditCommand, NodeKind, RulePayload, Workspace};
 
 use crate::fixture::minimal_workspace;
+use crate::to_engine;
 
 #[test]
 fn load_apply_snapshot_round_trip_on_a_real_engine_workspace() {
@@ -37,17 +36,15 @@ fn load_apply_snapshot_round_trip_on_a_real_engine_workspace() {
         .filter(|node| matches!(node.kind, NodeKind::Rule))
         .count();
 
+    // `RulePayload` is `#[non_exhaustive]` as of apimock-config 6.0.0 (RFC
+    // MK-060); build from `Default::default()` and set fields directly.
+    let mut rule = RulePayload::default();
+    rule.url_path = Some("/api/orders".to_owned());
+    rule.respond = to_engine::respond_text_only("created");
     let outcome = workspace
         .apply(EditCommand::AddRule {
             parent: rule_set_id,
-            rule: RulePayload {
-                url_path: Some("/api/orders".to_owned()),
-                respond: RespondPayload {
-                    text: Some("created".to_owned()),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            rule,
         })
         .expect("apply AddRule against the real engine");
     // Confirmed against apimock-config's own

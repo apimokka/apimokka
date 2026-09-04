@@ -59,15 +59,14 @@ fn every_url_path_operator_is_accepted_by_the_real_engine() {
         let canonical =
             workspace_port::map_rule_match("/api/orders", Some(op), "").expect("valid rule match");
         let (url_path, url_path_op, method) = to_engine::rule_match_payload(&canonical);
-        let outcome = workspace.apply(apimock_config::EditCommand::UpdateRule {
-            id: rule_id,
-            rule: apimock_config::RulePayload {
-                url_path,
-                url_path_op,
-                method,
-                ..Default::default()
-            },
-        });
+        // `RulePayload` is `#[non_exhaustive]` as of apimock-config 6.0.0
+        // (RFC MK-060); build from `Default::default()` and set fields.
+        let mut rule = apimock_config::RulePayload::default();
+        rule.url_path = url_path;
+        rule.url_path_op = url_path_op;
+        rule.method = method;
+        let outcome =
+            workspace.apply(apimock_config::EditCommand::UpdateRule { id: rule_id, rule });
         assert!(
             outcome.is_ok(),
             "engine rejected UrlPathOp::{op:?}: {outcome:?}"
@@ -86,15 +85,12 @@ fn every_accepted_method_value_is_accepted_by_the_real_engine() {
     for method in ["", "GET", "POST", "PUT", "DELETE"] {
         let canonical = workspace_port::map_rule_match("", None, method).expect("valid rule match");
         let (url_path, url_path_op, mapped_method) = to_engine::rule_match_payload(&canonical);
-        let outcome = workspace.apply(apimock_config::EditCommand::UpdateRule {
-            id: rule_id,
-            rule: apimock_config::RulePayload {
-                url_path,
-                url_path_op,
-                method: mapped_method,
-                ..Default::default()
-            },
-        });
+        let mut rule = apimock_config::RulePayload::default();
+        rule.url_path = url_path;
+        rule.url_path_op = url_path_op;
+        rule.method = mapped_method;
+        let outcome =
+            workspace.apply(apimock_config::EditCommand::UpdateRule { id: rule_id, rule });
         assert!(
             outcome.is_ok(),
             "engine rejected method {method:?}: {outcome:?}"

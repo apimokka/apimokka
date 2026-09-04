@@ -6,8 +6,8 @@ LC_ALL=C
 export LC_ALL
 
 readonly expected_source='registry+https://github.com/rust-lang/crates.io-index'
-readonly expected_routing_version='5.10.0'
-readonly expected_routing_checksum='72118fbc81807a3a3e511ec638b3fc798b5eee035c8d287158ae487763003cf1'
+readonly expected_routing_version='6.0.0'
+readonly expected_routing_checksum='bfa0c44b330dd03a781bc00defe960210f16d7c3736bcbdf16cd25f58dca06a9'
 readonly expected_http_version='1.4.2'
 readonly expected_http_checksum='6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425'
 

@@ -19,7 +19,7 @@ apimokka-i18n               = { version = "0", path = "crates/i18n" }
 apimokka-model              = { version = "0", path = "crates/model" }
 
 # API service
-apimock-routing             = "5"
+apimock-routing             = "6"
 http                        = "1.4"
 
 # GUI stack

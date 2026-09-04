@@ -83,8 +83,8 @@ write_features() {
     local http_features=$2
     printf '%s\n' '#!/usr/bin/env bash' \
         'case "$*" in' \
-        '  *apimock-routing@5.10.0*)' \
-        "    printf '%s\\n' 'apimock-routing v5.10.0' $routing_features" \
+        '  *apimock-routing@6.0.0*)' \
+        "    printf '%s\\n' 'apimock-routing v6.0.0' $routing_features" \
         '    ;;' \
         '  *http@1.4.2*)' \
         "    printf '%s\\n' 'http v1.4.2' $http_features" \
@@ -103,8 +103,8 @@ expect_result "valid oracle contract" 0 "contract verified" \
 
 case_root="$temp_dir/version"
 cp -R -- "$valid" "$case_root"
-sed -i '/name = "apimock-routing"/{n;s/5\.10\.0/5.11.0/;}' "$case_root/Cargo.lock"
-expect_result "routing version drift" 1 "version must be 5.10.0" \
+sed -i '/name = "apimock-routing"/{n;s/6\.0\.0/6.1.0/;}' "$case_root/Cargo.lock"
+expect_result "routing version drift" 1 "version must be 6.0.0" \
     env CARGO="$fake_cargo" "$checker" "$case_root"
 
 case_root="$temp_dir/source"
@@ -115,7 +115,7 @@ expect_result "http source drift" 1 "http source must be" \
 
 case_root="$temp_dir/checksum"
 cp -R -- "$valid" "$case_root"
-sed -i '/name = "apimock-routing"/{n;n;n;s/72118fbc/00000000/;}' "$case_root/Cargo.lock"
+sed -i '/name = "apimock-routing"/{n;n;n;s/bfa0c44b/00000000/;}' "$case_root/Cargo.lock"
 expect_result "routing checksum drift" 1 "apimock-routing checksum must be" \
     env CARGO="$fake_cargo" "$checker" "$case_root"
 

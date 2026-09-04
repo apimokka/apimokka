@@ -63,11 +63,15 @@ pub fn body_op(op: BodyOp) -> apimock_config::view::BodyOp {
 }
 
 pub fn header_condition(value: &HeaderCondition) -> apimock_config::view::HeaderConditionPayload {
-    apimock_config::view::HeaderConditionPayload {
-        name: value.name().as_str().to_owned(),
-        op: header_op(value.op()),
-        value: value.expected().map(str::to_owned),
-    }
+    // `HeaderConditionPayload` is `#[non_exhaustive]` as of apimock-config
+    // 6.0.0 (RFC MK-060): construct via `new(name, op)`, then set the
+    // remaining public field directly.
+    let mut payload = apimock_config::view::HeaderConditionPayload::new(
+        value.name().as_str().to_owned(),
+        header_op(value.op()),
+    );
+    payload.value = value.expected().map(str::to_owned);
+    payload
 }
 
 /// `BodyCondition::expected()` is `None` for `Exists`/`Absent`, but the
@@ -78,12 +82,15 @@ pub fn header_condition(value: &HeaderCondition) -> apimock_config::view::Header
 /// `Exists`/`Absent` matchers are presence-only and do not read this field
 /// (verified in `tier2_scenarios.rs`).
 pub fn body_condition(value: &BodyCondition) -> apimock_config::view::BodyConditionPayload {
-    apimock_config::view::BodyConditionPayload {
-        kind: apimock_config::view::BodyConditionKind::Json,
-        path: value.path().to_owned(),
-        op: body_op(value.op()),
-        value: value.expected().cloned().unwrap_or(serde_json::Value::Null),
-    }
+    // `BodyConditionPayload` is `#[non_exhaustive]` as of apimock-config
+    // 6.0.0 (RFC MK-060); its `new(kind, path, op, value)` constructor
+    // covers every field, so no post-construction mutation is needed here.
+    apimock_config::view::BodyConditionPayload::new(
+        apimock_config::view::BodyConditionKind::Json,
+        value.path().to_owned(),
+        body_op(value.op()),
+        value.expected().cloned().unwrap_or(serde_json::Value::Null),
+    )
 }
 
 pub fn rule_match_payload(
@@ -116,20 +123,34 @@ pub fn respond_status(status: &str) -> u16 {
 /// (RFC MK-055 correction — the engine has no representation above that,
 /// where the never-published 5.10.1 reference claimed `Option<u64>`).
 pub fn respond(value: &RespondDefinition) -> apimock_config::RespondPayload {
-    apimock_config::RespondPayload {
-        file_path: value.file_path().map(|path| path.as_str().to_owned()),
-        text: value.text().map(str::to_owned),
-        status: value.status().map(respond_status),
-        delay_milliseconds: value.delay_milliseconds().map(|millis| {
-            u32::try_from(millis).expect(
-                "map_response rejects delay_milliseconds above u32::MAX before construction",
-            )
-        }),
-    }
+    // `RespondPayload` is `#[non_exhaustive]` as of apimock-config 6.0.0
+    // (RFC MK-060); it has no `new()`, so build from `Default::default()`
+    // and set each public field, same as every other call site in this
+    // suite now must.
+    let mut payload = apimock_config::RespondPayload::default();
+    payload.file_path = value.file_path().map(|path| path.as_str().to_owned());
+    payload.text = value.text().map(str::to_owned);
+    payload.status = value.status().map(respond_status);
+    payload.delay_milliseconds = value.delay_milliseconds().map(|millis| {
+        u32::try_from(millis)
+            .expect("map_response rejects delay_milliseconds above u32::MAX before construction")
+    });
+    payload
 }
 
 pub fn rule_set_path(value: &RuleSetPath) -> String {
     value.as_relative().as_str().to_owned()
+}
+
+/// Shared by every Tier 1/Tier 2 test that only needs a `RespondPayload`
+/// with inline text set and everything else default — the repeated shape
+/// `RespondPayload { text: Some(_), ..Default::default() }` cannot be
+/// written as a struct-update literal anymore now that the type is
+/// `#[non_exhaustive]` (apimock-config 6.0.0, RFC MK-060).
+pub fn respond_text_only(text: &str) -> apimock_config::RespondPayload {
+    let mut payload = apimock_config::RespondPayload::default();
+    payload.text = Some(text.to_owned());
+    payload
 }
 
 /// Accepted divergence, discovered by execution, not by reading: our

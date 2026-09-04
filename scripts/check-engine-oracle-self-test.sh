@@ -82,8 +82,8 @@ write_features() {
     local config_features=$1
     printf '%s\n' '#!/usr/bin/env bash' \
         'case "$*" in' \
-        '  *apimock-config@5.10.0*)' \
-        "    printf '%s\\n' 'apimock-config v5.10.0' $config_features" \
+        '  *apimock-config@6.0.0*)' \
+        "    printf '%s\\n' 'apimock-config v6.0.0' $config_features" \
         '    ;;' \
         '  *) exit 2 ;;' \
         'esac' > "$fake_cargo"
@@ -97,8 +97,8 @@ expect_result "valid oracle contract" 0 "contract verified" \
 
 case_root="$temp_dir/version"
 cp -R -- "$valid" "$case_root"
-sed -i '/name = "apimock-config"/{n;s/5\.10\.0/5.11.0/;}' "$case_root/Cargo.lock"
-expect_result "config version drift" 1 "version must be 5.10.0" \
+sed -i '/name = "apimock-config"/{n;s/6\.0\.0/6.1.0/;}' "$case_root/Cargo.lock"
+expect_result "config version drift" 1 "version must be 6.0.0" \
     env CARGO="$fake_cargo" "$checker" "$case_root"
 
 case_root="$temp_dir/source"
@@ -109,7 +109,7 @@ expect_result "config source drift" 1 "apimock-config source must be" \
 
 case_root="$temp_dir/checksum"
 cp -R -- "$valid" "$case_root"
-sed -i '/name = "apimock-config"/{n;n;n;s/87b84070/00000000/;}' "$case_root/Cargo.lock"
+sed -i '/name = "apimock-config"/{n;n;n;s/70d8972c/00000000/;}' "$case_root/Cargo.lock"
 expect_result "config checksum drift" 1 "apimock-config checksum must be" \
     env CARGO="$fake_cargo" "$checker" "$case_root"
 
