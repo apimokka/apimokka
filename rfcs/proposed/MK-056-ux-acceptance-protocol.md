@@ -255,6 +255,59 @@ primary scenario, and visible focus wherever iced provides it.
 inheritance list: screen-reader and assistive-technology support, and custom
 focus-ring rendering.
 
+> ### Amendment, 2026-09-05 — the readability probe
+>
+> **Added under MK-059 resolution 3**, which made M10's typography scope
+> conditional on this existing. It is owed before L3 sessions run.
+>
+> **What it exists to settle.** MK-059 found that **152 of 294 text-sizing call
+> sites rendered at 12.0px** — snora's stated floor for text a user must read —
+> because our scale jumped 16.0 to 12.0 with nothing between. M10 introduced the
+> missing 14.0 tier and triaged 102 of those sites upward. **Fifty were left at
+> 12.0 on purpose**, and that decision was explicitly deferred to session
+> evidence rather than settled by judgement: timestamps, counts, file paths and
+> positional metadata under a field.
+>
+> **So there is a live question this protocol must answer, and nothing else can.**
+> Not "is 12.0 above the floor" — it is, by one pixel — but *does a real person
+> reading a real screen find that text comfortable, and if not, which of it.*
+>
+> **Method — observation first, question second.** The order matters, because
+> asking about text size teaches a participant to look for a problem they had not
+> noticed.
+>
+> 1. **Unprompted, throughout every scenario:** record any instance of a
+>    participant leaning in, squinting, enlarging the window, or asking what
+>    something says. Log it against the surface, not as a general impression. An
+>    unprompted instance is worth more than any answer to question 2.
+> 2. **At the end of the session only**, on a screen carrying both tiers — the
+>    Routes workbench and Settings both do — ask: *"Is there anything here you
+>    find hard to read?"* Open, not leading. Do **not** name text size, point at a
+>    specific element, or offer a scale.
+> 3. **Record which tier** any named text belongs to (`CAPTION` 12.0,
+>    `BODY_SMALL` 14.0, or `BODY` 16.0). Without that the finding cannot be acted
+>    on, because the fix differs: a 12.0 complaint means the triage was too
+>    conservative; a 14.0 complaint means the tier itself is wrong.
+>
+> **Environment.** The probe rides on scenarios already being run — it adds no
+> session. It must be observed in **at least one high-contrast preset**, which
+> §7's sampling already requires, since low-vision legibility is the case the
+> preset exists for.
+>
+> **Severity, per §5.** Text a participant cannot read on a supported
+> configuration is **S2** — it does not block completion, but it degrades a
+> primary workflow. It reaches **S1** only if it prevents completion.
+>
+> **What a null result means, and it is a real result.** If no participant
+> remarks on text at any tier, unprompted or asked, that is evidence the
+> conservative triage was correct — and it is the evidence MK-059's decision 2
+> was deferred *to*. Record it as a finding, not as an absence of findings.
+>
+> **What this probe does not do.** It does not measure contrast, which is L2's
+> job and already asserted; it does not evaluate line-height separately from
+> size, which no participant can decompose; and it does not revisit `DISPLAY`
+> staying at 36.0, which is a recorded divergence rather than an open question.
+
 ### 7. Environment sampling
 
 Full coverage across audience mode (2), locale (2), theme (4), window size (2),
