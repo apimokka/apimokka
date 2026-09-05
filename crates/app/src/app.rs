@@ -177,6 +177,10 @@ impl Default for WizardState {
 pub struct CommandPaletteState {
     pub open: bool,
     pub query: String,
+    /// Task 014 §3 (MK-033 line 120): keyboard selection, indexed into the
+    /// *filtered* list `palette_commands::filtered_indices` produces for the
+    /// current `query` — not the full table. `None` = nothing selected.
+    pub selected: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -414,6 +418,10 @@ pub struct App {
     transient_problem_operation: Option<TransientOperation>,
     pub show_problem_details: bool,
     pub audience_mode: Option<apimokka_model::AudienceMode>,
+    /// Task 014 §4 (MK-023 first-screen gap): keyboard selection into
+    /// `screens::mode_picker::OPTIONS`, shown only while `audience_mode` is
+    /// `None`. `None` = nothing selected yet.
+    pub mode_picker_selected: Option<usize>,
     // ── MK-041 layout density toggles ─────────────────────────────────────
     pub rule_when_more: bool,
     pub settings_advanced_more: bool,
@@ -512,6 +520,7 @@ impl App {
             transient_problem_operation: None,
             show_problem_details: false,
             audience_mode: None, // None → first-run picker shown
+            mode_picker_selected: None,
             rule_when_more: false,
             settings_advanced_more: false,
             rule_set_config_more: false,
@@ -692,11 +701,88 @@ impl App {
                 }
             }
             Message::ToggleCommandPalette => {
-                self.command_palette.open = !self.command_palette.open;
-                self.command_palette.query = String::new();
+                // D-4 (found executing M8's capture, 2026-09-05):
+                // `screens::command_palette::view` renders in exactly one
+                // place, inside `AppView::Workspace` (`shell/view.rs`). Off
+                // that view, flipping `open` produced a silent no-op that
+                // once looked like a failed keystroke. Task 014 §5 option 2:
+                // make the toggle itself inert outside its one rendering
+                // location, so the state can no longer go out of sync with
+                // what renders.
+                if self.audience_mode.is_some() && self.view == AppView::Workspace {
+                    self.command_palette.open = !self.command_palette.open;
+                    self.command_palette.query = String::new();
+                    self.command_palette.selected = None;
+                }
             }
             Message::PaletteQuery(q) => {
                 self.command_palette.query = q;
+                let filtered_len =
+                    crate::palette_commands::filtered_indices(self, &self.command_palette.query)
+                        .len();
+                self.command_palette.selected =
+                    clamp_selection(self.command_palette.selected, filtered_len);
+            }
+            Message::ArrowUp => {
+                if self.command_palette.open {
+                    let filtered_len = crate::palette_commands::filtered_indices(
+                        self,
+                        &self.command_palette.query,
+                    )
+                    .len();
+                    self.command_palette.selected =
+                        move_selection(self.command_palette.selected, filtered_len, -1);
+                } else if self.audience_mode.is_none() {
+                    self.mode_picker_selected = move_selection(
+                        self.mode_picker_selected,
+                        screens::mode_picker::OPTIONS.len(),
+                        -1,
+                    );
+                }
+            }
+            Message::ArrowDown => {
+                if self.command_palette.open {
+                    let filtered_len = crate::palette_commands::filtered_indices(
+                        self,
+                        &self.command_palette.query,
+                    )
+                    .len();
+                    self.command_palette.selected =
+                        move_selection(self.command_palette.selected, filtered_len, 1);
+                } else if self.audience_mode.is_none() {
+                    self.mode_picker_selected = move_selection(
+                        self.mode_picker_selected,
+                        screens::mode_picker::OPTIONS.len(),
+                        1,
+                    );
+                }
+            }
+            Message::EnterPressed => {
+                // Re-dispatches the selected row's own `Message`, exactly as
+                // clicking it would (`GoWelcome`'s `ConfirmRequest`
+                // re-dispatch above is the same idiom). This is why the
+                // shared table matters: the message executed here is read
+                // from the identical table and filter `view` used to render
+                // the row the user is looking at, so the two can never
+                // disagree about what "selected" points to.
+                if self.command_palette.open {
+                    if let Some(pos) = self.command_palette.selected {
+                        let filtered = crate::palette_commands::filtered_indices(
+                            self,
+                            &self.command_palette.query,
+                        );
+                        if let Some(&table_index) = filtered.get(pos) {
+                            let selected_message =
+                                (crate::palette_commands::TABLE[table_index].message)();
+                            self.update(selected_message);
+                        }
+                    }
+                } else if self.audience_mode.is_none()
+                    && let Some(pos) = self.mode_picker_selected
+                    && let Some(&(_, _, mode)) = screens::mode_picker::OPTIONS.get(pos)
+                {
+                    self.update(Message::ChooseAudienceMode(mode));
+                }
             }
 
             // Workspace menu
@@ -1510,6 +1596,30 @@ impl App {
                     self.update(Message::ConfirmRequest(ConfirmAction::RevertFile(path)));
                 }
             }
+        }
+    }
+
+    /// Runtime entry point (wired in `main.rs`): `update`, plus the one
+    /// `Task` iced's own runtime needs that `update` itself cannot issue.
+    ///
+    /// `update` above is a pure reducer — every one of this codebase's 203
+    /// app-level tests calls it directly and relies on that purity, per
+    /// task 014's own verification guidance. Moving a widget's focus
+    /// (MK-033 lines 38, 95, 118: the search field must focus when the
+    /// palette opens) is not a state mutation `update` can express; it can
+    /// only happen through a `Task` returned to iced's runtime. Rather than
+    /// making `update` return `Task<Message>` — which would force all 486
+    /// existing `.update(...)` call sites in tests to handle a `#[must_use]`
+    /// value they have no runtime to poll — the one genuine side effect is
+    /// isolated here, in the thin wrapper only `main.rs` calls.
+    pub fn update_and_dispatch(&mut self, msg: Message) -> iced::Task<Message> {
+        let opening_palette =
+            matches!(msg, Message::ToggleCommandPalette) && !self.command_palette.open;
+        self.update(msg);
+        if opening_palette && self.command_palette.open {
+            iced::widget::operation::focus(screens::command_palette::SEARCH_INPUT_ID)
+        } else {
+            iced::Task::none()
         }
     }
 
@@ -3278,6 +3388,33 @@ fn rebind_command(command: &mut HistoryEntry, map: &std::collections::HashMap<No
     }
 }
 
+/// Task 014 §3/§4 — the selected-row-plus-arrow-keys idiom shared by the
+/// command palette and the mode picker. Clamps a selection index to a list
+/// that may have shrunk (typing narrows the palette's filter): never selects
+/// out of range, and an empty list always clears the selection.
+fn clamp_selection(selected: Option<usize>, list_len: usize) -> Option<usize> {
+    if list_len == 0 {
+        return None;
+    }
+    selected.map(|i| i.min(list_len - 1))
+}
+
+/// Moves a selection index up (`delta < 0`) or down (`delta > 0`) within a
+/// list of `list_len` rows. From no selection, either direction selects the
+/// first row. Saturates at both ends rather than wrapping — MK-033 does not
+/// specify wraparound, and this task does not add it to the mode picker
+/// either.
+fn move_selection(selected: Option<usize>, list_len: usize, delta: isize) -> Option<usize> {
+    if list_len == 0 {
+        return None;
+    }
+    let next = match selected {
+        None => 0,
+        Some(i) => (i as isize + delta).clamp(0, list_len as isize - 1) as usize,
+    };
+    Some(next)
+}
+
 fn is_workspace_mutation(message: &Message) -> bool {
     matches!(
         message,
@@ -3393,6 +3530,10 @@ mod tests_mk049;
 #[path = "app/themes.rs"]
 mod tests_mk050;
 
+#[cfg(test)]
+#[path = "app/palette_keyboard.rs"]
+mod tests_mk033;
+
 // ── App view / subscription (not in the impl block above) ─────────────────────
 
 impl App {
@@ -3416,20 +3557,57 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        use iced::keyboard::{self, key::Named};
-        keyboard::listen().map(|event| {
-            if let iced::keyboard::Event::KeyPressed { key, modifiers, .. } = event {
-                if key == iced::keyboard::Key::Named(Named::Escape) {
-                    return Message::EscapePressed;
-                }
-                // Dev-team handoff 002: key/modifier matching lives in the
-                // accelerator table, not inline arms, so it cannot drift
-                // from the palette's displayed shortcuts.
-                if let Some(message) = crate::accelerator::match_pressed(&key, modifiers) {
-                    return message;
-                }
+        use iced::keyboard::key::Named;
+
+        // Deliberately `event::listen_with`, not `keyboard::listen()` —
+        // and deliberately ignoring the `status` it reports.
+        //
+        // Found live, driving the app with `wtype` for task 014's own
+        // acceptance evidence, not by reading the code: `keyboard::listen()`
+        // only ever sees events no widget has already captured
+        // (`iced_futures::keyboard::listen` filters to
+        // `event::Status::Ignored`). `iced_widget::text_input` captures
+        // `Escape` unconditionally whenever it is focused, as its own
+        // default unfocus behaviour (`text_input.rs`, `shell.capture_event()`
+        // on `Named::Escape`) — regardless of whether this application sets
+        // `.on_submit`. Once MK-033's auto-focus (this task, §1) put a
+        // stable focus target inside the palette, that made `Esc` need two
+        // presses to actually close it: one press for `text_input`'s own
+        // capture, a second to reach `EscapePressed` here. A global
+        // "close whatever is open" shortcut must not depend on which widget
+        // happens to hold focus, so this listens to every keyboard event,
+        // captured or not.
+        //
+        // Arrow keys and `Enter` are not affected by this specific capture
+        // — `text_input` only captures `Enter` when `.on_submit` is set,
+        // which the palette's search field never does — but are handled the
+        // same uncaptured-or-not way here, for one genuinely global keyboard
+        // path rather than two subscriptions with different semantics.
+        iced::event::listen_with(|event, _status, _window| {
+            let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) =
+                event
+            else {
+                return None;
+            };
+            if key == iced::keyboard::Key::Named(Named::Escape) {
+                return Some(Message::EscapePressed);
             }
-            Message::Noop
+            // Task 014 §3/§4: dispatched unconditionally — `update` decides
+            // whether the palette or the mode picker (or neither) is
+            // listening.
+            if key == iced::keyboard::Key::Named(Named::ArrowUp) {
+                return Some(Message::ArrowUp);
+            }
+            if key == iced::keyboard::Key::Named(Named::ArrowDown) {
+                return Some(Message::ArrowDown);
+            }
+            if key == iced::keyboard::Key::Named(Named::Enter) {
+                return Some(Message::EnterPressed);
+            }
+            // Dev-team handoff 002: key/modifier matching lives in the
+            // accelerator table, not inline arms, so it cannot drift from
+            // the palette's displayed shortcuts.
+            crate::accelerator::match_pressed(&key, modifiers)
         })
     }
 }

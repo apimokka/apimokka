@@ -2,107 +2,51 @@
 use crate::accelerator::{self, Accelerator};
 use crate::app::App;
 use crate::message::Message;
-use crate::selection::WorkspaceTab;
+use crate::palette_commands::{self, filtered_indices};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
 use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
 
-pub fn view(app: &App) -> Element<'_, Message> {
-    let cmds: &[(Key, Option<&'static str>, Message)] = &[
-        (
-            Key::PaletteCmdUndo,
-            Some(accelerator::display(Accelerator::Undo)),
-            Message::Undo,
-        ),
-        (
-            Key::PaletteCmdRedo,
-            Some(accelerator::display(Accelerator::Redo)),
-            Message::Redo,
-        ),
-        (
-            Key::PaletteCmdSave,
-            Some(accelerator::display(Accelerator::Save)),
-            Message::Save,
-        ),
-        (Key::PaletteCmdAddRule, None, Message::AddRuleFromPalette),
-        (Key::PaletteCmdAddRuleSet, None, Message::AddRuleSet),
-        (Key::PaletteCmdTestRule, None, Message::TestRuleOpen),
-        (Key::PaletteCmdToggleTrace, None, Message::ViewAllInTrace),
-        (
-            Key::PaletteCmdOpenValidation,
-            None,
-            Message::OpenValidationDrawer,
-        ),
-        (
-            Key::PaletteCmdOpenSaveDiff,
-            None,
-            Message::OpenSaveDiffDrawer,
-        ),
-        (Key::PaletteCmdStartServer, None, Message::StartStopServer),
-        (
-            Key::PaletteCmdReload,
-            Some(accelerator::display(Accelerator::Reload)),
-            Message::ReloadConfig,
-        ),
-        (Key::PaletteCmdRestart, None, Message::RestartServer),
-        (
-            Key::PaletteCmdSwitchWorkspace,
-            None,
-            Message::ToggleWorkspaceMenu,
-        ),
-        (
-            Key::PaletteCmdSettings,
-            None,
-            Message::SwitchTab(WorkspaceTab::Settings),
-        ),
-        (Key::PaletteCmdToggleTheme, None, Message::ToggleTheme),
-        (
-            Key::PaletteCmdGoRoutes,
-            None,
-            Message::SwitchTab(WorkspaceTab::Routes),
-        ),
-        (
-            Key::PaletteCmdGoTrace,
-            None,
-            Message::SwitchTab(WorkspaceTab::Trace),
-        ),
-        (
-            Key::PaletteCmdGoSettings,
-            None,
-            Message::SwitchTab(WorkspaceTab::Settings),
-        ),
-    ];
+/// Stable id for the search field, so `update` can focus it on open
+/// (MK-033 lines 38, 95, 118) without the id drifting from this view.
+pub const SEARCH_INPUT_ID: &str = "mk033-palette-search";
 
-    let q = app.command_palette.query.to_lowercase();
-    let rows: Vec<Element<Message>> = cmds
+pub fn view(app: &App) -> Element<'_, Message> {
+    let filtered = filtered_indices(app, &app.command_palette.query);
+    let rows: Vec<Element<Message>> = filtered
         .iter()
-        .filter(|(label_key, _, _)| q.is_empty() || app.t(*label_key).to_lowercase().contains(&q))
-        .map(|(label_key, shortcut, msg)| {
-            let shortcut_el: Element<Message> = if let Some(sc) = shortcut {
-                container(text(*sc).size(size::CAPTION))
+        .enumerate()
+        .map(|(pos, &table_index)| {
+            let cmd = &palette_commands::TABLE[table_index];
+            let shortcut_el: Element<Message> = if let Some(sc) = cmd.shortcut {
+                container(text(accelerator::display(sc)).size(size::CAPTION))
                     .padding(Padding::from([2.0, 8.0]))
                     .style(theme::chip_style)
                     .into()
             } else {
                 Space::new().width(0.0).into()
             };
+            let selected = Some(pos) == app.command_palette.selected;
             button(
                 container(
                     row![
-                        text(app.t(*label_key)).size(size::BODY).width(Length::Fill),
+                        text(app.t(cmd.label)).size(size::BODY).width(Length::Fill),
                         shortcut_el,
                     ]
                     .align_y(Alignment::Center),
                 )
                 .padding(Padding::from([space::S3, space::S4]))
-                .style(theme::card_style)
+                .style(if selected {
+                    theme::card_selected_style
+                } else {
+                    theme::card_style
+                })
                 .width(Length::Fill),
             )
-            .on_press(msg.clone())
+            .on_press((cmd.message)())
             .padding(0)
-            .style(theme::naked)
             .style(theme::naked)
             .width(Length::Fill)
             .into()
@@ -139,6 +83,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             .align_y(Alignment::Center),
             Space::new().height(space::S2),
             text_input(app.t(Key::PaletteSearch), &app.command_palette.query)
+                .id(SEARCH_INPUT_ID)
                 .on_input(Message::PaletteQuery)
                 .size(size::BODY)
                 .padding(Padding::from([space::S3, space::S4]))

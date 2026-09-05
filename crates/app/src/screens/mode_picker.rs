@@ -3,6 +3,15 @@
 //! Shown full-screen when `App::audience_mode` is `None`. The user must
 //! choose Guided or Expert before anything else is rendered. The choice is
 //! reversible in Settings at any time.
+//!
+//! MK-023's first-screen gap (task 014 §4): a keyboard-only user could not
+//! reach this screen's cards at all before this table existed, since
+//! `Message::ChooseAudienceMode` fired only from a button `.on_press`. `OPTIONS`
+//! is the same table `view` (which card to render, and which one is
+//! highlighted) and `App::update` (which `AudienceMode` arrow keys/Enter
+//! select) both read — the same selected-row-plus-Enter idiom the command
+//! palette uses, so the application has one keyboard interaction model
+//! rather than two.
 
 use apimokka_i18n::Key;
 use apimokka_model::AudienceMode;
@@ -13,8 +22,26 @@ use crate::app::App;
 use crate::message::Message;
 use crate::theme::{self, pad, size, space};
 
+/// One selectable card, in on-screen order. `App::update` indexes into this
+/// with the same positions `view` renders, so arrow-key navigation and
+/// `Enter` can never select a different mode than the one visibly
+/// highlighted.
+pub const OPTIONS: &[(Key, Key, AudienceMode)] = &[
+    (
+        Key::ModeGuidedTitle,
+        Key::ModeGuidedDesc,
+        AudienceMode::Guided,
+    ),
+    (
+        Key::ModeExpertTitle,
+        Key::ModeExpertDesc,
+        AudienceMode::Expert,
+    ),
+];
+
 pub fn view(app: &App) -> Element<'_, Message> {
-    let card = |title: Key, desc: Key, mode: AudienceMode| -> Element<Message> {
+    let card = |pos: usize, title: Key, desc: Key, mode: AudienceMode| -> Element<Message> {
+        let selected = app.mode_picker_selected == Some(pos);
         button(
             container(
                 column![
@@ -26,7 +53,11 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 .spacing(space::S2),
             )
             .padding(Padding::from(pad::CARD))
-            .style(theme::card_style)
+            .style(if selected {
+                theme::card_selected_style
+            } else {
+                theme::card_style
+            })
             .width(Length::Fill),
         )
         .on_press(Message::ChooseAudienceMode(mode))
@@ -44,17 +75,9 @@ pub fn view(app: &App) -> Element<'_, Message> {
             Space::new().height(space::S2),
             text(app.t(Key::ModePickerTitle)).size(size::TITLE),
             Space::new().height(space::S3),
-            card(
-                Key::ModeGuidedTitle,
-                Key::ModeGuidedDesc,
-                AudienceMode::Guided
-            ),
+            card(0, OPTIONS[0].0, OPTIONS[0].1, OPTIONS[0].2),
             Space::new().height(space::S2),
-            card(
-                Key::ModeExpertTitle,
-                Key::ModeExpertDesc,
-                AudienceMode::Expert
-            ),
+            card(1, OPTIONS[1].0, OPTIONS[1].1, OPTIONS[1].2),
             Space::new().height(space::S3),
             row![
                 text(app.t(Key::ModePickerHint))

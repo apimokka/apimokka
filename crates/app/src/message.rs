@@ -41,6 +41,13 @@ pub enum Message {
     // ── Keyboard ──────────────────────────────────────────────────────────
     EscapePressed,
     ToggleCommandPalette,
+    /// MK-033 §3 / task 014 §4: moves the palette's row selection, or the
+    /// mode picker's, depending on which is showing. A no-op otherwise.
+    ArrowUp,
+    ArrowDown,
+    /// MK-033 line 92 / task 014 §4: executes the palette's selected row, or
+    /// confirms the mode picker's selected card. A no-op otherwise.
+    EnterPressed,
 
     // ── Workspace switcher ────────────────────────────────────────────────
     ToggleWorkspaceMenu,
