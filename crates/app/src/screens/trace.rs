@@ -218,7 +218,8 @@ fn match_detail(app: &App) -> Element<'_, Message> {
                     ev.dropped_count,
                     app.t(Key::DetailDroppedWarning)
                 ))
-                .size(size::CAPTION),
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small()),
             )
             .padding(Padding::from([space::S2, space::S3]))
             .style(theme::banner_style)
@@ -297,7 +298,8 @@ fn outcome_fallback<'a>(
     col = col.push(widgets::field_row(app.t(Key::DetailFallbackStatus), status));
     col = col.push(
         text(app.t(Key::DetailFallbackExplanation))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme())),
     );
 
@@ -320,7 +322,8 @@ fn outcome_miss<'a>(
     col = col.push(widgets::field_row(app.t(Key::DetailMissStatus), status));
     col = col.push(
         text(app.t(Key::DetailMissExplanation))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme())),
     );
     // CTA: create a rule pre-populated with this URL path.
@@ -343,7 +346,7 @@ fn outcome_error<'a>(
     col = col.push(widgets::field_row(app.t(Key::DetailErrorKind), kind));
     col = col.push(
         text(app.t(Key::DetailErrorMessage))
-            .size(size::CAPTION)
+            .size(size::LABEL)
             .color(theme::muted(&app.theme())),
     );
     col = col.push(

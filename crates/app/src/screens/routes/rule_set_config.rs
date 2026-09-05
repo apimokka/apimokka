@@ -49,7 +49,7 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
                 container(
                     row![
                         text("⠿")
-                            .size(size::CAPTION)
+                            .size(size::LABEL)
                             .color(theme::muted(&app.theme())),
                         text(summary).size(size::BODY).width(Length::Fill),
                     ]
@@ -91,7 +91,8 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
         .padding(Padding::from([space::S2, space::S3]));
 
         let help_text = text(active_strategy.help())
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme()));
 
         let heading: Element<Message> = if app.shows_scaffolding() {
@@ -99,7 +100,8 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
             column![
                 text(t(Key::RuleSetConfigStrategy)).size(size::BODY_STRONG),
                 text(active_strategy.help())
-                    .size(size::CAPTION)
+                    .size(size::BODY_SMALL)
+                    .line_height(theme::line_height::body_small())
                     .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S1)
@@ -128,10 +130,10 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
             let toggle = button(
                 row![
                     text(chevron)
-                        .size(size::CAPTION)
+                        .size(size::LABEL)
                         .color(theme::muted(&app.theme())),
                     text(label)
-                        .size(size::CAPTION)
+                        .size(size::LABEL)
                         .color(theme::muted(&app.theme())),
                 ]
                 .spacing(space::S2)

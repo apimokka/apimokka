@@ -18,7 +18,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
     let result_el: Element<Message> = match &tr.result {
         None => text(app.t(Key::TestRuleResultHint))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme()))
             .into(),
         Some(result) => {
@@ -46,11 +47,15 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let limitation_el: Element<Message> = if limitations.is_empty() {
         Space::new().height(0).into()
     } else {
-        container(text(app.t(Key::TestRuleUnableVerify)).size(size::CAPTION))
-            .padding(Padding::from([space::S2, space::S3]))
-            .style(theme::banner_style)
-            .width(Length::Fill)
-            .into()
+        container(
+            text(app.t(Key::TestRuleUnableVerify))
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small()),
+        )
+        .padding(Padding::from([space::S2, space::S3]))
+        .style(theme::banner_style)
+        .width(Length::Fill)
+        .into()
     };
 
     let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
@@ -58,7 +63,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         .iter()
         .map(|method| {
             let active = tr.method.to_uppercase() == *method;
-            button(text(*method).size(size::CAPTION))
+            button(text(*method).size(size::LABEL))
                 .on_press(Message::TestRuleSetMethod((*method).to_owned()))
                 .padding(Padding::from([space::S2, space::S3]))
                 .style(if active {
@@ -82,7 +87,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
             ]
             .align_y(Alignment::Center),
             text(app.t(Key::TestRuleHint))
-                .size(size::CAPTION)
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small())
                 .color(theme::muted(&app.theme())),
             limitation_el,
             widgets::divider(),

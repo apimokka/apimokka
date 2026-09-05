@@ -21,14 +21,16 @@ pub fn view(app: &App) -> Element<'_, Message> {
         if pa.json_input.is_empty() {
             vec![
                 text(app.t(Key::DottedPathEmpty))
-                    .size(size::CAPTION)
+                    .size(size::BODY_SMALL)
+                    .line_height(theme::line_height::body_small())
                     .color(theme::muted(&app.theme()))
                     .into(),
             ]
         } else {
             vec![
                 text(app.t(Key::DottedPathJsonError))
-                    .size(size::CAPTION)
+                    .size(size::BODY_SMALL)
+                    .line_height(theme::line_height::body_small())
                     .color(iced::Color::from_rgb(0.85, 0.0, 0.0))
                     .into(),
             ]
@@ -46,7 +48,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                         .size(size::CAPTION)
                         .color(theme::muted(&app.theme()))
                         .width(Length::Fixed(100.0)),
-                    button(text(app.t(Key::BtnUse)).size(size::CAPTION))
+                    button(text(app.t(Key::BtnUse)).size(size::LABEL))
                         .on_press(Message::PathAssistantSelectPath(path_clone))
                         .padding(Padding::from([space::S1, space::S3])),
                 ]
@@ -59,7 +61,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
     let jsonpath_warn: Element<Message> = if pa.selected_path.starts_with("$.") {
         text(app.t(Key::DottedPathJsonpathHint))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(iced::Color::from_rgb(0.85, 0.45, 0.0))
             .into()
     } else {
@@ -96,7 +99,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 let selected_el: Element<Message> = if !pa.selected_path.is_empty() {
                     column![
                         row![
-                            text(app.t(Key::DottedPathSelectedLabel)).size(size::CAPTION),
+                            text(app.t(Key::DottedPathSelectedLabel)).size(size::LABEL),
                             text(pa.selected_path.as_str()).size(size::CAPTION),
                         ]
                         .spacing(space::S2),

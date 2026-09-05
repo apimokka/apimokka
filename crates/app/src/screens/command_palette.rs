@@ -13,6 +13,11 @@ use iced::{Alignment, Element, Length, Padding};
 /// (MK-033 lines 38, 95, 118) without the id drifting from this view.
 pub const SEARCH_INPUT_ID: &str = "mk033-palette-search";
 
+/// Stable id for the results list, so `update_and_dispatch` can scroll the
+/// selection into view on arrow-key navigation (task 017 D-5, MK-033 line
+/// 120's "correctly with the visible scroll").
+pub const RESULTS_SCROLLABLE_ID: &str = "mk033-palette-results";
+
 pub fn view(app: &App) -> Element<'_, Message> {
     let filtered = filtered_indices(app, &app.command_palette.query);
     let rows: Vec<Element<Message>> = filtered
@@ -21,7 +26,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         .map(|(pos, &table_index)| {
             let cmd = &palette_commands::TABLE[table_index];
             let shortcut_el: Element<Message> = if let Some(sc) = cmd.shortcut {
-                container(text(accelerator::display(sc)).size(size::CAPTION))
+                container(text(accelerator::display(sc)).size(size::LABEL))
                     .padding(Padding::from([2.0, 8.0]))
                     .style(theme::chip_style)
                     .into()
@@ -57,6 +62,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         widgets::empty_state(app.t(Key::PaletteNoMatch))
     } else {
         scrollable(column(rows).spacing(space::S1))
+            .id(RESULTS_SCROLLABLE_ID)
             .height(Length::Fixed(320.0))
             .into()
     };
@@ -68,10 +74,10 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 text(app.t(Key::PaletteTitle))
                     .size(size::SECTION)
                     .width(Length::Fill),
-                container(text(accelerator::display(Accelerator::Palette)).size(size::CAPTION))
+                container(text(accelerator::display(Accelerator::Palette)).size(size::LABEL))
                     .padding(Padding::from([2.0, 8.0]))
                     .style(theme::chip_style),
-                container(text("Esc").size(size::CAPTION))
+                container(text("Esc").size(size::LABEL))
                     .padding(Padding::from([2.0, 8.0]))
                     .style(theme::chip_style),
                 Space::new().width(space::S2),

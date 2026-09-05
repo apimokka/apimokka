@@ -40,8 +40,13 @@ pub fn view(app: &App) -> Element<'_, Message> {
     .padding(Padding::from([space::S4, space::S6]))
     .style(theme::card_style);
 
+    // RFC MK-059 decision 5: a full sentence, the wrapping-prose case
+    // `body`'s line-height (1.4, the one unambiguous readability gain)
+    // targets -- unlike the hero tagline above, which is a short single-line
+    // label that never wraps and is left without it.
     let no_recents = text(app.t(Key::WelcomeNoRecents))
         .size(size::BODY)
+        .line_height(theme::line_height::body())
         .color(theme::muted(&app.theme()));
 
     let page = column![

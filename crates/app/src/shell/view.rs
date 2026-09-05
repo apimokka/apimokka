@@ -126,7 +126,8 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
         let mut detail_col = iced::widget::column![
             text(p.title.as_str()).size(size::BODY_STRONG),
             text(p.detail.as_str())
-                .size(size::CAPTION)
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small())
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S1)
@@ -150,7 +151,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
                 app.t(Key::ErrorShowDetails)
             };
             detail_col = detail_col.push(
-                button(text(toggle_label).size(size::CAPTION))
+                button(text(toggle_label).size(size::LABEL))
                     .on_press(Message::ToggleProblemDetails)
                     .padding(Padding::from([2.0, space::S1]))
                     .style(iced::widget::button::text),
@@ -163,13 +164,13 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
 
         if let Some(label) = &p.action_label {
             r = r.push(
-                button(text(label.as_str()).size(size::CAPTION))
+                button(text(label.as_str()).size(size::LABEL))
                     .on_press(Message::ProblemAction)
                     .padding(Padding::from([space::S1, space::S3])),
             );
         }
         r = r.push(
-            button(text("✕").size(size::CAPTION))
+            button(text("✕").size(size::LABEL))
                 .on_press(Message::DismissProblem)
                 .padding(Padding::from([space::S1, space::S2]))
                 .style(iced::widget::button::text),
@@ -191,16 +192,16 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             text(label).size(size::BODY).width(Length::Fill),
             button(
                 row![
-                    text(app.t(Key::UndoLabel)).size(size::CAPTION),
+                    text(app.t(Key::UndoLabel)).size(size::LABEL),
                     text(" ⌘Z")
-                        .size(size::CAPTION)
+                        .size(size::LABEL)
                         .color(theme::muted(&app.theme())),
                 ]
                 .spacing(2),
             )
             .on_press(Message::Undo)
             .padding(Padding::from([space::S1, space::S3])),
-            button(text("✕").size(size::CAPTION))
+            button(text("✕").size(size::LABEL))
                 .on_press(Message::DismissNotice)
                 .padding(Padding::from([space::S1, space::S2]))
                 .style(iced::widget::button::text),
@@ -223,7 +224,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             text("✓").size(size::BODY),
             text(notice.as_str()).size(size::BODY).width(Length::Fill),
             Space::new().width(Length::Fixed(0.0)),
-            button(text("✕").size(size::CAPTION))
+            button(text("✕").size(size::LABEL))
                 .on_press(Message::DismissNotice)
                 .padding(Padding::from([space::S1, space::S2]))
                 .style(iced::widget::button::text),

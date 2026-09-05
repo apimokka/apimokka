@@ -133,7 +133,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
         text(t(Key::WizardTitle)).size(size::TITLE),
         Space::new().height(space::S1),
         text(t(Key::WizardIntroHint))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme())),
         widgets::divider(),
         required,
@@ -176,6 +177,16 @@ fn collapsible<'a>(
 ) -> Element<'a, Message> {
     let open = app.wizard.section_open.get(index).copied().unwrap_or(false);
     let chevron = if open { "▾" } else { "▸" };
+    // D-3 (M8 capture, found by the project owner, no case covering it):
+    // this button had no `.style(...)` and no `.width(...)`, so it fell
+    // back to iced's default primary-filled button (a light-blue block in
+    // every preset, worst in `high_contrast_dark`) sized to its heading —
+    // the longer hint text then overflowed past the fill's right edge, and
+    // the three sections ended up different widths. `theme::naked` (the
+    // same style `mode_picker.rs`'s cards use for an identical
+    // button-wrapping-content shape) and a filled width fix both at once;
+    // `theme::muted` on the hint was always correct for a plain background,
+    // it only read as wrong because the fill was default-primary underneath it.
     let section_head = button(
         row![
             text(chevron).size(size::BODY),
@@ -191,7 +202,9 @@ fn collapsible<'a>(
         .align_y(Alignment::Center),
     )
     .on_press(Message::WizardToggleSection(index))
-    .padding(Padding::from([space::S2, 0.0]));
+    .padding(Padding::from([space::S2, 0.0]))
+    .style(theme::naked)
+    .width(Length::Fill);
 
     if open {
         column![

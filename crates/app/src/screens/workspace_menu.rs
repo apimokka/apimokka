@@ -23,7 +23,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let current = container(
         column![
             text(app.t(Key::WorkspaceMenuCurrent))
-                .size(size::CAPTION)
+                .size(size::LABEL)
                 .color(theme::muted(&app.theme())),
             text(ws_name).size(size::BODY),
             text(ws_path)

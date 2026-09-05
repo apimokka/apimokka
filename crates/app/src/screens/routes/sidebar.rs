@@ -29,7 +29,7 @@ pub(super) fn left_sidebar(app: &App) -> Element<'_, Message> {
     // ── Rule sets (accordion: only one open at a time) ────────────────────
     col = col.push(
         text(t(Key::RoutesRuleSets))
-            .size(size::CAPTION)
+            .size(size::LABEL)
             .color(theme::muted(&app.theme())),
     );
     for rs in &snap.rule_sets {
@@ -37,7 +37,7 @@ pub(super) fn left_sidebar(app: &App) -> Element<'_, Message> {
         col = col.push(rule_set_group(app, rs, is_open));
     }
     col = col.push(
-        button(text(format!("+ {}", t(Key::BtnAddRuleSet))).size(size::CAPTION))
+        button(text(format!("+ {}", t(Key::BtnAddRuleSet))).size(size::LABEL))
             .on_press(Message::AddRuleSet)
             .padding(Padding::from([space::S1, space::S3]))
             .style(iced::widget::button::text)
@@ -53,12 +53,15 @@ pub(super) fn left_sidebar(app: &App) -> Element<'_, Message> {
         button(
             row![
                 text(fb_chevron)
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme())),
                 text(t(Key::RoutesFallbackFiles))
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme()))
                     .width(Length::Fill),
+                // RFC MK-059 decision 4: counts are a genuine caption, not a
+                // label — left at CAPTION deliberately, unlike the chevron
+                // and header text either side of it.
                 text(format!("({})", fb_count))
                     .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
@@ -88,7 +91,7 @@ pub(super) fn left_sidebar(app: &App) -> Element<'_, Message> {
                         column![
                             row![
                                 text("{ }")
-                                    .size(size::CAPTION)
+                                    .size(size::LABEL)
                                     .color(theme::muted(&app.theme())),
                                 text(f.name.as_str()).size(size::BODY).width(Length::Fill),
                                 dirty_el,
@@ -117,7 +120,7 @@ pub(super) fn left_sidebar(app: &App) -> Element<'_, Message> {
         }
         col = col.push(
             column![
-                button(text(format!("+ {}", t(Key::BtnAddFallbackFile))).size(size::CAPTION))
+                button(text(format!("+ {}", t(Key::BtnAddFallbackFile))).size(size::LABEL))
                     .padding(Padding::from([space::S1, space::S3]))
                     .style(iced::widget::button::text)
                     .width(Length::Fill),
@@ -141,12 +144,15 @@ pub(super) fn left_sidebar(app: &App) -> Element<'_, Message> {
         button(
             row![
                 text(mw_chevron)
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme())),
                 text(t(Key::RoutesMiddleware))
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme()))
                     .width(Length::Fill),
+                // RFC MK-059 decision 4: counts are a genuine caption, not a
+                // label — left at CAPTION deliberately, unlike the chevron
+                // and header text either side of it.
                 text(format!("({})", mw_count))
                     .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
@@ -184,7 +190,7 @@ pub(super) fn left_sidebar(app: &App) -> Element<'_, Message> {
         }
         col = col.push(
             column![
-                button(text(format!("+ {}", t(Key::BtnAddScript))).size(size::CAPTION))
+                button(text(format!("+ {}", t(Key::BtnAddScript))).size(size::LABEL))
                     .padding(Padding::from([space::S1, space::S3]))
                     .style(iced::widget::button::text)
                     .width(Length::Fill),
@@ -223,9 +229,10 @@ fn rule_set_group<'a>(app: &'a App, rs: &'a RuleSetView, is_open: bool) -> Eleme
         container(
             row![
                 text(chevron)
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme())),
                 text(file_name).size(size::BODY).width(Length::Fill),
+                // RFC MK-059 decision 4: a count is a genuine caption.
                 text(format!("({})", rule_count))
                     .size(size::CAPTION)
                     .color(theme::muted(&app.theme())),
@@ -261,12 +268,12 @@ fn rule_set_group<'a>(app: &'a App, rs: &'a RuleSetView, is_open: bool) -> Eleme
             let has_issues = !rule.validation.issues.is_empty();
             let status_glyph: Element<Message> = if has_issues {
                 text("⚠")
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(Color::from_rgb(0.85, 0.45, 0.0))
                     .into()
             } else if rule.matched_by_latest_trace {
                 text("✓")
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(Color::from_rgb(0.10, 0.65, 0.10))
                     .into()
             } else {
@@ -278,7 +285,7 @@ fn rule_set_group<'a>(app: &'a App, rs: &'a RuleSetView, is_open: bool) -> Eleme
                 container(
                     row![
                         text("⠿")
-                            .size(size::CAPTION)
+                            .size(size::LABEL)
                             .color(theme::muted(&app.theme())),
                         text(summary).size(size::CAPTION).width(Length::Fill),
                         status_glyph,
@@ -304,7 +311,7 @@ fn rule_set_group<'a>(app: &'a App, rs: &'a RuleSetView, is_open: bool) -> Eleme
 
     let add_rule_row = button(row![
         Space::new().width(Length::Fixed(space::S5)),
-        text(format!("+ {}", app.t(Key::BtnAddRule))).size(size::CAPTION),
+        text(format!("+ {}", app.t(Key::BtnAddRule))).size(size::LABEL),
     ])
     .on_press(Message::AddRule(rs.id))
     .padding(Padding::from([space::S1, space::S3]))

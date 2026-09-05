@@ -1599,28 +1599,57 @@ impl App {
         }
     }
 
-    /// Runtime entry point (wired in `main.rs`): `update`, plus the one
-    /// `Task` iced's own runtime needs that `update` itself cannot issue.
+    /// Runtime entry point (wired in `main.rs`): `update`, plus the `Task`s
+    /// iced's own runtime needs that `update` itself cannot issue.
     ///
-    /// `update` above is a pure reducer — every one of this codebase's 203
+    /// `update` above is a pure reducer — every one of this codebase's
     /// app-level tests calls it directly and relies on that purity, per
     /// task 014's own verification guidance. Moving a widget's focus
     /// (MK-033 lines 38, 95, 118: the search field must focus when the
-    /// palette opens) is not a state mutation `update` can express; it can
-    /// only happen through a `Task` returned to iced's runtime. Rather than
-    /// making `update` return `Task<Message>` — which would force all 486
-    /// existing `.update(...)` call sites in tests to handle a `#[must_use]`
-    /// value they have no runtime to poll — the one genuine side effect is
-    /// isolated here, in the thin wrapper only `main.rs` calls.
+    /// palette opens) or its scroll position (task 017 D-5: keep the
+    /// selection visible as arrow keys move it) are not state mutations
+    /// `update` can express; both only happen through a `Task` returned to
+    /// iced's runtime. Rather than making `update` return `Task<Message>` —
+    /// which would force all 486+ existing `.update(...)` call sites in
+    /// tests to handle a `#[must_use]` value they have no runtime to poll —
+    /// both genuine side effects are isolated here, in the thin wrapper
+    /// only `main.rs` calls.
     pub fn update_and_dispatch(&mut self, msg: Message) -> iced::Task<Message> {
         let opening_palette =
             matches!(msg, Message::ToggleCommandPalette) && !self.command_palette.open;
+        let is_arrow_key = matches!(msg, Message::ArrowUp | Message::ArrowDown);
         self.update(msg);
+
         if opening_palette && self.command_palette.open {
-            iced::widget::operation::focus(screens::command_palette::SEARCH_INPUT_ID)
-        } else {
-            iced::Task::none()
+            return iced::widget::operation::focus(screens::command_palette::SEARCH_INPUT_ID);
         }
+
+        // D-5: `scrollable` has no "scroll this child into view" operation —
+        // only an absolute/relative viewport offset (confirmed against
+        // `iced_runtime::widget::operation::scrollable`; nothing under
+        // `advanced` exposes per-row bounds either). This estimates the
+        // right offset from the selection's position in the filtered list
+        // rather than its pixel position, which is not measured anywhere:
+        // row 0 of N -> top of the viewport, the last row -> bottom, evenly
+        // spaced between. Every row is the same fixed shape (one text line
+        // plus an optional shortcut chip), so a linear map is a reasonable
+        // approximation of the real layout, not merely a guess — verified
+        // live against the actual scrollbar position, not assumed.
+        if is_arrow_key
+            && self.command_palette.open
+            && let Some(selected) = self.command_palette.selected
+        {
+            let filtered_len =
+                crate::palette_commands::filtered_indices(self, &self.command_palette.query).len();
+            let last_index = filtered_len.saturating_sub(1).max(1) as f32;
+            let y = selected as f32 / last_index;
+            return iced::widget::operation::snap_to(
+                screens::command_palette::RESULTS_SCROLLABLE_ID,
+                iced::widget::scrollable::RelativeOffset { x: 0.0, y },
+            );
+        }
+
+        iced::Task::none()
     }
 
     // ─────────────────────────────────────────────────────────────────────────

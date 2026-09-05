@@ -20,7 +20,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 widgets::empty_state(app.t(Key::ScriptsEmptyMessage)),
                 container(
                     text(app.t(Key::ScriptsEmptyExplanation))
-                        .size(size::CAPTION)
+                        .size(size::BODY_SMALL)
+                        .line_height(theme::line_height::body_small())
                         .color(theme::muted(&app.theme())),
                 )
                 .padding(Padding::from([0.0, space::S6])),

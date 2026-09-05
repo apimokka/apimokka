@@ -19,7 +19,7 @@ pub(super) fn trace_activity_section<'a>(
             .size(size::BODY)
             .color(theme::muted(&app.theme()))
             .width(Length::Fill),
-        button(text(app.t(Key::RoutesViewAllInTrace)).size(size::CAPTION))
+        button(text(app.t(Key::RoutesViewAllInTrace)).size(size::LABEL))
             .on_press(Message::ViewAllInTrace)
             .padding(Padding::from([space::S1, space::S2]))
             .style(iced::widget::button::text),
@@ -28,7 +28,8 @@ pub(super) fn trace_activity_section<'a>(
 
     let body: Element<Message> = if recent.is_empty() {
         text(app.t(Key::RoutesNoRecentMatches))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme()))
             .into()
     } else {
@@ -53,7 +54,7 @@ pub(super) fn trace_activity_section<'a>(
                     text(ev.time.as_str())
                         .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
-                    button(text(app.t(Key::RoutesJumpToTraceEvent)).size(size::CAPTION))
+                    button(text(app.t(Key::RoutesJumpToTraceEvent)).size(size::LABEL))
                         .on_press(Message::JumpToTraceEvent(eid))
                         .padding(Padding::from([space::S1, space::S2]))
                         .style(iced::widget::button::text),

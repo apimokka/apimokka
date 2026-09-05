@@ -23,7 +23,7 @@ pub(super) fn script_viewer<'a>(
     let header = column![
         row![
             text(name).size(size::SECTION).width(Length::Fill),
-            container(text(app.t(Key::ScriptsReadOnlyBadge)).size(size::CAPTION),)
+            container(text(app.t(Key::ScriptsReadOnlyBadge)).size(size::LABEL),)
                 .padding(Padding::from([2.0, space::S2]))
                 .style(theme::chip_style),
         ]
@@ -32,7 +32,8 @@ pub(super) fn script_viewer<'a>(
             .size(size::CAPTION)
             .color(theme::muted(&app.theme())),
         text(app.t(Key::ScriptsEmptyExplanation))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme())),
     ]
     .spacing(space::S2);

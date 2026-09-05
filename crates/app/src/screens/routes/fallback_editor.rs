@@ -53,7 +53,8 @@ pub(super) fn fallback_file_editor<'a>(
         .padding(Padding::from([space::S1 + 2.0, space::S3]))
         .style(theme::chip_style),
         text(t(Key::FallbackRouteExplanation))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(theme::muted(&app.theme())),
     ]
     .spacing(space::S2);
@@ -95,12 +96,14 @@ pub(super) fn fallback_file_editor<'a>(
 
     let validity: Element<Message> = if valid {
         text(t(Key::FallbackJsonValid))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(Color::from_rgb(0.10, 0.60, 0.10))
             .into()
     } else {
         text(t(Key::FallbackJsonInvalid))
-            .size(size::CAPTION)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
             .color(Color::from_rgb(0.85, 0.45, 0.0))
             .into()
     };
@@ -110,12 +113,13 @@ pub(super) fn fallback_file_editor<'a>(
     } else {
         t(Key::FallbackSavedHint)
     })
-    .size(size::CAPTION)
+    .size(size::BODY_SMALL)
+    .line_height(theme::line_height::body_small())
     .color(theme::muted(&app.theme()));
 
     // Revert: ghost, only actionable when dirty (routes through confirm).
     let revert_btn: Element<Message> = {
-        let b = button(text(t(Key::BtnRevert)).size(size::CAPTION))
+        let b = button(text(t(Key::BtnRevert)).size(size::LABEL))
             .padding(Padding::from(pad::BUTTON))
             .style(iced::widget::button::text);
         if dirty {
@@ -152,7 +156,7 @@ pub(super) fn fallback_file_editor<'a>(
                     .width(Length::Fixed(110.0))
                     .into(),
             ),
-            button(text(t(Key::FallbackFormatJson)).size(size::CAPTION))
+            button(text(t(Key::FallbackFormatJson)).size(size::LABEL))
                 .on_press(Message::FallbackFileFormat)
                 .padding(Padding::from(pad::BUTTON))
                 .style(iced::widget::button::text),

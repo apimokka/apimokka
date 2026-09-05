@@ -57,7 +57,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             row![
                 text(snap.identity.name.as_str()).size(size::SECTION),
                 text(chevron)
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S1)
@@ -166,12 +166,9 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
 fn chip(glyph: String, label: String) -> Element<'static, Message> {
     container(
-        row![
-            text(glyph).size(size::CAPTION),
-            text(label).size(size::CAPTION),
-        ]
-        .spacing(space::S1)
-        .align_y(Alignment::Center),
+        row![text(glyph).size(size::LABEL), text(label).size(size::LABEL),]
+            .spacing(space::S1)
+            .align_y(Alignment::Center),
     )
     .padding(Padding::from([4.0, 10.0]))
     .style(theme::chip_style)
@@ -179,7 +176,7 @@ fn chip(glyph: String, label: String) -> Element<'static, Message> {
 }
 
 fn action_btn<'a>(label: &'a str, msg: Message, enabled: bool) -> Element<'a, Message> {
-    let b = button(text(label).size(size::CAPTION)).padding(Padding::from(pad::BUTTON));
+    let b = button(text(label).size(size::LABEL)).padding(Padding::from(pad::BUTTON));
     if enabled {
         b.on_press(msg).into()
     } else {

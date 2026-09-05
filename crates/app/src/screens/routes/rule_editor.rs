@@ -52,9 +52,14 @@ pub(super) fn rule_editor<'a>(
             .map(|issue| {
                 row![
                     text("⚠")
-                        .size(size::CAPTION)
+                        .size(size::LABEL)
                         .color(Color::from_rgb(0.85, 0.45, 0.0)),
-                    text(issue.message.as_str()).size(size::CAPTION),
+                    // RFC MK-059 decision 4: a validation message is
+                    // arbitrary-length explanatory prose, same as the
+                    // bottom drawer's diagnostic list.
+                    text(issue.message.as_str())
+                        .size(size::BODY_SMALL)
+                        .line_height(theme::line_height::body_small()),
                 ]
                 .spacing(space::S2)
                 .into()
@@ -64,7 +69,7 @@ pub(super) fn rule_editor<'a>(
             container(
                 column![
                     text(t(Key::RuleEditorValidationWarning))
-                        .size(size::CAPTION)
+                        .size(size::LABEL)
                         .color(theme::muted(&app.theme())),
                     column(msgs).spacing(space::S1),
                 ]
@@ -102,15 +107,15 @@ pub(super) fn rule_editor<'a>(
                 test_ready,
                 t(Key::DisabledNeedUrlPath),
             ),
-            button(text(t(Key::BtnDuplicate)).size(size::CAPTION))
+            button(text(t(Key::BtnDuplicate)).size(size::LABEL))
                 .on_press(Message::DuplicateRule(rule_id))
                 .padding(Padding::from(pad::BUTTON))
                 .style(iced::widget::button::text),
-            button(text("▲").size(size::CAPTION))
+            button(text("▲").size(size::LABEL))
                 .on_press(Message::MoveRuleUp(rule_id))
                 .padding(Padding::from(pad::BUTTON))
                 .style(iced::widget::button::text),
-            button(text("▼").size(size::CAPTION))
+            button(text("▼").size(size::LABEL))
                 .on_press(Message::MoveRuleDown(rule_id))
                 .padding(Padding::from(pad::BUTTON))
                 .style(iced::widget::button::text),
@@ -148,10 +153,10 @@ pub(super) fn rule_editor<'a>(
                     button(
                         row![
                             text("▾")
-                                .size(size::CAPTION)
+                                .size(size::LABEL)
                                 .color(theme::muted(&app.theme())),
                             text(t(Key::LayoutFewerWhen))
-                                .size(size::CAPTION)
+                                .size(size::LABEL)
                                 .color(theme::muted(&app.theme())),
                         ]
                         .spacing(space::S2)
@@ -187,10 +192,10 @@ pub(super) fn rule_editor<'a>(
                         button(
                             row![
                                 text("▸")
-                                    .size(size::CAPTION)
+                                    .size(size::LABEL)
                                     .color(theme::muted(&app.theme())),
                                 text(t(Key::LayoutMoreWhen))
-                                    .size(size::CAPTION)
+                                    .size(size::LABEL)
                                     .color(theme::muted(&app.theme())),
                             ]
                             .spacing(space::S2)
@@ -364,7 +369,8 @@ fn card_with_hint<'a>(
         column![
             text(title).size(size::BODY_STRONG),
             text(hint)
-                .size(size::CAPTION)
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small())
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S1)
@@ -402,7 +408,8 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
             .spacing(space::S2)
             .align_y(Alignment::Center),
             text(app.t(Key::UrlPathHint))
-                .size(size::CAPTION)
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small())
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S2)
@@ -430,7 +437,7 @@ fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
             } else {
                 *m
             };
-            button(text(label).size(size::CAPTION))
+            button(text(label).size(size::LABEL))
                 .on_press(msg)
                 .padding(Padding::from([space::S2, space::S3 + 2.0]))
                 .style(if active {
@@ -489,7 +496,7 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
         .collect();
 
     rows.push(
-        button(text(format!("+ {}", app.t(Key::BtnAddHeader))).size(size::CAPTION))
+        button(text(format!("+ {}", app.t(Key::BtnAddHeader))).size(size::LABEL))
             .on_press(Message::HeaderAdd)
             .padding(Padding::from([space::S2, space::S3]))
             .into(),
@@ -512,7 +519,8 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
             let show_val = b.op != BodyOp::Exists && b.op != BodyOp::Absent;
             let jsonpath_warn: Element<Message> = if b.path.starts_with("$.") {
                 text(app.t(Key::BodyJsonpathWarn))
-                    .size(size::CAPTION)
+                    .size(size::BODY_SMALL)
+                    .line_height(theme::line_height::body_small())
                     .color(Color::from_rgb(0.85, 0.45, 0.0))
                     .into()
             } else {
@@ -525,7 +533,7 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
                         .size(size::CAPTION)
                         .padding(Padding::from([space::S2, space::S2]))
                         .width(Length::Fill),
-                    button(text("…").size(size::CAPTION))
+                    button(text("…").size(size::LABEL))
                         .on_press(Message::PathAssistantOpen(i))
                         .padding(Padding::from([space::S2, space::S2])),
                     pick_list(BodyOp::all().to_vec(), Some(b.op), move |op| {
@@ -561,13 +569,14 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
     if p.body.is_empty() {
         rows.push(
             text(app.t(Key::BodyDottedPathHint))
-                .size(size::CAPTION)
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small())
                 .color(theme::muted(&app.theme()))
                 .into(),
         );
     }
     rows.push(
-        button(text(format!("+ {}", app.t(Key::BtnAddBodyCondition))).size(size::CAPTION))
+        button(text(format!("+ {}", app.t(Key::BtnAddBodyCondition))).size(size::LABEL))
             .on_press(Message::BodyAdd)
             .padding(Padding::from([space::S2, space::S3]))
             .into(),
@@ -646,7 +655,7 @@ fn respond_card<'a>(
                             .size(size::CAPTION)
                             .padding(Padding::from([space::S2, space::S3]))
                             .width(Length::Fixed(70.0)),
-                        text(app.t(Key::RespondDelayUnit)).size(size::CAPTION),
+                        text(app.t(Key::RespondDelayUnit)).size(size::LABEL),
                     ]
                     .spacing(space::S1)
                     .align_y(Alignment::Center)
@@ -655,7 +664,8 @@ fn respond_card<'a>(
             ]
             .align_y(Alignment::End),
             text(app.t(Key::RespondMutexHint))
-                .size(size::CAPTION)
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small())
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S3)
@@ -664,7 +674,7 @@ fn respond_card<'a>(
 }
 
 fn mode_tab(label: &str, active: bool, mode: RespondMode) -> Element<'_, Message> {
-    button(text(label).size(size::CAPTION))
+    button(text(label).size(size::LABEL))
         .on_press(Message::RespondSetMode(mode))
         .padding(Padding::from([space::S2, space::S4]))
         .style(if active {

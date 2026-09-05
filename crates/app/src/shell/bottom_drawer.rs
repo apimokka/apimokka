@@ -103,17 +103,20 @@ fn validation_content(app: &App) -> Element<'_, Message> {
             text(widgets::severity_glyph(diagnostic.severity))
                 .size(size::BODY)
                 .color(theme::severity_color(&app.theme(), diagnostic.severity)),
-            text(severity_label).size(size::CAPTION),
+            text(severity_label).size(size::LABEL),
             text(diagnostic.scope).size(size::BODY).width(Length::Fill),
+            // RFC MK-059 decision 4: this whole heading is wrapped in a
+            // `button(...)` below when `target` is `Some` -- text inside a
+            // button is a button label, not a caption.
             text(if target.is_some() {
                 app.t(Key::DrawerOpenDiagnostic)
             } else {
                 ""
             })
-            .size(size::CAPTION)
+            .size(size::LABEL)
             .color(theme::muted(&app.theme())),
             text(if target.is_some() { "→" } else { "" })
-                .size(size::CAPTION)
+                .size(size::LABEL)
                 .color(theme::muted(&app.theme())),
         ]
         .spacing(space::S2)
@@ -130,8 +133,13 @@ fn validation_content(app: &App) -> Element<'_, Message> {
         };
         let mut detail = column![
             heading,
+            // RFC MK-059 decision 4: a validation message is arbitrary-length
+            // explanatory prose, not a caption -- promoted so it does not
+            // land on the readability floor for the exact text a user needs
+            // to read to fix a problem.
             text(diagnostic.message)
-                .size(size::CAPTION)
+                .size(size::BODY_SMALL)
+                .line_height(theme::line_height::body_small())
                 .color(theme::muted(&app.theme()))
                 .width(Length::Fill),
         ]
@@ -269,7 +277,8 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
         for line in last_save_report_lines(app) {
             report = report.push(
                 text(line)
-                    .size(size::CAPTION)
+                    .size(size::BODY_SMALL)
+                    .line_height(theme::line_height::body_small())
                     .color(theme::muted(&app.theme()))
                     .width(Length::Fill),
             );
@@ -323,7 +332,7 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                 column![
                     row![
                         text("●")
-                            .size(size::CAPTION)
+                            .size(size::LABEL)
                             .color(theme::muted(&app.theme())),
                         text(file_name).size(size::BODY).width(Length::Fill),
                     ]
@@ -337,7 +346,8 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                             app.t(Key::DrawerSaveDiffChangedRules),
                             preview
                         ))
-                        .size(size::CAPTION)
+                        .size(size::BODY_SMALL)
+                        .line_height(theme::line_height::body_small())
                         .color(theme::muted(&app.theme()))
                         .width(Length::Fill),
                     ],
@@ -358,7 +368,7 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                 column![
                     row![
                         text("●")
-                            .size(size::CAPTION)
+                            .size(size::LABEL)
                             .color(theme::muted(&app.theme())),
                         text(name.to_string()).size(size::BODY).width(Length::Fill),
                     ]
@@ -367,7 +377,8 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
                     row![
                         Space::new().width(Length::Fixed(space::S4)),
                         text(app.t(Key::DrawerSaveDiffFallbackMod))
-                            .size(size::CAPTION)
+                            .size(size::BODY_SMALL)
+                            .line_height(theme::line_height::body_small())
                             .color(theme::muted(&app.theme())),
                     ],
                 ]

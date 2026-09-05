@@ -23,7 +23,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         for choice in ThemeChoice::all() {
             let selected = app.theme_choice == choice;
             row_el = row_el.push(
-                button(text(app.t(choice.label_key())).size(size::CAPTION))
+                button(text(app.t(choice.label_key())).size(size::LABEL))
                     .on_press_maybe(if selected {
                         None
                     } else {
@@ -103,7 +103,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     .size(size::BODY)
                     .width(Length::Fill),
                 text(app.t(Key::SettingsPaletteShortcut))
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme())),
             ]
             .align_y(Alignment::Center),
@@ -158,10 +158,10 @@ pub fn view(app: &App) -> Element<'_, Message> {
         let toggle_btn = button(
             row![
                 text(chevron)
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme())),
                 text(label)
-                    .size(size::CAPTION)
+                    .size(size::LABEL)
                     .color(theme::muted(&app.theme())),
             ]
             .spacing(space::S2)
@@ -194,7 +194,7 @@ fn section<'a>(
     column![
         row![
             text(app.t(heading)).size(size::SECTION).width(Length::Fill),
-            container(text(app.t(impact)).size(size::CAPTION))
+            container(text(app.t(impact)).size(size::LABEL))
                 .padding(Padding::from([2.0, 8.0]))
                 .style(theme::chip_style),
         ]

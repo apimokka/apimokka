@@ -48,6 +48,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     text(app.t(title)).size(size::SECTION),
                     text(app.t(desc))
                         .size(size::BODY)
+                        .line_height(theme::line_height::body())
                         .color(theme::muted(&app.theme())),
                 ]
                 .spacing(space::S2),
@@ -81,7 +82,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
             Space::new().height(space::S3),
             row![
                 text(app.t(Key::ModePickerHint))
-                    .size(size::CAPTION)
+                    .size(size::BODY_SMALL)
+                    .line_height(theme::line_height::body_small())
                     .color(theme::muted(&app.theme())),
             ],
         ]

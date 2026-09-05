@@ -19,9 +19,13 @@ pub fn divider<'a>() -> Element<'a, Message> {
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 pub fn empty_state<'a>(msg: &'a str) -> Element<'a, Message> {
+    // RFC MK-059 decision 5: every caller passes a full-sentence message
+    // ("No matching commands", "Create a workspace to start...") -- the
+    // wrapping-prose case `body`'s line-height targets.
     container(
         text(msg)
             .size(size::BODY)
+            .line_height(theme::line_height::body())
             .color(Color::from_rgb(0.52, 0.52, 0.52)),
     )
     .padding(Padding::from([space::S5, space::S6]))
@@ -34,7 +38,7 @@ pub fn empty_state<'a>(msg: &'a str) -> Element<'a, Message> {
 
 pub fn dirty_dot<'a>() -> Element<'a, Message> {
     text("●")
-        .size(size::CAPTION)
+        .size(size::LABEL)
         .color(Color::from_rgb(0.90, 0.55, 0.10))
         .into()
 }
@@ -107,9 +111,10 @@ pub fn icon_btn<'a>(glyph: &'a str, msg: Message) -> Element<'a, Message> {
 // ── Labelled field ─────────────────────────────────────────────────────────────
 
 pub fn field<'a>(label: &'a str, control: Element<'a, Message>) -> Element<'a, Message> {
+    // RFC MK-059 decision 4: a field label, not a caption — `size::LABEL`.
     iced::widget::column![
         text(label)
-            .size(size::CAPTION)
+            .size(size::LABEL)
             .color(Color::from_rgb(0.52, 0.52, 0.52)),
         control,
     ]
@@ -124,13 +129,19 @@ pub fn field<'a>(label: &'a str, control: Element<'a, Message>) -> Element<'a, M
 /// stays uncluttered ("less is more").
 pub fn info_hint<'a>(theme: &iced::Theme, hint: &'a str) -> Element<'a, Message> {
     let marker = text("\u{24D8}") // ⓘ
-        .size(size::CAPTION)
+        .size(size::LABEL)
         .color(theme::muted(theme));
 
-    let bubble = container(text(hint).size(size::CAPTION))
-        .padding(Padding::from([space::S2, space::S3]))
-        .max_width(280.0)
-        .style(theme::card_style);
+    // RFC MK-059 decision 4: the bubble wraps at `max_width` and teaches a
+    // domain concept in a full sentence — wrapping prose, not a caption.
+    let bubble = container(
+        text(hint)
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small()),
+    )
+    .padding(Padding::from([space::S2, space::S3]))
+    .max_width(280.0)
+    .style(theme::card_style);
 
     iced::widget::tooltip(marker, bubble, iced::widget::tooltip::Position::Top)
         .gap(space::S1)
@@ -188,8 +199,11 @@ pub fn action_with_reason<'a>(
 /// A compact `label  value` row for the match detail panel.
 pub fn field_row<'a>(label: &'a str, value: &'a str) -> Element<'a, Message> {
     row![
+        // RFC MK-059 decision 4: a field label, not a caption. `value` stays
+        // CAPTION -- it renders arbitrary metadata (paths, status codes,
+        // error kinds), the genuine-caption case, not a control's own label.
         text(label)
-            .size(size::CAPTION)
+            .size(size::LABEL)
             .color(iced::Color::from_rgb(0.55, 0.55, 0.55))
             .width(Length::Fixed(100.0)),
         text(value).size(size::CAPTION).width(Length::Fill),

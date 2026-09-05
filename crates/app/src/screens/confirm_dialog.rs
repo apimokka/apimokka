@@ -14,8 +14,12 @@ pub fn view(app: &App) -> Element<'_, Message> {
         column![
             text(app.t(d.title)).size(size::SECTION),
             Space::new().height(space::S2),
+            // RFC MK-059 decision 5: `body`'s line-height (1.4) is the one
+            // unambiguous readability gain -- applied here since a confirm
+            // dialog's body is exactly the wrapping-prose case it targets.
             text(app.t(d.body))
                 .size(size::BODY)
+                .line_height(theme::line_height::body())
                 .color(theme::muted(&app.theme())),
             Space::new().height(space::S5),
             row![

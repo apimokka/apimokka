@@ -1,6 +1,15 @@
 //! MK-022 — Design system: tokens, colour semantics, style helpers.
 //!
 //! Every screen imports from here. No magic numbers anywhere else.
+//!
+//! Boundary decision: single-responsibility — this is apimokka's entire
+//! design-system surface: spacing, typography (sizes and, since RFC MK-059,
+//! line-height), radii, padding, colour/token bridging, and every shared
+//! container/button style. MK-022 established it as the one place every
+//! screen imports design constants from; task 017 grew it past the
+//! 500-line signal threshold by adding the typography scale's missing tier
+//! and its line-height accessors, not by taking on a second responsibility,
+//! so it stays one file rather than splitting.
 
 use iced::{Background, Border, Color, Shadow, Theme, Vector, widget::container};
 
@@ -40,14 +49,25 @@ pub fn is_high_contrast(t: &Theme) -> bool {
         || matches_tokens(t, Tokens::high_contrast_dark())
 }
 
+/// Resolve the snora Design token set matching `t`. Shared by every helper
+/// that needs a `tokens.palette.*` role beyond the `background`/`text` pair
+/// `Theme` already exposes — `muted`, `hc_border`, and `dialog_style`'s
+/// border (task 017, D-1/D-2).
+fn tokens_for(t: &Theme) -> Tokens {
+    if matches_tokens(t, Tokens::high_contrast_dark()) {
+        Tokens::high_contrast_dark()
+    } else if matches_tokens(t, Tokens::high_contrast_light()) {
+        Tokens::high_contrast_light()
+    } else if t.extended_palette().background.base.color.r < 0.5 {
+        Tokens::dark()
+    } else {
+        Tokens::light()
+    }
+}
+
 /// MK-050: the border color for high-contrast surfaces, from snora tokens.
 pub fn hc_border(t: &Theme) -> Color {
-    let tokens = if matches_tokens(t, Tokens::high_contrast_dark()) {
-        Tokens::high_contrast_dark()
-    } else {
-        Tokens::high_contrast_light()
-    };
-    to_iced_color(tokens.palette.border)
+    to_iced_color(tokens_for(t).palette.border)
 }
 
 // ── Spacing scale ─────────────────────────────────────────────────────────────
@@ -65,14 +85,87 @@ pub mod space {
 // All f32 for iced 0.14's Pixels. See MK-022 §4.3.
 
 pub mod size {
-    pub const CAPTION: f32 = 12.0; // hints, metadata (unchanged)
-    pub const BODY: f32 = 16.0; // default UI text (was 14 — comfort, WCAG)
-    pub const BODY_STRONG: f32 = 16.0; // semibold body (set bold via style)
-    pub const SECTION: f32 = 18.0; // card headings (was 17)
-    pub const TITLE: f32 = 24.0; // screen titles (was 22)
-    pub const DISPLAY: f32 = 36.0; // welcome hero (was 32)
+    pub const CAPTION: f32 = 12.0; // hints, metadata (unchanged); no snora role
+    pub const BODY: f32 = 16.0; // default UI text (was 14 — comfort, WCAG); = snora `body`
+    pub const BODY_STRONG: f32 = 16.0; // semibold body (set bold via style); = snora `body`
+    pub const BODY_SMALL: f32 = 14.0; // secondary metadata, compact help (RFC MK-059); = snora `body_small`
+    pub const LABEL: f32 = 14.0; // button/field/chip/tab labels, no line-height (RFC MK-059); = snora `label`
+    pub const SECTION: f32 = 18.0; // card headings (was 17); = snora `title`
+    pub const TITLE: f32 = 24.0; // screen titles (was 22); = snora `heading`
+    pub const DISPLAY: f32 = 36.0; // welcome hero (was 32); recorded divergence from snora `display` (32.0) — RFC MK-059 resolution 1
     #[allow(dead_code)]
-    pub const MONO: f32 = 13.0; // code, paths, JSON
+    pub const MONO: f32 = 13.0; // code, paths, JSON; no snora role
+}
+
+/// RFC MK-059 decision 5: line-height for prose that wraps, sourced from
+/// snora's `<role>_line_height` helpers rather than hand-wrapped
+/// (`snora-style` 0.38.0+ / RFC-068; snora withdrew the earlier guidance to
+/// read `tokens.typography.<role>.line_height` and construct
+/// `LineHeight::Relative` by hand). Named after apimokka's own `size::*`
+/// constants (`section`/`title`), not snora's role names (`title`/`heading`)
+/// — `size::SECTION` = snora's `title` role and `size::TITLE` = snora's
+/// `heading` role, and mirroring snora's names here would read as if this
+/// module's `title()` matched `size::TITLE`, which it does not.
+///
+/// Typography is preset-invariant (RFC MK-059 non-goals: all four snora
+/// presets share `Typography::default_roles()`), so a fixed token set is
+/// the correct source here, not a per-`Theme` lookup like
+/// `theme::muted`/`theme::hc_border`.
+///
+/// No `label()`: labels never take a line-height override (decision 5) —
+/// call sites at `size::LABEL` must not call anything in this module.
+pub mod line_height {
+    use iced::widget::text::LineHeight;
+    use snora::design::Tokens;
+    use snora::design::style::text;
+
+    fn tokens() -> Tokens {
+        Tokens::light()
+    }
+
+    /// vs iced's own default (`LineHeight::Relative(1.3)`): looser (1.4) —
+    /// the one unambiguous readability gain (RFC MK-059 decision 5).
+    pub fn body() -> LineHeight {
+        text::body_line_height(&tokens())
+    }
+
+    /// vs iced's default: slightly looser (1.35).
+    pub fn body_small() -> LineHeight {
+        text::body_small_line_height(&tokens())
+    }
+
+    /// snora's `title` role (`size::SECTION`'s line-height). vs iced's
+    /// default: identical (1.3) — a no-op, kept for symmetry with the other
+    /// four, not because it changes anything.
+    ///
+    /// Genuinely unused today, checked rather than assumed: every
+    /// `size::SECTION` call site in this crate renders a short heading or
+    /// identifier (a screen title, a card heading, a file/workspace name) —
+    /// none of them wrap, and decision 5 is explicit that line-height
+    /// applies to prose that wraps, not to single-line values. Kept as a
+    /// correct, ready accessor rather than deleted, for whichever
+    /// `SECTION`-sized text is the first to genuinely need it.
+    #[allow(dead_code)]
+    pub fn section() -> LineHeight {
+        text::title_line_height(&tokens())
+    }
+
+    /// snora's `heading` role (`size::TITLE`'s line-height). vs iced's
+    /// default: tighter (1.25). Genuinely unused today, for the same reason
+    /// as `section` above — every `size::TITLE` site is a short screen or
+    /// dialog title, never wrapping prose.
+    #[allow(dead_code)]
+    pub fn title() -> LineHeight {
+        text::heading_line_height(&tokens())
+    }
+
+    /// vs iced's default: tighter (1.2). Genuinely unused today, for the
+    /// same reason as `section` above — both `size::DISPLAY` sites are the
+    /// single-word app name.
+    #[allow(dead_code)]
+    pub fn display() -> LineHeight {
+        text::display_line_height(&tokens())
+    }
 }
 
 // ── Border radius ─────────────────────────────────────────────────────────────
@@ -117,16 +210,7 @@ pub fn muted(t: &Theme) -> Color {
     // (light-vs-dark only), so the high-contrast pair is identified by its
     // token-derived (background, text) pair via `matches_tokens`, same as
     // `is_high_contrast`, rather than by theme name.
-    let tokens = if matches_tokens(t, Tokens::high_contrast_dark()) {
-        Tokens::high_contrast_dark()
-    } else if matches_tokens(t, Tokens::high_contrast_light()) {
-        Tokens::high_contrast_light()
-    } else if t.extended_palette().background.base.color.r < 0.5 {
-        Tokens::dark()
-    } else {
-        Tokens::light()
-    };
-    to_iced_color(tokens.palette.text_muted)
+    to_iced_color(tokens_for(t).palette.text_muted)
 }
 
 #[allow(dead_code)]
@@ -247,6 +331,19 @@ pub fn chip_style(t: &Theme) -> container::Style {
 }
 
 /// Modal dialog surface — highest elevation.
+///
+/// Task 017 D-1/D-2: this used `..Default::default()` for `border` — width
+/// zero — which overpainted snora's own dialog-card border (their 0.34.0
+/// `palette.border` repair) with nothing, inside the exact card that repair
+/// targets. Over a modal dim the fill alone still separated the card, which
+/// is why every dimmed case passed; on a full-screen surface with no dim
+/// behind it (the wizard, `high_contrast_dark`), fill and shadow both
+/// composite to nothing and the card had no discernible edge at all
+/// (M8 capture case B2-1). `tokens.palette.border` is contrast-tested for
+/// all four presets — the same source `hc_border` already reads for the
+/// high-contrast pair — so this now inherits snora's repair instead of
+/// overpainting it, uniformly, not only where high contrast already forced
+/// a border elsewhere (`panel_style`, `card_style`).
 pub fn dialog_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     container::Style {
@@ -254,7 +351,8 @@ pub fn dialog_style(t: &Theme) -> container::Style {
         text_color: Some(ep.background.base.text),
         border: Border {
             radius: radius::XL.into(),
-            ..Default::default()
+            width: 1.0,
+            color: to_iced_color(tokens_for(t).palette.border),
         },
         shadow: Shadow {
             color: Color::from_rgba(0.0, 0.0, 0.0, 0.18),
