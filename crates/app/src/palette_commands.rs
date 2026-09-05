@@ -88,11 +88,6 @@ pub const TABLE: &[Command] = &[
         message: || Message::ToggleWorkspaceMenu,
     },
     Command {
-        label: Key::PaletteCmdSettings,
-        shortcut: None,
-        message: || Message::SwitchTab(WorkspaceTab::Settings),
-    },
-    Command {
         label: Key::PaletteCmdToggleTheme,
         shortcut: None,
         message: || Message::ToggleTheme,
@@ -126,4 +121,28 @@ pub fn filtered_indices(app: &App, query: &str) -> Vec<usize> {
         .filter(|(_, cmd)| q.is_empty() || app.t(cmd.label).to_lowercase().contains(&q))
         .map(|(i, _)| i)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// D-8: two rows dispatching the identical `Message` read as the same
+    /// command with two labels -- `PaletteCmdSettings`/`PaletteCmdGoSettings`
+    /// both fired `SwitchTab(Settings)` before this fix. `Message` derives
+    /// no `PartialEq` (and adding it is out of this task's scope), so this
+    /// compares the `Debug` rendering -- exact for every variant `TABLE`
+    /// actually uses, and cheap insurance against the duplicate returning.
+    #[test]
+    fn no_two_table_entries_dispatch_the_same_message() {
+        let mut seen = std::collections::HashSet::new();
+        for cmd in TABLE {
+            let rendered = format!("{:?}", (cmd.message)());
+            assert!(
+                seen.insert(rendered.clone()),
+                "{:?} dispatches {rendered}, already dispatched by an earlier row",
+                cmd.label
+            );
+        }
+    }
 }

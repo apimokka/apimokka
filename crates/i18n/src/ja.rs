@@ -291,7 +291,6 @@ pub fn t(key: Key) -> &'static str {
         Key::PaletteCmdReload => "設定リロード",
         Key::PaletteCmdRestart => "サーバー再起動",
         Key::PaletteCmdSwitchWorkspace => "ワークスペース切替",
-        Key::PaletteCmdSettings => "設定を開く",
         Key::PaletteCmdToggleTheme => "テーマ切替",
         Key::PaletteCmdLocale => "言語変更",
         Key::PaletteCmdGoRoutes => "ルートへ移動",

@@ -787,6 +787,14 @@ impl App {
 
             // Workspace menu
             Message::ToggleWorkspaceMenu => {
+                // D-7: also reachable as a palette row ("Switch workspace");
+                // closing the palette here matches what `AddRuleFromPalette`
+                // already does for the same reason -- opening another
+                // overlay while the palette stays open stacks the two with
+                // a confusing z-order. Also dispatched from the top bar's
+                // own button (`shell/top_bar.rs`), where the palette is
+                // already closed, so this is a no-op there.
+                self.command_palette.open = false;
                 self.workspace_menu_open = !self.workspace_menu_open;
             }
             Message::CloseWorkspaceMenu => {
@@ -829,6 +837,10 @@ impl App {
 
             // Drawer
             Message::OpenValidationDrawer => {
+                // D-7: only reachable in production UI via the palette row
+                // today (no other button dispatches this); close it for the
+                // same reason `AddRuleFromPalette` does.
+                self.command_palette.open = false;
                 self.drawer = Some(DrawerMode::Validation);
                 if let Some(session) = self.snapshot.as_mut()
                     && !session.faulted
@@ -841,6 +853,9 @@ impl App {
                 }
             }
             Message::OpenSaveDiffDrawer => {
+                // D-7: same reasoning as `OpenValidationDrawer` above --
+                // only reachable in production UI via the palette row today.
+                self.command_palette.open = false;
                 self.drawer = Some(DrawerMode::SaveDiff);
             }
             Message::CloseDrawer => {
@@ -1319,6 +1334,12 @@ impl App {
 
             // Test rule
             Message::TestRuleOpen => {
+                // D-7: also a palette row ("Test current rule"); close the
+                // palette for the same reason `AddRuleFromPalette` does.
+                // Also dispatched from the rule editor's own action button
+                // (`screens/routes/rule_editor.rs`), where the palette is
+                // already closed, so this is a no-op there.
+                self.command_palette.open = false;
                 let (method, url_path) = self
                     .selected_rule()
                     .map(|r| {

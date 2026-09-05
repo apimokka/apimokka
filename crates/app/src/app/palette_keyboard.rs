@@ -244,3 +244,83 @@ fn mode_picker_arrow_keys_are_a_noop_once_a_mode_is_chosen() {
         "arrow keys must not touch the mode picker once it is no longer shown"
     );
 }
+
+// ── D-7: four palette rows that open another overlay must close the ─────
+// palette first, the same way `AddRuleFromPalette` already does — a
+// stacked palette + workspace-menu/drawer/dialog is a real z-order defect
+// found live during M10's visual pass, not a hypothetical.
+
+#[test]
+fn toggle_workspace_menu_closes_the_palette_and_opens_the_menu() {
+    let mut a = expert_in_workspace();
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
+    a.update(Message::ToggleWorkspaceMenu);
+    assert!(
+        !a.command_palette.open,
+        "opening the workspace menu from the palette must close the palette"
+    );
+    assert!(a.workspace_menu_open);
+}
+
+#[test]
+fn test_rule_open_closes_the_palette_and_opens_the_dialog() {
+    let mut a = expert_in_workspace();
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
+    a.update(Message::TestRuleOpen);
+    assert!(
+        !a.command_palette.open,
+        "opening the test-rule dialog from the palette must close the palette"
+    );
+    assert!(a.test_rule.open);
+}
+
+#[test]
+fn open_validation_drawer_closes_the_palette_and_opens_the_drawer() {
+    let mut a = expert_in_workspace();
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
+    a.update(Message::OpenValidationDrawer);
+    assert!(
+        !a.command_palette.open,
+        "opening the validation drawer from the palette must close the palette"
+    );
+    assert_eq!(a.drawer, Some(crate::selection::DrawerMode::Validation));
+}
+
+#[test]
+fn open_save_diff_drawer_closes_the_palette_and_opens_the_drawer() {
+    let mut a = expert_in_workspace();
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
+    a.update(Message::OpenSaveDiffDrawer);
+    assert!(
+        !a.command_palette.open,
+        "opening the save-diff drawer from the palette must close the palette"
+    );
+    assert_eq!(a.drawer, Some(crate::selection::DrawerMode::SaveDiff));
+}
+
+/// The judgement task 018 asked to check rather than assume: all four
+/// messages are also reachable from outside the palette (top bar button,
+/// rule editor action button, or — for the two drawer messages — only
+/// tests today). Closing an already-closed palette must be harmless.
+#[test]
+fn the_four_d7_messages_are_harmless_when_the_palette_is_already_closed() {
+    let mut a = expert_in_workspace();
+    assert!(!a.command_palette.open, "test setup sanity");
+
+    a.update(Message::ToggleWorkspaceMenu);
+    assert!(a.workspace_menu_open);
+    a.update(Message::ToggleWorkspaceMenu); // back off, for the next check
+
+    a.update(Message::TestRuleOpen);
+    assert!(a.test_rule.open);
+
+    a.update(Message::OpenValidationDrawer);
+    assert_eq!(a.drawer, Some(crate::selection::DrawerMode::Validation));
+
+    a.update(Message::OpenSaveDiffDrawer);
+    assert_eq!(a.drawer, Some(crate::selection::DrawerMode::SaveDiff));
+}
