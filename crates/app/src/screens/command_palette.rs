@@ -37,7 +37,9 @@ pub fn view(app: &App) -> Element<'_, Message> {
             button(
                 container(
                     row![
-                        text(app.t(cmd.label)).size(size::BODY).width(Length::Fill),
+                        text(app.t((cmd.label)(app)))
+                            .size(size::BODY)
+                            .width(Length::Fill),
                         shortcut_el,
                     ]
                     .align_y(Alignment::Center),
