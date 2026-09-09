@@ -114,6 +114,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
 /// MK-039 feedback banner. Priority: friendly error > undo > success notice.
 /// Returns None when there is nothing to show.
 fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
+    use crate::accelerator::{self, Accelerator};
     use crate::theme::{self, size, space};
     use apimokka_i18n::Key;
     use iced::widget::{Space, button, container, row, text};
@@ -193,7 +194,13 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             button(
                 row![
                     text(app.t(Key::UndoLabel)).size(size::LABEL),
-                    text(" ⌘Z")
+                    // D-11: was a hard-coded " ⌘Z" -- advertised a macOS-only
+                    // key on every platform. `accelerator::display` is the
+                    // single source `screens/command_palette.rs` already
+                    // reads for the same binding; this is the one site task
+                    // 002 missed. Leading space kept to preserve the
+                    // existing gap rather than restructuring with spacing.
+                    text(format!(" {}", accelerator::display(Accelerator::Undo)))
                         .size(size::LABEL)
                         .color(theme::muted(&app.theme())),
                 ]
