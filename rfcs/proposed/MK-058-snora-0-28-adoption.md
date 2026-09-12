@@ -418,6 +418,48 @@ will say is not a substitute for running it. Had we adopted their list as our
 expectation we would have been surprised by six hits where three were promised —
 the stale-premise risk now recorded in `ROADMAP.md`, in its mildest form.
 
+#### snora corrected themselves the same day — and two of our four were fixable
+
+Hours after the note above, snora sent a correction
+(`.git-exclude/upstream/snora/receive/260912-0.49.0/snora-advisory-gate-correction-2026-09-12.md`,
+released as 0.49.0). Their `cargo-deny` `unsound` key was unset, and **that key
+is a scope — `all`/`workspace`/`transitive`/`none` — whose default excludes
+transitive dependencies.** Every package in their graph is transitive, so
+`advisories ok` had never meant "no unsoundness". The three advisories their
+gate hid are three of the four we had already listed above, found by running our
+own scan rather than adopting their prediction.
+
+**Their configuration lesson does not apply to us: we run `cargo audit`, not
+`cargo-deny`**, and `cargo audit` has no equivalent default. The lesson that does
+apply is the one we had already acted on — check the scanner's output yourself
+rather than a vendor's account of it.
+
+**Two of our four were one command away, and are now gone.** Applied
+`cargo update -p memmap2 -p event-listener`: `memmap2` 0.9.10 → 0.9.11
+(RUSTSEC-2026-0186) and `event-listener` 5.4.1 → 5.4.2 (RUSTSEC-2026-0221).
+Verified as exactly two packages moving and nothing else — 314 tests pass, the
+gate is green, and `cargo audit` now reports **four warnings instead of six**.
+This is a lockfile change, **not a snora upgrade**, so the freeze above is
+untouched; both crates reach us through `iced`, so snora's own 0.49.0 fix would
+never have reached our lockfile anyway.
+
+**`lru` is confirmed unfixable here, exactly as they say.** `cargo update -p lru`
+moves zero packages: `cryoglyph` holds it below the patched 0.18.2 and has no
+release that lifts it. It reaches us at run time through
+`cryoglyph → iced_wgpu → iced_renderer → iced`. Reaching the use-after-free needs
+a stored key whose `Drop` panics with unwinding enabled, which is not a path this
+application creates — but it is memory corruption on a runtime path, a different
+class from the unmaintained-crate advisories, and it is now recorded in
+`ROADMAP.md`'s risk table rather than sitting unexamined in scanner output.
+
+**We still hold one their corrected list misses**, which is the single thing
+their letter asks to hear about: **`anyhow` 1.0.102, RUSTSEC-2026-0190**
+(unsound, `Error::downcast_mut()`). Weight it honestly — it is reached in our
+lockfile only by the `wit-bindgen`/`wasm-metadata` component-model stack, so
+`cargo tree -i anyhow` prints *nothing to print* on every edge and target we
+build. It is compiled for none of our three platforms. It is a lockfile entry, in
+the same category as `paste`, not a runtime exposure.
+
 ## Sequencing
 
 **M8 runs before M6's L2 live run and before L3 sessions.** Both are unrun,
