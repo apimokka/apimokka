@@ -58,6 +58,14 @@ specification for a production GUI effort:
   5.19.1). `apimock-config` remains a **test-only dev-dependency**; our
   production surface on this crate family is four items from `apimock-routing`,
   and `apimock-server` is not depended on at all.
+- **snora is frozen at 0.42.0 through M6**, decided 2026-09-12 and recorded in
+  MK-058. 0.48.0 is current; snora's own note states neither release since 0.46
+  changes any API, rendered appearance, or feature resolution, and we are six
+  unreviewed minors behind, so adopting it now is cost with no named benefit at
+  the moment the only remaining work is human acceptance sessions. The freeze
+  protects the build identity MK-056 requires: M8's capture and M10's appearance
+  verification both describe 0.42.0. It lifts on M6 completion, on an advisory
+  against snora's own code, or on an M6 defect whose fix needs a later snora.
 - No production file I/O, subprocess control, trace socket, or Rhai editing is
   added by this programme. Engine crates may be adopted as **test-only**
   dev-dependencies where that is the only way to verify a contract.
@@ -544,6 +552,15 @@ not because any of it is scheduled here. Detail:
   traced to real new capability. `cargo audit` clean. Our production use of that
   crate is **four items**, none of which needs them; a shipped GUI carries the
   rest regardless. Recorded as a supply-chain measurement, not a complaint.
+
+**One further handover input, not from M11.** The production project should
+adopt **current** snora rather than inheriting our 0.42.0 pin, and re-verify
+appearance when it does. Our pin exists to hold M6's evidence still, which is a
+reason with no force once M6 is over. As of 2026-09-12 that means 0.48.0 or
+later, which additionally brings compiler-enforced `#![forbid(unsafe_code)]`
+across all five snora crates and a published threat model (both 0.47.0) — worth
+citing in a production assurance record, and neither worth an upgrade here,
+where no release is produced.
 
 ## Deferred beyond this roadmap
 

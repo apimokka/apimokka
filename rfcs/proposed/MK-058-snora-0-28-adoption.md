@@ -345,6 +345,79 @@ populate none of those `AppLayout` slots. The seven that will:
 `snora-menu-backdrop`, `snora-modal-dim`, `snora-dialog`, `snora-dialog-card`,
 `snora-sheet-panel`, `snora-header`, `snora-body`.
 
+### snora 0.42.0 is frozen through M6 — decided 2026-09-12
+
+snora released 0.48.0 and sent a migration note for 0.46 → 0.48
+(`.git-exclude/tmp/snora-0.46-to-0.48-upgrade-note-2026-09-12.md`). **We stay on
+0.42.0 until M6's sessions are complete.**
+
+**Their own note is the strongest argument for not moving.** It opens: *"Neither
+changes any API, any rendered appearance, or any feature resolution."* An upgrade
+whose vendor states it buys nothing observable, taken at the moment the only
+remaining work is human acceptance sessions, is cost with no named benefit.
+
+**And it is more than two minors.** We are on 0.42.0; this note covers 0.46 →
+0.48, so adopting 0.48.0 means assessing **six** unreviewed minors, not the two
+the note describes.
+
+**What the freeze protects.** M8's capture (12 screenshots) and M10's appearance
+verification both describe the build at snora 0.42.0. MK-056 requires the exact
+build identity be recorded for acceptance sessions. Moving the design system now
+would mean the evidence we already hold and the evidence the sessions produce
+describe different builds, and a finding in a session could not be attributed
+cleanly to the application or to the upgrade. **This is the same reasoning the
+breakpoint resolution above already applies** — "M6 is about to validate
+behaviour … sequence M6 first, then decide" — applied to the design system
+itself rather than to one feature of it.
+
+**What lifts the freeze**, without needing a further decision:
+
+1. M6's sessions complete — then upgrading is free of evidence risk;
+2. an advisory against snora's **own** code, or against a crate snora alone
+   pulls — a vulnerability outranks evidence continuity;
+3. a defect found in M6 whose fix needs something a later snora provides.
+
+Anything else waits. This is reversible on the project owner's word; the
+default, and the safer one, is to do nothing.
+
+#### The note's one action does not apply to us — verified, not assumed
+
+§1 asks every consumer to check `quick-xml` for `RUSTSEC-2026-0194/0195`.
+**Checked: `Cargo.lock` carries `quick-xml 0.41.0`**, which is the fixed version.
+Nothing to do. Note also that this reaches consumers through `iced` → `winit` →
+`wayland-scanner`, so it was never snora-version-dependent in the first place.
+
+§3 (the non-colour cue for toast and notice variants, now ruled out) concerns
+snora's **prefab** widgets. We compile `default-features = false, features =
+["design"]` and call none of them, as snora's own per-team note says. **It does
+not follow that we have no non-colour-cue obligation** — MK-056 requires
+non-colour status communication of *our* surfaces, which we build ourselves. That
+check belongs to M6 and is unaffected by this RFC.
+
+#### Three discrepancies with their §2, held for the next letter
+
+Their §2 predicts three advisory hits. **We ran `cargo audit`: zero
+vulnerabilities, six warnings.** Recorded here rather than sent, because their
+note says no reply is needed and every letter costs the project owner a relay —
+these go in the next batch, if there is one.
+
+1. **`rustybuzz` is absent from our graph entirely.** Their third predicted hit
+   does not exist for us.
+2. **`paste` does hit our scan on Linux**, which their table says is *"absent
+   from a Linux graph entirely"*. Both are true of different things and the
+   sentence conflates them: `cargo tree -i paste` on the host target prints
+   *nothing to print* — it arrives only via `metal` → `wgpu-hal`, Apple-only —
+   but `cargo audit` scans `Cargo.lock`, which is target-agnostic. A consumer
+   following their sentence would expect a clean Linux scan and be surprised.
+3. **Four `unsound` advisories they do not mention at all**: `anyhow`
+   (RUSTSEC-2026-0190), `event-listener` (0221), `lru` (0253), `memmap2` (0186).
+   All from iced's graph, none a vulnerability, none failing our gate.
+
+**The lesson is ours, not theirs:** a vendor's prediction of what our scanner
+will say is not a substitute for running it. Had we adopted their list as our
+expectation we would have been surprised by six hits where three were promised —
+the stale-premise risk now recorded in `ROADMAP.md`, in its mildest form.
+
 ## Sequencing
 
 **M8 runs before M6's L2 live run and before L3 sessions.** Both are unrun,
