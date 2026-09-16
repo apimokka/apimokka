@@ -394,12 +394,17 @@ not follow that we have no non-colour-cue obligation** — MK-056 requires
 non-colour status communication of *our* surfaces, which we build ourselves. That
 check belongs to M6 and is unaffected by this RFC.
 
-#### Three discrepancies with their §2, held for the next letter
+#### Three discrepancies with their §2 — sent 2026-09-12, all three accepted
 
 Their §2 predicts three advisory hits. **We ran `cargo audit`: zero
-vulnerabilities, six warnings.** Recorded here rather than sent, because their
-note says no reply is needed and every letter costs the project owner a relay —
-these go in the next batch, if there is one.
+vulnerabilities, six warnings.** Initially recorded here rather than sent. Their
+same-day correction then closed with an explicit standing ask — *"if your own
+scan turns up something our list still misses, that is the one thing worth
+telling us"* — which made the relay worth its cost, so the observations went out
+as `.git-exclude/upstream/snora/send/2026-09-12-apimokka-one-miss-and-two-confirmations.md`.
+
+**All three were accepted**, in their follow-up of 2026-09-16
+(`.git-exclude/upstream/snora/receive/260912-0.49.0/snora-advisory-followup-2026-09-16.md`):
 
 1. **`rustybuzz` is absent from our graph entirely.** Their third predicted hit
    does not exist for us.
@@ -417,6 +422,33 @@ these go in the next batch, if there is one.
 will say is not a substitute for running it. Had we adopted their list as our
 expectation we would have been surprised by six hits where three were promised —
 the stale-premise risk now recorded in `ROADMAP.md`, in its mildest form.
+
+**Outcome, 2026-09-16.** Their follow-up corrects all three and credits the
+source:
+
+- the `paste` wording is withdrawn — *"absent from a Linux build graph, but
+  `cargo audit` reads the target-agnostic lockfile and will report it on Linux
+  anyway"*;
+- `anyhow` is adopted into their account with our framing verbatim, *"weight it
+  as a lockfile entry, not a runtime exposure"*, and they confirm it is in
+  their lockfile too and compiles for no platform any consumer ships;
+- **the item they had not considered is the one that mattered most.** Their
+  correction said `memmap2` and `event-listener` were *"fixed in 0.49.0"*; that
+  is true of snora's lockfile and does not transfer to a consumer's, since both
+  crates arrive through `iced`. Four other teams could have read it as "upgrade
+  snora and the fixes arrive" and still be carrying both. Their follow-up now
+  says so, with the direct `cargo update` command.
+
+They add the consequence that matters here: **clearing those two does not
+require upgrading snora** — *"which matters if you are deliberately holding a
+version"*. The 0.42.0 freeze above is unaffected and now externally
+acknowledged as compatible with taking the fixes.
+
+**Nothing is outstanding on either side.** Their ask is satisfied, our two
+fixable advisories are cleared (2026-09-12), `anyhow` and `lru` are recorded
+with their reachability in `docs/src/development-and-gates.md`'s current
+inventory, and their follow-up closes *"no reply needed"*. **No further letter
+is owed**, and none should be written for courtesy.
 
 #### snora corrected themselves the same day — and two of our four were fixable
 
