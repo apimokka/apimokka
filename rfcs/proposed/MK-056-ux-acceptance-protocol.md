@@ -361,9 +361,48 @@ canonical gate green.
 
 ## Acceptance criteria
 
+> ### Defect in these criteria, found 2026-09-16 — awaiting a project-owner decision
+>
+> **The second bullet below cannot be satisfied as written.** It requires an
+> **L2** recorded pass for every mandatory combination in decision 7, but
+> decision 3's 2026-08-04 amendment migrated every check requiring navigation to
+> L3 — and all four mandatory combinations require navigation. Choosing an
+> audience mode, switching a theme and switching a locale are input, and the
+> application has no CLI, environment or persistence hook that reaches them
+> another way. **The amendment moved the work and left the criterion naming the
+> layer that can no longer do it.** M6 cannot be signed off against this text.
+>
+> **The premise the amendment rested on has also lapsed.** It declined `wtype`
+> alongside `ydotool` as *"kernel-level input injection"*. `wtype` is not that —
+> it speaks `zwp_virtual_keyboard_manager_v1`, a compositor-implemented Wayland
+> protocol; `ydotool` is the one needing `/dev/uinput`. The two were declined on
+> the stronger one's grounds. **`wtype` has since been installed and the
+> programme depends on it**: M8's capture was driven with it, M9's acceptance run
+> was entirely injected keys, and dev-team task 014 makes a `wtype` run a
+> standing verification requirement.
+>
+> **Two resolutions, and the choice is the project owner's:**
+>
+> 1. **Reclaim L2** with `wtype`, which makes three of the four mandatory
+>    combinations scriptable again — Japanese at the smallest window,
+>    high-contrast with keyboard-only input, and Expert at the smallest window.
+>    The criterion then holds as written for those three, and 200% text scale is
+>    named as L3, since it needs an output-scale change rather than input. Costs
+>    one dev-team task before the first session; also removes verification load
+>    from participants that this decision's own §3 flagged as *"not a free
+>    reassignment"*.
+> 2. **Amend the criterion** to read "L2 or L3" and record 200% text scale's
+>    route explicitly. Cheaper, and honest, but leaves participants carrying
+>    mechanical checks a script could take.
+>
+> Recorded here rather than only in the session pack because
+> `.git-exclude/tasks/owner/003-m6-session-pack.md` is not versioned and this is
+> a defect in an accepted design.
+
 - Preparation gate delivered and separately accepted.
 - L1 green on all three platforms, both toolchains.
-- L2 recorded pass for every mandatory combination in decision 7.
+- L2 recorded pass for every mandatory combination in decision 7. **See the
+  defect note above — this bullet is under decision.**
 - Every primary scenario completed by a participant of the intended persona,
   across the declared entry states, on both pointer and keyboard paths.
 - No unresolved S1 finding.
