@@ -13,11 +13,8 @@ record. The lifecycle policy is the MK-000 entry below.
 |---|---|---|
 | [MK-023](./proposed/MK-023-accessibility-keyboard.md) | Accessibility and keyboard contract | Returned from `done/` 2026-08-15 — Tab traversal never implemented; keyboard-only users cannot pass the first screen |
 | [MK-024](./proposed/MK-024-responsive-behaviour.md) | Responsive and window behaviour | Returned from `done/` 2026-08-12 — never implemented; blocked on a snora design-path gap (see its 2026-08-15 correction) |
-| [MK-033](./proposed/MK-033-command-palette.md) | Command palette | Returned from `done/` 2026-08-15 — renders and filters, but every keyboard requirement unimplemented |
+| [MK-033](./proposed/MK-033-command-palette.md) | Command palette | Returned from `done/` 2026-08-15. Keyboard requirements built by M9/M10; **context-aware disabled commands remain unimplemented**, so it stays here |
 | [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
-| [MK-058](./proposed/MK-058-snora-0-28-adoption.md) | snora 0.28 adoption | Stabilization roadmap M8 |
-| [MK-059](./proposed/MK-059-typography-and-readability.md) | Typography and readability | Amends MK-022 — proposed 2026-08-15, awaiting owner review |
-| [MK-060](./proposed/MK-060-apimock-6-adoption.md) | apimock-rs 6.0.0 adoption | Stabilization roadmap M11 |
 
 ---
 
@@ -58,6 +55,9 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-054](./done/MK-054-quality-and-security-gates.md) | Quality and security gates | Unreleased |
 | [MK-055](./done/MK-055-engine-contract-conformance.md) | Engine contract conformance | Unreleased |
 | [MK-057](./done/MK-057-maintainable-structure.md) | Maintainable structure | Unreleased |
+| [MK-058](./done/MK-058-snora-0-28-adoption.md) | snora 0.28 adoption | Unreleased |
+| [MK-059](./done/MK-059-typography-and-readability.md) | Typography and readability | Unreleased |
+| [MK-060](./done/MK-060-apimock-6-adoption.md) | apimock-rs 6.0.0 adoption | Unreleased |
 
 ---
 

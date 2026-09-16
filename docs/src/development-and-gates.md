@@ -610,3 +610,69 @@ here. This was flagged as NB1 in the MK-055 checkpoint review
 (`.git-exclude/reviewed/2026-08-01-rfc-mk055-harness-checkpoint-review.md`)
 and is stated plainly here so a future reader of MK-054 does not mistake its
 historical list for the current gate.
+
+## Advisory inventory — current entry, 2026-09-16
+
+The M4 table (2026-07-23) and its 2026-08-01 addendum above are frozen evidence
+for those milestones and are correct as records of them. **This is the current
+inventory**, and it is the one R2 should read.
+
+RFC MK-054's policy is unchanged and is deliberate: `cargo audit` blocks on a
+**vulnerability**; unmaintained and unsound warnings are inventoried here rather
+than promoted to blocking. MK-054's non-goals reject denying every RustSec
+category, and its alternatives reject an exception registry, on the grounds that
+a compatible patched release was available for the advisories that mattered.
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `cargo audit` | 0 | **Zero vulnerabilities; four allowed warnings**; 1,246 advisories loaded; 434 packages scanned |
+
+cargo-audit 0.22.2; advisory database revision
+`e2e640471715167f73e22eaf761f2e547adafeec`, timestamped
+`2026-09-14T18:06:06+02:00`.
+
+| Advisory | Package | Version | Category | Compiled | Resolved workspace dependency path |
+|---|---|---:|---|---|---|
+| RUSTSEC-2024-0436 | `paste` | 1.0.15 | unmaintained | **No** | `paste → metal → wgpu-hal → …` — Apple-only. `cargo tree -i paste` on a Linux host prints *nothing to print*; `cargo audit` still reports it because it scans the target-agnostic `Cargo.lock`. |
+| RUSTSEC-2026-0192 | `ttf-parser` | 0.25.1 | unmaintained | **Yes** | Font/text, window decoration. Unchanged from the M4 inventory. |
+| RUSTSEC-2026-0190 | `anyhow` | 1.0.102 | unsound | **No** | Empty inverse tree on every target and edge kind; lockfile-only residue referenced by the `wit-bindgen`/`wasm-metadata` component-model entries. |
+| RUSTSEC-2026-0253 | `lru` | 0.16.4 | unsound | **Yes** | `lru → cryoglyph → iced_wgpu → iced_renderer → iced → apimokka`. See the acceptance below. |
+
+### What changed since the 2026-08-01 addendum
+
+- **`memmap2` 0.9.10 → 0.9.11 (RUSTSEC-2026-0186) and `event-listener` 5.4.1 →
+  5.4.2 (RUSTSEC-2026-0221) are resolved.** Applied 2026-09-12 by
+  `cargo update -p memmap2 -p event-listener`, which moved exactly those two
+  packages. Both reach us through `iced`, not through `snora`.
+- **`rustybuzz` (RUSTSEC-2026-0206) has left the graph entirely.** It is no
+  longer a dependency at any version; `cargo tree -i rustybuzz` reports no
+  matching package.
+- Warning count 6 → 4. Two unmaintained, two unsound, zero vulnerabilities.
+
+### `lru` — an accepted risk, distinct from the rest
+
+`lru` is **the only advisory in this graph that is both unsound and actually
+compiled.** It is a potential use-after-free from lack of panic safety in
+`LruCache::pop()`, on the wgpu render path, which is iced's default renderer.
+
+**It cannot be cleared by us or by any consumer of iced today**: `cargo update
+-p lru` moves zero packages, because `cryoglyph` constrains it below the patched
+0.18.2 and has published no release that lifts the constraint. Reaching the
+failure requires a stored key whose `Drop` panics with unwinding enabled — a
+path this application does not create.
+
+**Retirement condition:** re-check on any `cryoglyph` or `iced` release. This is
+recorded as an accepted risk in `ROADMAP.md`'s risk table, not merely left in
+scanner output, because it is a different class from the unmaintained-crate
+advisories and should not be read alongside them.
+
+### Provenance
+
+`memmap2` and `event-listener` were surfaced by snora's 2026-09-12 advisory-gate
+correction, which disclosed that their own `cargo-deny` configuration left
+`unsound` unset — a scope whose default excludes transitive dependencies, so
+their gate had never reported unsoundness at all. That default does not apply
+here: this repository runs `cargo audit`, which has no equivalent setting, and
+all four unsound advisories were already in hand from running the scan rather
+than from adopting their published list. Their correction is what identified two
+of them as fixable.

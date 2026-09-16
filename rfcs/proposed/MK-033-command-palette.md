@@ -48,6 +48,35 @@
 >
 > The design below is unchanged and remains the intended target.
 
+> ## Second status review, 2026-09-16 — three of four requirements now built
+>
+> **M9 built the three keyboard requirements** (`74e7f75`, task 014) and M10
+> added the scroll behaviour arrow navigation needed (`4deadc2`, D-5). Three
+> later defects found by executing the surface were closed by tasks 018 and 019
+> — overlay stacking (D-7), a duplicate row (D-8), and a server row whose label
+> did not track server state (D-9).
+>
+> | Acceptance criterion | Built |
+> |---|---|
+> | `Ctrl+K` opens and closes from every workspace view | **Yes.** D-4 also made the toggle inert outside `AppView::Workspace`, where nothing rendered it. |
+> | Search input auto-focused on open | **Yes** (M9). |
+> | `Esc` closes the palette | **Yes** (M9), after a root-cause fix: `text_input` captures `Escape`, and `iced::keyboard::listen()` never sees captured events. |
+> | Arrow-key navigation, correct with the visible scroll | **Yes** (M9 + M10's `snap_to`). |
+> | Every command on the v1 list works when invoked | **Yes**, after D-7/D-8/D-9. |
+> | Header shortcut hints visible | **Yes** — rendered from `accelerator::display`. |
+> | **Disabled commands have a visible non-colour reason (tooltip + reduced contrast)** | **No.** |
+>
+> **This RFC therefore stays in `proposed/`** while MK-058, MK-059 and MK-060
+> moved to `done/` on the same day. `palette_commands::Command` is
+> `{ label, shortcut, message }` with no enabled/disabled concept, so the
+> "Context awareness (v1 minimal)" section is unimplemented: a command that is
+> meaningless in the current context is offered identically to one that is not.
+>
+> **Moving it would repeat the exact defect the 2026-08-15 correction above
+> records** — an RFC filed as implemented whose mechanism does not exist. It is
+> not scheduled; M6 may well decide whether it is wanted, since the v1 set is
+> small enough that a participant may never meet a context-unavailable row.
+
 ## Summary
 
 The command palette is the keyboard-first action launcher. It is the canonical fallback for any action that lacks a dedicated shortcut, and the discoverability surface for keyboard shortcuts that exist. Power users live here.

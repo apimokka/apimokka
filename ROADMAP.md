@@ -192,9 +192,22 @@ Two additions follow from decisions recorded after MK-054:
   platform must not be claimed as supported without a recorded run. `cargo
   audit` is unaffected, since `Cargo.lock` is target-independent.
 
-Cross-platform verification is performed **manually and recorded as evidence**,
-not through CI. MK-054's deferral of hosted CI stands, and cross-platform scope
-does not overturn it:
+> **Overtaken 2026-08-03, recorded 2026-09-16.** The paragraphs below are kept
+> as the reasoning that was current until M6's L1 unit delivered hosted CI —
+> GitHub Actions, three platforms × two toolchains, six legs, run
+> `30824280662` at `469e6cf`, evidence in
+> `docs/src/development-and-gates.md`. **Every milestone accepted since (M8,
+> M11, M9, M10) and every defect task (018, 019, 020) was accepted on "CI green
+> on all six legs", so CI, not manual capture, is now the cross-platform
+> record.** The three bullets below remain individually true and are why CI was
+> not built earlier; they are no longer why it does not exist. Manual capture
+> retains the role the second bullet describes — rendering, font metrics and
+> high-contrast behaviour, which no build gate can assess and which M6 judges.
+
+Cross-platform verification was, until M6's L1, performed **manually and
+recorded as evidence** rather than through CI. MK-054's deferral of hosted CI
+stood on three grounds, and cross-platform scope did not by itself overturn
+them:
 
 - the mockup contains no filesystem, process, or network code, so a successful
   build on another platform carries little information;
@@ -205,10 +218,12 @@ does not overturn it:
   absorbed into the production project is small and bounded, so CI setup and
   maintenance would not amortize.
 
-CI belongs to the production GUI project, which will be long-lived and will
-carry genuinely platform-dependent code — path resolution, subprocess control,
-and a trace transport whose UDS option is Unix-only and needs a TCP path on
-Windows. It is recorded in the deferred list on that basis.
+What changed that calculus was M6 itself: MK-056 requires a recorded
+build-and-test run on every platform claimed as supported, and repeating that
+by hand at each of the remaining verification events cost more than the
+workflow did. The production GUI project will need CI on far stronger grounds —
+path resolution, subprocess control, and a trace transport whose UDS option is
+Unix-only and needs a TCP path on Windows.
 
 Any approved advisory exception must be repository-owned and machine-checked.
 Its record must include advisory ID, dependency path, exploitability analysis,
@@ -227,8 +242,9 @@ Scope and exit criteria for M0–M4 are preserved in their RFCs and in
   reconciled versions and Status fields, recorded the snora de-vendoring, and
   added the executable RFC-integrity checker.
 - **M2 — Match-test conformance (MK-052).** Made Test Rule fail-closed against
-  real `apimock-routing` 5.10.0 matcher primitives, with a published capability
-  matrix and a matcher-oracle guard against unreviewed dependency drift.
+  real `apimock-routing` matcher primitives — 5.10.0 then, **6.0.0 since M11** —
+  with a published capability matrix and a matcher-oracle guard against
+  unreviewed dependency drift.
 - **M3 — Integration boundary (MK-053).** Replaced direct snapshot mutation
   with the `WorkspacePort` mapping boundary: typed atomic transactions, stable
   condition identity, canonical/render correlation, semantic undo/redo, runtime
@@ -238,9 +254,21 @@ Scope and exit criteria for M0–M4 are preserved in their RFCs and in
   resolved both `quick-xml` advisories through compatible updates, and added
   the canonical release-gate script and its self-test.
 
-## Remaining steps
+## Step definitions
+
+Scope and exit criteria for the steps not summarised above. **This section is
+not a statement of what remains** — the progress table below is the authority
+on status, and each subsection carries its own marker. Completed definitions
+are kept rather than deleted: they are what the exit evidence was judged
+against.
+
+**Of these, only M6 and R2 remain.**
 
 ### M7 — Engine contract conformance
+
+> **Complete**, accepted 2026-08-02. Superseded in one respect: M11 later
+> carried the engine from 5.10.0 to 6.0.0, so the version named throughout this
+> subsection is the one M7 was judged against, not the one in the tree.
 
 **Goal:** verify the M3 editing boundary against the real apimock-rs
 configuration contract instead of against a locally designed mapping.
@@ -284,6 +312,8 @@ Exit gate:
 
 ### R1 — Blocking architecture re-review
 
+> **Complete** — **CONDITIONAL GO** recorded 2026-08-02; condition R1-1 closed.
+
 **Goal:** independently verify that findings B1–B5 are resolved.
 
 Required inputs: M1 governance evidence; M2 operator conformance matrix and
@@ -297,6 +327,8 @@ Decision:
 - **NO-GO:** return unresolved blockers to the owning step.
 
 ### M5 — Maintainable structure
+
+> **Complete**, accepted 2026-08-04 (MK-057, seven reviewed slices).
 
 **Goal:** bring the codebase back within the project's file-organization rules
 without changing behavior.
@@ -326,6 +358,9 @@ Exit gate:
 - the canonical gate remains green after every split.
 
 ### M6 — UX acceptance evidence
+
+> **Implementing** — L1, the preparation gate and L2 are closed; **L3 human
+> sessions remain, blocked only on participant recruitment.**
 
 **Goal:** validate the mockup for its actual purpose: stakeholder review of
 workflows and interaction design.
@@ -384,6 +419,8 @@ Exit gate:
 
 ### R2 — Integration readiness
 
+> **Not started** — follows M6.
+
 **Goal:** decide whether the stabilized mockup can become the executable
 specification for production GUI integration.
 
@@ -411,9 +448,17 @@ RFC identifiers are assigned only when files are created.
 | 2 | Test-rule matcher conformance | M2 | MK-052 Implemented |
 | 3 | GUI editing boundary and apimock-rs mapping/adapter | M3 | MK-053 Implemented |
 | 4 | Release gates, dependency policy, and security exceptions | M4 | MK-054 Implemented |
-| 5 | **Engine contract conformance against apimock-config 5.10.0** | M7 | MK-055 Proposed, design accepted |
-| 6 | Reducer, routes, fixtures, and test modularization | M5 | To be created |
-| 7 | UX and accessibility acceptance protocol | M6 | To be created |
+| 5 | Engine contract conformance against real `apimock-config` | M7 | MK-055 Implemented |
+| 6 | Reducer, routes, fixtures, and test modularization | M5 | MK-057 Implemented |
+| 7 | UX and accessibility acceptance protocol | M6 | MK-056 Proposed — the one open design |
+| 8 | snora design-system adoption | M8 | MK-058 Implemented |
+| 9 | apimock-rs 6.0.0 adoption | M11 | MK-060 Implemented |
+| 10 | Typography and readability | M10 | MK-059 Implemented |
+
+M9 is the one milestone with no RFC of its own, by design: it implements
+MK-033 and MK-023's first-screen half as written, and dev-team task 014 says so
+explicitly. MK-033 remains `Proposed` because its context-aware disabled
+commands were never built; MK-023 because Tab traversal was not taken.
 
 Optional developer handoffs should be created only where the RFC is too large
 to implement safely from the design alone. M5's package should include a
@@ -472,6 +517,16 @@ Not started → Designing → Implementing → In review → Complete
 the evidence approver recorded acceptance. Finishing implementation alone moves
 the step to `In review`, not `Complete`. A blocked step records the blocking
 condition, owner, and next decision.
+
+**Moving a step to `Complete` has three parts, not one.** Update the row below;
+**move the step's RFC to `rfcs/done/` and set its Status field**; and update any
+prose the step made untrue. Added 2026-09-16 because the first was done four
+times and the second never — MK-033, MK-058, MK-059 and MK-060 all sat in
+`rfcs/proposed/` after their milestones were accepted, and M11 left two
+documents describing an engine version it had replaced. `check-rfcs.sh` cannot
+catch either: it verifies that a folder and a Status field agree, which a
+shipped-but-unmoved RFC satisfies perfectly. **This is a review obligation, not
+a gate.**
 
 | Step | Status | Decision/evidence |
 |---|---|---|
@@ -586,11 +641,12 @@ These remain outside the mockup stabilization programme:
 - mdBook documentation build and link validation. `docs/src` has no `book.toml`
   or `SUMMARY.md` and is therefore not a buildable book. This is accepted for
   the mockup and is a requirement of the production GUI project;
-- continuous integration, including a cross-platform build matrix. Deferred
-  here because this repository is short-lived and has no platform-specific
-  code; required by the production project, which will be long-lived and will
-  carry path resolution, subprocess lifecycle, and a trace transport whose UDS
-  option is unavailable on Windows;
+- ~~continuous integration, including a cross-platform build matrix~~ —
+  **no longer deferred; delivered 2026-08-03 by M6's L1 unit** (GitHub Actions,
+  three platforms × two toolchains). Struck rather than deleted because the
+  entry was cited in M4's and MK-054's reasoning. The production project still
+  needs its own, on stronger grounds: path resolution, subprocess lifecycle,
+  and a trace transport whose UDS option is unavailable on Windows;
 - packaging reproducibility and source-archive-matches-tree validation. These
   are moot under the no-release policy; if an archival snapshot is ever
   requested, note that no validation check exists for it.

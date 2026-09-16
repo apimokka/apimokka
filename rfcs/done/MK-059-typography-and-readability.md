@@ -1,6 +1,6 @@
 # RFC MK-059 — Typography and readability
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Text scale, line-height, readability floor.
 **Touches.** Every text-bearing surface — 294 sizing call sites.
 **Amends.** MK-022 (visual design system), which owns `theme::size`.
@@ -264,9 +264,19 @@ part of M10 rather than left implicit here.
 
 ## Status
 
-**Accepted** 2026-08-15 by the project owner. Not yet implemented.
+**Accepted** 2026-08-15 by the project owner. **Implemented and accepted
+2026-09-05 as milestone M10** (`4deadc2`, dev-team task 017); moved to `done/`
+on 2026-09-16.
 
-Scheduled as **M10**, after M9 and task 015, and last before M6's sessions. The
-implementation task will be issued when that window opens, not now: M9 changes
-the command palette, and this RFC's triage should be performed against the code
-as it will then be, rather than against code about to change.
+Delivered against its own resolutions rather than against a target count: 102 of
+152 `CAPTION` sites triaged — 32 to the new `BODY_SMALL` tier with line-height,
+71 to the new `LABEL` tier without — and **50 left at 12.0 deliberately**, which
+is resolution 2 working as intended. `DISPLAY` stayed 36.0 per resolution 1.
+Line-height was applied only where it is a gain against iced's silent
+`Relative(1.3)` default: `body` at 1.4 and `body_small` at 1.35. Acceptance
+evidence, including the no-clipping confirmation this RFC requires, is in
+`.git-exclude/release-evidence/2026-09-05-task017-m10-visual-capture/`.
+
+**One obligation outlives this RFC.** Resolution 3 owes M6 a readability probe
+over the 50 deliberately-retained sites; it lives in MK-056 as of `e9ad493` and
+is M6's to run, not this RFC's to hold open.

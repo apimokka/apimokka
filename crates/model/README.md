@@ -12,16 +12,23 @@ editing boundary is the local `WorkspacePort` contract adopted by RFC MK-053:
   snapshots and typed effects; and
 - `MemoryWorkspace` implements the contract without filesystem or server I/O.
 
-The mapping is based on the documented apimock-rs 5.10.1 GUI integration
-reference. That version was never published. RFC MK-055 adopted the real
-`apimock-config` 5.10.0 crate as a **test-only dev-dependency**
-(`tests/engine_conformance/`, pinned by
-`scripts/check-engine-oracle.sh`) and verified the mapping by executing
-against it — not merely by reading its source. This crate claims conformance
-to the reviewed local mapping and both the in-memory and 5.10.0-executed
-contract suites, not source or binary compatibility with an engine
-implementation: `MemoryWorkspace` remains the only implementation, and no
-production adapter has been built.
+The mapping was originally designed against a documented apimock-rs 5.10.1 GUI
+integration reference that **was never published**. RFC MK-055 replaced that
+prose with an executable artifact, adopting `apimock-config` as a **test-only
+dev-dependency** (`tests/engine_conformance/`, pinned by version and checksum in
+`scripts/check-engine-oracle.sh`) and verifying the mapping by executing against
+it rather than by reading its source.
+
+**RFC MK-060 carried that dependency to `apimock-config` 6.0.0 on 2026-09-05**,
+which is the version the conformance suites now execute against. 6.0.0 ships a
+documented library API with a stability statement, so the boundary is verified
+against a published contract rather than reconciled with an unpublished
+reference.
+
+This crate claims conformance to the reviewed local mapping and to both the
+in-memory and 6.0.0-executed contract suites — **not** source or binary
+compatibility with an engine implementation: `MemoryWorkspace` remains the only
+implementation, and no production adapter has been built.
 
 Older `EditCommand`, `WorkspaceSnapshot`, `RulePayload`, `RespondPayload`,
 `SaveResult`, and trace types remain as mockup render/prototype vocabulary.

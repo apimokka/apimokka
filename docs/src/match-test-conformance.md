@@ -1,18 +1,37 @@
 # Test Rule matcher conformance
 
 Test Rule is a local diagnostic dry run. It does not send network traffic. Its
-supported comparisons call leaf matcher primitives from the `apimock-routing`
-5.10.0 crate fixed in `Cargo.lock`. The manifest accepts the 5.x compatibility
+supported comparisons call leaf matcher primitives from the **`apimock-routing`
+6.0.0** crate fixed in `Cargo.lock`. The manifest accepts the 6.x compatibility
 line, but a later resolved artifact is not an adopted matcher until its
-provenance and conformance evidence are reviewed. The repository's 5.10.1 GUI
-integration reference remains the intended M3 contract, but no reproducible
-5.10.1 engine artifact was available when RFC MK-052 adopted the executable M2
-oracle — 5.10.1 was never published. RFC MK-055 (M7) separately adopted the
-real `apimock-config` 5.10.0 crate as a test-only dev-dependency and verified
-the MK-053 editing boundary (not matching) against it by execution; see
+provenance and conformance evidence are reviewed — `scripts/check-matcher-oracle.sh`
+pins the version and checksum so a drift cannot pass unreviewed.
+
+**Provenance, corrected 2026-09-16.** RFC MK-052 originally adopted
+`apimock-routing` 5.10.0, because the repository's intended M3 contract was a
+5.10.1 GUI integration reference that **was never published** and had no
+reproducible artifact. RFC MK-055 (M7) then adopted the real `apimock-config`
+5.10.0 as a test-only dev-dependency and verified the MK-053 editing boundary —
+not matching — against it by execution.
+
+**RFC MK-060 (M11) superseded both on 2026-09-05**, carrying `apimock-routing`
+and `apimock-config` to **6.0.0** directly, past nine unused 5.x minors. That
+retires the unpublished-reference problem entirely: 6.0.0 ships a documented
+library API with a stability statement, so the contract is an artifact rather
+than prose. MK-052 and MK-055 were both re-run against it. Production source
+changed by zero lines; see
 [Architecture § Contract provenance](./architecture.md#contract-provenance).
-Test Rule's matching contract above is unaffected — `apimock-config` does not
-own request matching.
+
+Test Rule's matching contract below is unaffected by the config crate —
+`apimock-config` does not own request matching.
+
+**One boundary this document should state.** Our match-test represents request
+header values as UTF-8 `String`s, so a header value that is not valid UTF-8
+cannot be expressed here at all. apimock-rs 6.1.0 (RFC 072) changed the engine's
+behaviour for exactly that input — such a condition used to match
+unconditionally and now fails closed. The change is unreachable from this
+surface, so it is a **limit of what we can specify**, not a divergence. Recorded
+2026-09-16 so the conformance claim is read with its edge visible.
 
 Test Rule fails closed:
 
@@ -46,9 +65,18 @@ state, but the dialog does not currently provide free-form method entry.
 | Header | Equal, Contains, StartsWith, NotEqual, WildCard | EndsWith, Regex, Exists, Absent |
 | JSON body | Equal, EqualString, Contains, StartsWith, EndsWith, EqualTyped, ArrayContains, EqualNumber, GreaterThan, LessThan, GreaterOrEqual, LessOrEqual, EqualInteger, ArrayLengthEqual, ArrayLengthAtLeast, Exists, Absent | Regex |
 
-Body Regex is unavailable because the 5.10.0 implementation performs literal
+Body Regex is unavailable because the engine's implementation performs literal
 substring containment despite the regex operation name. Test Rule does not
 present containment as regex behavior.
+
+**Re-derived against 6.0.0 at M11** (RFC MK-060) and unchanged. 6.0.0 added
+`Regex`/`NotRegex` to `UrlPathOp` and `NotRegex` to `HeaderOp`, but `BodyOp`'s
+seven additions are the four `Not*` families, `MapHasKey`, `MapDoesNotHaveKey`
+and `StructuralContains` — **no new body regex operator**, so the reason above
+still holds. Every verdict in the matrix above was re-derived at that upgrade;
+none moved. Our operator enums remain strict subsets of the engine's in all
+three families, so this surface cannot express a condition the engine would
+reject.
 
 ## Input and matching details
 

@@ -1,6 +1,6 @@
 # RFC MK-060 — apimock-rs 6.0.0 adoption
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M11 — engine major upgrade.
 **Touches.** `apimock-routing` (production, 4 items), `apimock-config`
 (test-only conformance oracle), MK-052's matcher conformance, MK-055's engine
@@ -211,3 +211,23 @@ will not have these files):
 gh api repos/apimokka/apimock-rs/contents/crates/apimock-config/public-api.txt \
   --jq '.content' | base64 -d
 ```
+
+## Status
+
+Decided by the project owner 2026-08-21. **Implemented and accepted 2026-09-05
+as milestone M11** (`6c12a07`, dev-team task 016); reviewed in
+`.git-exclude/reviewed/2026-09-05-mk060-apimock-6-adoption-review.md`, CI run
+`33929641568` green on all six legs. Moved to `done/` on 2026-09-16.
+
+**Production source changed by zero lines.** The only diff was 24 struct-literal
+sites in the test-only engine-conformance suite, broken by four
+`apimock-config` payload types becoming `#[non_exhaustive]` at 6.0.0. MK-052 and
+MK-055 were both re-run against 6.0.0 and the oracle guards re-pinned to its
+version and checksum.
+
+**A gap this RFC's own delivery left, recorded 2026-09-16.** M11 changed no
+documentation, so `crates/model/README.md` and
+`docs/src/match-test-conformance.md` went on describing apimock-rs 5.10.0/5.10.1
+for eleven days after the adoption. Corrected in the same commit that moved this
+file. The lesson belongs with the RFC: *"production source changed by zero
+lines"* measured risk correctly and completeness wrongly.

@@ -1,6 +1,6 @@
 # RFC MK-058 — snora 0.28 adoption
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** Stabilization roadmap M8 — snora 0.28 adoption.
 **Touches.** The `snora` dependency, `main.rs`'s theme wiring,
 `shell/view.rs`'s six render calls, and the appearance M6 will validate.
@@ -575,8 +575,13 @@ Recommended by the programme architect and accepted with the design on
 ## Status
 
 Design accepted by the project owner on 2026-08-04, including the four
-resolutions above. Under the four-folder lifecycle this RFC remains `Proposed`
-until its implementation ships.
+resolutions above. **Implemented and accepted 2026-09-04 as milestone M8**;
+moved to `done/` on 2026-09-16. Phases 1–3 shipped at snora 0.28.0, Phase 5 at
+0.29.0, and the dependency was later carried to 0.42.0 (`93815e7`, `5d5388e`).
+Acceptance evidence is the collaborative capture in
+`.git-exclude/release-evidence/2026-08-12-m8-visual-capture/` — twelve
+screenshots and a filled `RESULTS.md`. Phase 4 was out of scope by design and
+stays so; §7's unlocked workstreams were never authorized.
 
 Acceptance of this design is recorded separately from authorization to
 implement. The project owner authorized implementation on 2026-08-04, assigned
