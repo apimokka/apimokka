@@ -676,3 +676,30 @@ here: this repository runs `cargo audit`, which has no equivalent setting, and
 all four unsound advisories were already in hand from running the scan rather
 than from adopting their published list. Their correction is what identified two
 of them as fixable.
+
+### Addendum, 2026-09-17 — `anyhow` cleared; three warnings
+
+`cargo update -p anyhow` moved exactly one package, 1.0.102 → 1.0.104,
+clearing **RUSTSEC-2026-0190**. 314 tests pass; the gate is green. `cargo audit`
+now reports **zero vulnerabilities and three warnings** — `paste` and
+`ttf-parser` (unmaintained) and `lru` (unsound, the accepted risk above).
+
+**Why take a patch for a crate this graph never compiles.** The 2026-09-16 entry
+records `anyhow` as lockfile-only here: its inverse tree is empty on every target
+and edge kind. That measurement stands. snora's third advisory note
+(2026-09-16) withdrew its own advice to weight `anyhow` that way, because two
+other consumers compile it directly. Their correction does not change *our*
+reachability — it was always our own measurement — but the reasoning a consumer
+gave them applies with more force here: *"not called"* is a weaker guarantee
+than *"not there"*, and *"not compiled"* still leaves a row every future reader
+must re-derive. One package, no collateral.
+
+**Also confirmed while checking their note.** They report `crossbeam-epoch`
+**RUSTSEC-2026-0204** (a vulnerability, patched in 0.9.20) reaching iced
+consumers who enable its `image` feature. We do not enable `image`, but we carry
+the crate anyway, by a path snora never sees:
+`crossbeam-epoch → crossbeam-deque → ignore → apimock-routing 6.0.0 → apimokka`
+— part of the eleven-crate growth recorded at M11. **Our lockfile already
+resolves 0.9.20, the patched version**, so nothing is owed. It is recorded
+because it is a clean instance of their closing rule: a dependency's advisory
+list describes its graph, never a bound on ours.

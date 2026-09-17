@@ -398,6 +398,45 @@ canonical gate green.
 > Recorded here rather than only in the session pack because
 > `.git-exclude/tasks/owner/003-m6-session-pack.md` is not versioned and this is
 > a defect in an accepted design.
+>
+> #### Correction, 2026-09-17 — resolution 1 rested on a false premise
+>
+> **The project owner accepted resolution 1 on 2026-09-17. It cannot deliver
+> what it promised, and the architect who recommended it withdraws it.**
+>
+> The note above says M9's acceptance run *"was entirely injected keys"* and that
+> reclaiming L2 would make three mandatory combinations scriptable. **Both are
+> false.** M9's own evidence
+> (`.git-exclude/release-evidence/2026-09-05-task014-wtype-run/RESULTS.md`)
+> declares that Welcome → Dashboard has no keyboard path and that the owner
+> supplied two pointer clicks; the unbroken keyboard chains were steps 1–4 and
+> 8–11. The architect repeated the task's *instruction* ("a run … entirely by
+> injected keys **is** the acceptance evidence") as though it were the run's
+> *result*.
+>
+> Verified at source on 2026-09-17: `wtype` can drive the mode picker and nothing
+> after it until a workspace is open. Welcome's controls are `button`s; the
+> palette is inert outside a workspace; **iced 0.14 cannot focus a `button` or a
+> `pick_list`** (only `text_input` and `text_editor` implement `Focusable`); locale
+> is fixed at `Locale::En` on launch; and no pointer-injection tool is installed.
+> So none of the three combinations is reachable by `wtype`:
+>
+> | Combination | Blocked at |
+> |---|---|
+> | Japanese at the smallest window | Welcome — and locale has no keyboard route anywhere |
+> | High-contrast with keyboard-only input | Welcome — the theme toggle lives in the palette, inert outside a workspace |
+> | Expert at the smallest window | Welcome — Expert is selectable at the mode picker, but its dense layout is in the workspace |
+>
+> **The larger consequence is not about L2.** The same wall stops a keyboard-only
+> *person*: every primary scenario is uncompletable on the keyboard path at its
+> first step. That is recorded as **D-12 (S1)** in `ROADMAP.md`. It blocks this
+> protocol's acceptance criterion *"completed … on both pointer and keyboard
+> paths"*, and it must be resolved before sessions, since running them would
+> spend participants rediscovering a known S1 — the outcome the preparation gate
+> exists to prevent.
+>
+> **The defect in these criteria therefore stays open**, re-opened for a decision
+> that now depends on D-12's.
 
 - Preparation gate delivered and separately accepted.
 - L1 green on all three platforms, both toolchains.
