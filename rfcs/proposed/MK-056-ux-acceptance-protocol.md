@@ -323,8 +323,23 @@ input method (2), and entry state (5) is not required. Instead:
   - **Expert mode at the smallest supported window** — Expert shows every
     control at once, and this is where that density fails;
 - build identity (commit SHA), platform, theme, locale, mode, window size, input
-  method, and entry state are recorded per session and per L2 run. A finding
-  without its configuration is not reproducible and is not evidence.
+  method, **renderer**, and entry state are recorded per session and per L2 run.
+  A finding without its configuration is not reproducible and is not evidence.
+
+> **`renderer` added 2026-09-26.** iced falls back from its wgpu renderer to
+> **tiny-skia** when the GPU renderer cannot start — virtual machines, remote
+> desktops, missing drivers — or when `ICED_BACKEND` selects it. snora's 0.51.0
+> letter reports a contrast defect that existed **on the software renderer only**,
+> from 0.41 to 0.50, caused by a shadow behind a transparent button that the two
+> renderers draw differently. The defect was in their prefab widgets and does not
+> reach us, but the mechanism does: **we draw shadows on our own surfaces**
+> (`panel_style`, `card_style`), so the two renderers can differ for us too.
+>
+> **No apimokka evidence has ever recorded which renderer produced it** — not
+> M8's capture, not M10's, not L2's. All of it was almost certainly wgpu on a
+> GPU desktop, but that is an inference, not a record. A participant on a remote
+> desktop would be on the other path, and a finding they reported could not be
+> attributed. Record it from now on; do not retro-fit it to existing evidence.
 
 ### 8. Deferral rule
 
