@@ -122,9 +122,12 @@ reference them. An identifier therefore does not indicate sequence position.
 ## Work sequence
 
 ```text
-M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M7 ─ R1 ─┬─ M5 (complete) ───────────┬─ R2
-                                   ├─ M8 ─ M11 ─ M9 ─ M10 ─ M6 ┤
+M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M7 ─ R1 ─┬─ M5 (complete) ──────────────────────────────┬─ R2
+                                   ├─ M8 ─ M11 ─ M9 ─ M10 ─ t021 ─ M12 ─ M6 ─ M13 ┤
                                    └─ production-integration roadmap (draft only)
+
+                                   participant recruitment ─────────────┘
+                                   (owner, runs across t021 and M12)
 ```
 
 | Order | Step | Prerequisite |
@@ -141,8 +144,11 @@ M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M7 ─ R1 ─┬─ M5 (complete) ───�
 | 10 | M11 — apimock-rs 6.0.0 adoption | M8's capture; before M9, since it may move the editing surface they build on |
 | 11 | M9 — Keyboard operability | M8's capture (which it would otherwise invalidate); M11 |
 | 12 | M10 — Typography and readability | M9; last appearance change before M6 |
-| 13 | M6 — UX acceptance evidence | R1 GO; M8 before its live runs; M11 before it validates an editing surface; M9 before its keyboard-only session; M10 before its readability probe |
-| 14 | R2 — Integration readiness | M5, M8, M11, M9, M10 and M6 |
+| 13 | task 021 — appearance remediation (D-13, D-14) | M10; **before M6**, since it changes appearance M6 would otherwise record |
+| 14 | M12 — Keyboard path through the primary scenarios (D-12) | task 021, for a stable appearance baseline; **before M6's keyboard-only session** |
+| 15 | M6 — UX acceptance evidence | R1 GO; M8 before its live runs; M11 before it validates an editing surface; M9 before its keyboard-only session; M10 before its readability probe; **task 021 and M12** |
+| 16 | M13 — apimock-rs 6.2 adoption | **after M6** — it can move Test Rule, which the sessions exercise; **before R2**, so the specification describes the contract production will build against |
+| 17 | R2 — Integration readiness | M5, M8, M11, M9, M10, M6, **task 021, M12 and M13** |
 
 This table owns **order and prerequisites only**. Current state is owned solely
 by the progress table at the end of this document. Two tables recording the same
@@ -160,6 +166,104 @@ recruitment — not implementation — will gate R2.
 R1 and R2 operate on frozen inputs. Inputs freeze when the preceding step is
 accepted; material changes during review invalidate affected evidence and
 require targeted re-review.
+
+## Remaining sequence, priority, and delivery cycles
+
+Added 2026-10-06. The programme had order and prerequisites but no stated
+**cycle structure** and no priority among the work that is left. Both are the
+architect's to set and the project owner's to authorize.
+
+### What a delivery cycle is here
+
+**This programme produces no release, so the cycle unit is an authorized
+increment, not a version.** One cycle is:
+
+```text
+architect issues task  →  dev team implements  →  architect reviews
+     →  OWNER AUTHORIZES  →  push  →  CI six legs  →  register + roadmap updated
+```
+
+**Each cycle has exactly one authorization point.** That is deliberate: it is
+the smallest number that keeps the owner in control of what reaches the remote
+without making them the bottleneck on engineering judgement. Everything before
+it is mine; the authorization is theirs; everything after it is mechanical and
+verified.
+
+A cycle is **closed** only when the register and this file both describe the
+tree. Four milestones were accepted with their RFC left in `proposed/`, which is
+why that clause is written down rather than assumed.
+
+### The five remaining cycles
+
+| Cycle | Content | Priority | Exit evidence | The one authorization |
+|---:|---|---|---|---|
+| **C1** | task 021 — D-13 muted-text contrast, D-14 duplicate severity glyph | **P0** | AA asserted by test in all four presets; one glyph source, in `crates/model` | push |
+| **C2** | M12 — keyboard path through MK-056's six primary scenarios (D-12) | **P0** | each scenario completable by injected keys; `wtype` run with screenshots; D-12 closed | scope, then push |
+| **C3** | M6 — L3 human sessions | **P1** | two session logs, findings classified, no unresolved S1, readability probe answered | participants and dates |
+| **C4** | M13 — apimock-rs 6.2 adoption | **P2** | MK-052 and MK-055 re-run, both oracle guards re-pinned, divergences re-classified | push |
+| **C5** | R2 — integration readiness | **P3** | GO or NO-GO against R2's listed criteria | the decision itself |
+
+**Participant recruitment is not a cycle. It is a lead time**, and it runs
+across C1 and C2 in parallel. It is first in priority despite producing no
+artifact, because it is the only item whose duration nobody can compress and the
+only one that cannot be started late and caught up.
+
+### Why this order and not another
+
+- **C1 before C2** — both touch `theme.rs` and the shell views. C1 is a style
+  fix with measured targets; C2 is a feature. Landing the small one first gives
+  C2 a stable appearance baseline and keeps two changes out of one review.
+- **C1 and C2 before C3** — both change what a participant sees. Running
+  sessions first would record evidence against a build we then changed, and
+  MK-056 requires findings to be re-tested against a recorded build identity. It
+  would also spend participants rediscovering D-12, which is the exact waste the
+  preparation gate exists to prevent.
+- **C3 before C4** — `apimock-routing` supplies Test Rule's matcher primitives,
+  and *"edit a rule's conditions and verify the change with Test Rule"* is a
+  primary scenario. An engine change between the evidence and the sessions would
+  make a finding unattributable. The engine cannot change a pixel, so unlike
+  snora it poses no risk to M8's or M10's evidence — only to M6's.
+- **C4 before C5** — R2 certifies a specification. Certifying one validated
+  against 6.0.0 when production will build against 6.2 or later reproduces the
+  error MK-060 was adopted to avoid.
+
+### The D-12 scope decision, decided
+
+D-12 is S1 and MK-056 forbids deferring an S1, so the choice was between
+building a keyboard path and declaring keyboard-only operation out of scope for
+this mockup. **The recommendation is to build it, bounded to MK-056's six
+primary scenarios** — not to general keyboard operability.
+
+- MK-023 line 17 already permits this shape: every control reachable *"via Tab
+  **or the command palette**"*. Tab is not available — iced 0.14 gives focus only
+  to `text_input` and `text_editor`, so no traversal we could wire would reach a
+  `button` or a `pick_list`. The palette and M9's selection-plus-`Enter` idiom are
+  the route, and they already exist.
+- Scoping by **scenario** rather than by control is what makes it bounded. The
+  known blocks are Welcome's two actions, Dashboard's workspace rows, and
+  Settings' locale and audience-mode controls; the rest comes from the audit.
+- **C2's first deliverable is that audit, and it is allowed to stop the cycle.**
+  If the per-scenario control inventory comes back unbounded, the finding is
+  reported and the scope question returns to the owner with a size attached
+  instead of a guess.
+
+### Release cycles, concretely
+
+There are none, and the policy below is unchanged. What replaces them:
+
+- **the cycle above is the delivery rhythm** — five more of them, then the
+  programme is finished;
+- **the terminal artifact is R2's review package, and the deliverable is this
+  repository**, not an archive. No snapshot is produced: the production project
+  absorbs the repository, and `## Deferred beyond this roadmap` records that no
+  validation check exists for an archive. Building one to ship an artifact nobody
+  asked for would be work with no reader.
+- **`v0.10.0` stays frozen** through all five cycles. Completed RFCs read
+  `Implemented (Unreleased)`. R2 GO is a readiness label, not a version.
+
+If the owner later wants a distributable snapshot, it is a separate authorized
+task and the missing packaging validation is its first deliverable, not an
+afterthought.
 
 ## Programme-wide gate cadence
 
