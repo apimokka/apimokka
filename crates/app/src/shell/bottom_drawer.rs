@@ -100,7 +100,7 @@ fn validation_content(app: &App) -> Element<'_, Message> {
             apimokka_model::Severity::Info => app.t(Key::DrawerValidationInfo),
         };
         let heading = row![
-            text(widgets::severity_glyph(diagnostic.severity))
+            text(diagnostic.severity.glyph())
                 .size(size::BODY)
                 .color(theme::severity_color(&app.theme(), diagnostic.severity)),
             text(severity_label).size(size::LABEL),

@@ -225,22 +225,46 @@ pub fn severity_color(t: &Theme, sev: apimokka_model::Severity) -> Color {
 
 // ── Container style helpers ───────────────────────────────────────────────────
 
+/// Fill for surfaces that carry muted text (panels, chips, selected parent
+/// rows). D-13: Light and Dark take snora's `surface` token, the only token
+/// under which `text_muted` keeps its AA guarantee. The iced-derived
+/// `weak`/`strong` slots measure 3.1–4.2:1 there and are not used.
+///
+/// High-contrast presets keep their iced-derived slot: they already pass
+/// (muted on `weak`/`strong` is 7.2–11.3:1, see the D-13 measurements) and
+/// they are border-defined, so their appearance does not change.
+fn text_safe_fill(t: &Theme, high_contrast_slot: Color) -> Color {
+    if is_high_contrast(t) {
+        high_contrast_slot
+    } else {
+        to_iced_color(tokens_for(t).palette.surface)
+    }
+}
+
+/// D-13: the 1 px token border that separates a `surface`-filled panel or
+/// chip from the page in Light and Dark. Snora's `palette.border` is
+/// contrast-tested as a non-text edge, and reading it from the token keeps it
+/// on the same source as `dialog_style` (D-1).
+fn surface_border(t: &Theme, width: f32, radius: iced::border::Radius) -> Border {
+    Border {
+        radius,
+        width,
+        color: hc_border(t),
+    }
+}
+
 /// Default panel surface (sidebars, top bar, bottom drawer).
-/// Slightly off-base; no border. Subtle bottom shadow separates from body.
+/// Light and Dark: snora `surface` fill with a 1 px token border (D-13).
+/// High-contrast: unchanged — `weak` fill with the same border.
 pub fn panel_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     container::Style {
-        background: Some(Background::Color(ep.background.weak.color)),
+        background: Some(Background::Color(text_safe_fill(
+            t,
+            ep.background.weak.color,
+        ))),
         text_color: Some(ep.background.base.text),
-        border: if is_high_contrast(t) {
-            Border {
-                width: 1.0,
-                color: hc_border(t),
-                ..Default::default()
-            }
-        } else {
-            Border::default()
-        },
+        border: surface_border(t, 1.0, Default::default()),
         shadow: Shadow {
             color: Color::from_rgba(0.0, 0.0, 0.0, 0.04),
             offset: Vector::new(0.0, 1.0),
@@ -315,16 +339,18 @@ pub fn card_selected_style(t: &Theme) -> container::Style {
     }
 }
 
-/// Chip / badge — pill shape, muted background.
+/// Chip / badge — pill shape. Light and Dark: `surface` fill with a 1 px token
+/// border (D-13). High-contrast: unchanged — `strong` fill, no border.
 pub fn chip_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
+    let width = if is_high_contrast(t) { 0.0 } else { 1.0 };
     container::Style {
-        background: Some(Background::Color(ep.background.strong.color)),
+        background: Some(Background::Color(text_safe_fill(
+            t,
+            ep.background.strong.color,
+        ))),
         text_color: Some(ep.background.base.text),
-        border: Border {
-            radius: radius::PILL.into(),
-            ..Default::default()
-        },
+        border: surface_border(t, width, radius::PILL.into()),
         shadow: Shadow::default(),
         snap: true,
     }
@@ -507,6 +533,11 @@ pub fn naked(theme: &Theme, _status: iced::widget::button::Status) -> iced::widg
 // Uses a neutral background.strong tint so a selected rule-set header never
 // merges visually with a selected child rule below it.
 
+///
+/// D-13: the tint is a translucent `strong`, which composites to 3.9:1 (Light)
+/// and 4.1:1 (Dark) under the muted chevron and count it carries. Light and
+/// Dark therefore take the `surface` fill with the same 1 px token border as
+/// panels; the high-contrast tint already passes (8.9:1) and is unchanged.
 pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let base = ep.background.strong.color;
@@ -515,19 +546,29 @@ pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     } else {
         0.55
     };
-    container::Style {
-        background: Some(Background::Color(Color {
+    let background = if is_high_contrast(t) {
+        Color {
             r: base.r,
             g: base.g,
             b: base.b,
             a: alpha,
-        })),
+        }
+    } else {
+        to_iced_color(tokens_for(t).palette.surface)
+    };
+    container::Style {
+        background: Some(Background::Color(background)),
         text_color: Some(ep.background.base.text),
-        border: Border {
-            radius: radius::LG.into(),
-            ..Default::default()
-        },
+        border: surface_border(
+            t,
+            if is_high_contrast(t) { 0.0 } else { 1.0 },
+            radius::LG.into(),
+        ),
         shadow: Shadow::default(),
         snap: true,
     }
 }
+
+#[cfg(test)]
+#[path = "theme/tests.rs"]
+mod tests;

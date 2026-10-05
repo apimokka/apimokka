@@ -45,20 +45,12 @@ pub fn dirty_dot<'a>() -> Element<'a, Message> {
 
 // ── Severity badge ─────────────────────────────────────────────────────────────
 
-pub fn severity_glyph(sev: Severity) -> &'static str {
-    match sev {
-        Severity::Error => "✕",
-        Severity::Warning => "⚠",
-        Severity::Info => "ℹ",
-    }
-}
-
 #[allow(dead_code)]
 pub fn severity_badge<'a>(t: &iced::Theme, sev: Severity, msg: &'a str) -> Element<'a, Message> {
     let color = theme::severity_color(t, sev);
     container(
         row![
-            text(severity_glyph(sev)).size(size::CAPTION).color(color),
+            text(sev.glyph()).size(size::CAPTION).color(color),
             text(msg).size(size::CAPTION).color(color),
         ]
         .spacing(space::S1),
@@ -212,3 +204,6 @@ pub fn field_row<'a>(label: &'a str, value: &'a str) -> Element<'a, Message> {
     .align_y(iced::Alignment::Center)
     .into()
 }
+
+#[cfg(test)]
+mod tests;

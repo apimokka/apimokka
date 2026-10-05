@@ -24,11 +24,14 @@ impl Severity {
     /// Non-colour glyph for the severity. Used together with the text
     /// label so a colour-blind user or one running monochrome still sees
     /// the distinction.
+    ///
+    /// D-14: this is the only glyph source for severity. The app renders
+    /// these exact values; it does not keep a second table.
     pub fn glyph(self) -> &'static str {
         match self {
-            Severity::Error => "!",
-            Severity::Warning => "△",
-            Severity::Info => "i",
+            Severity::Error => "✕",
+            Severity::Warning => "⚠",
+            Severity::Info => "ℹ",
         }
     }
 }
@@ -80,3 +83,6 @@ impl NodeValidation {
         worst
     }
 }
+
+#[cfg(test)]
+mod tests;
