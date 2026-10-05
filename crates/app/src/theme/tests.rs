@@ -122,10 +122,16 @@ fn light_and_dark_muted_surfaces_fill_with_snora_surface() {
     for p in presets().into_iter().filter(|p| !p.high_contrast) {
         let t = snora_theme(&p.tokens);
         let surface = to_iced_color(p.tokens.palette.surface);
+        let raised = to_iced_color(p.tokens.palette.surface_raised);
         for (name, style) in muted_surfaces(&t) {
-            // The selected card's fill is the surface; its colour is carried by
-            // the border (see the border tests below).
-            assert_eq!(fill(&style), surface, "{} {name} fill", p.name);
+            // The selected parent is the one deliberate exception: F8 gives it
+            // the snora `surface_raised` token as its state fill.
+            let expected = if name == "card_parent_selected_style" {
+                raised
+            } else {
+                surface
+            };
+            assert_eq!(fill(&style), expected, "{} {name} fill", p.name);
         }
     }
 }
@@ -204,6 +210,28 @@ fn surfaces_sharing_a_fill_stay_distinct_by_border() {
         assert_ne!(
             parent.color, selected.color,
             "{} parent vs selected colour",
+            p.name
+        );
+        // F8: selected parent vs unselected card must have two independent
+        // cues, at least one not a border-width delta. Fill (surface_raised vs
+        // surface) and shadow parity (the raised shadow, same as the card's).
+        let parent_fill = fill(&card_parent_selected_style(&t));
+        assert_eq!(
+            parent_fill,
+            to_iced_color(p.tokens.palette.surface_raised),
+            "{} parent fill is the raised token",
+            p.name
+        );
+        assert_ne!(
+            parent_fill,
+            to_iced_color(p.tokens.palette.surface),
+            "{} parent fill differs from the card fill",
+            p.name
+        );
+        assert_eq!(
+            card_parent_selected_style(&t).shadow,
+            card_style(&t).shadow,
+            "{} parent carries the card shadow",
             p.name
         );
     }

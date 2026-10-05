@@ -569,10 +569,14 @@ pub fn naked(theme: &Theme, _status: iced::widget::button::Status) -> iced::widg
 
 ///
 /// D-13: the tint is a translucent `strong`, which composites to 3.9:1 (Light)
-/// and 4.1:1 (Dark) under the muted chevron and count it carries. Light and
-/// Dark take the `surface` fill with a 2 px token border — double the 1 px
-/// card border, so a selected parent stays distinct from the unselected card
-/// beside it, which now shares the same fill. High-contrast tint is unchanged.
+/// and 4.1:1 (Dark) under the muted chevron and count it carries.
+///
+/// Light and Dark take two independent cues against the unselected card beside
+/// it (task 021 correction F8): the snora `surface_raised` fill (the token for
+/// elevated cards; muted 4.93 / 4.53:1), and the 2 px token border. The card's
+/// shadow is also applied, so the selected row reads as raised, not sunk. A
+/// selected parent therefore differs from an unselected card by fill, width and
+/// shadow parity, not width alone. High-contrast tint is unchanged.
 pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let base = ep.background.strong.color;
@@ -581,25 +585,27 @@ pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     } else {
         0.55
     };
-    let background = if is_high_contrast(t) {
-        Color {
-            r: base.r,
-            g: base.g,
-            b: base.b,
-            a: alpha,
-        }
-    } else {
-        to_iced_color(tokens_for(t).palette.surface)
-    };
+    if is_high_contrast(t) {
+        return container::Style {
+            background: Some(Background::Color(Color {
+                r: base.r,
+                g: base.g,
+                b: base.b,
+                a: alpha,
+            })),
+            text_color: Some(ep.background.base.text),
+            border: surface_border(t, 0.0, radius::LG.into()),
+            shadow: Shadow::default(),
+            snap: true,
+        };
+    }
     container::Style {
-        background: Some(Background::Color(background)),
+        background: Some(Background::Color(to_iced_color(
+            tokens_for(t).palette.surface_raised,
+        ))),
         text_color: Some(ep.background.base.text),
-        border: surface_border(
-            t,
-            if is_high_contrast(t) { 0.0 } else { 2.0 },
-            radius::LG.into(),
-        ),
-        shadow: Shadow::default(),
+        border: surface_border(t, 2.0, radius::LG.into()),
+        shadow: card_style(t).shadow,
         snap: true,
     }
 }
