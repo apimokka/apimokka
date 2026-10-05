@@ -251,6 +251,46 @@ limitation as a project defect.
 theme contrast in practice, 200% text scale, keyboard reachability of every
 primary scenario, and visible focus wherever iced provides it.
 
+> ### Non-colour status communication — audited at source 2026-10-06
+>
+> snora's 0.52.0 §5 narrowed their published accessibility position: it had said
+> their design doctrine includes *"non-colour status encoding"*, which overstated
+> what they provide. For **variants** (toast intent, notice tone, progress tone)
+> snora contributes colour and **the consumer supplies the words**; they ask
+> every consumer to re-check any record statement citing them for this.
+>
+> **No apimokka record cites snora for it.** Checked across `ROADMAP.md`,
+> `rfcs/`, `docs/` and `crates/`: every non-colour claim we make is about
+> surfaces we build. Nothing to retract. This was already the position recorded
+> in MK-058 on 2026-09-12 when their 0.48.0 note first ruled the cue out.
+>
+> **`docs/src/ux-redesign.md:110` claims "All status indicators carry glyph +
+> text".** Audited, and it holds — every status surface pairs a glyph with a
+> translated label, so none is colour-only:
+>
+> | Surface | Glyph | Label |
+> |---|---|---|
+> | Server state (`top_bar`) | `ServerState::glyph()` | `Key::Status…` |
+> | Unsaved count (`top_bar`) | `●` / `✓` | `StatusUnsaved` / `StatusSaved` |
+> | Runtime phase (`top_bar`) | `↻` / `⏻` | `StatusReload…` / `StatusRestart…` |
+> | Trace outcome (`trace`, `trace_activity`) | `TraceOutcome::glyph()` | outcome label |
+> | Validation severity (`bottom_drawer`) | `widgets::severity_glyph()` | `DrawerValidation…` |
+> | Active tab (`tab_bar`) | 3 px strip, present or absent — a position cue, not colour | the tab's own name |
+> | Selected rail destination (`left_rail`) | fill tint **and** left accent strip (MK-027) | destination name |
+>
+> **A verified claim is a result, so it is recorded as one.** It also discharges
+> part of an obligation this decision assigns to L2, which L2 cannot perform:
+> colour-only status is found by reading the view, not by comparing screenshots.
+>
+> **Two things this audit does not settle, and sessions still owe.** Whether each
+> glyph is *understood* — `◯` for a miss, `↩` for a fallback — is comprehension,
+> which only a participant can report. And whether the pairing survives at 200%
+> scale and in the high-contrast presets is a rendering question for the session
+> matrix. The audit proves the cue exists; it does not prove it works.
+>
+> **One defect came out of it: D-14**, two disagreeing severity glyph sources
+> with the documented one unused.
+
 **Inherited by production**, recorded in `architecture.md`'s production-adapter
 inheritance list: screen-reader and assistive-technology support, and custom
 focus-ring rendering.
