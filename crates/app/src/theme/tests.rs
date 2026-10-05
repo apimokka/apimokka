@@ -118,7 +118,7 @@ fn muted_text_meets_aa_on_every_muted_surface_in_all_presets() {
 }
 
 #[test]
-fn light_and_dark_muted_surfaces_fill_with_snora_surface() {
+fn light_and_dark_muted_surfaces_fill_with_their_snora_tokens() {
     for p in presets().into_iter().filter(|p| !p.high_contrast) {
         let t = snora_theme(&p.tokens);
         let surface = to_iced_color(p.tokens.palette.surface);
@@ -174,9 +174,9 @@ fn light_and_dark_surfaces_carry_token_borders_with_visible_contrast() {
 }
 
 #[test]
-fn surfaces_sharing_a_fill_stay_distinct_by_border() {
-    // Pairwise distinctions the design relies on, since the fills are equal.
-    // Each pair must differ by border width or colour.
+fn muted_surfaces_stay_pairwise_distinct() {
+    // Pairwise distinctions the design relies on. Some pairs share a fill and
+    // are told apart by border; the selected parent differs by fill and shadow.
     for p in presets().into_iter().filter(|p| !p.high_contrast) {
         let t = snora_theme(&p.tokens);
         let panel = panel_style(&t).border;
