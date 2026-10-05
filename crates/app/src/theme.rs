@@ -51,7 +51,7 @@ pub fn is_high_contrast(t: &Theme) -> bool {
 
 /// Resolve the snora Design token set matching `t`. Shared by every helper
 /// that needs a `tokens.palette.*` role beyond the `background`/`text` pair
-/// `Theme` already exposes — `muted`, `hc_border`, and `dialog_style`'s
+/// `Theme` already exposes — `muted`, `border_token`, and `dialog_style`'s
 /// border (task 017, D-1/D-2).
 fn tokens_for(t: &Theme) -> Tokens {
     if matches_tokens(t, Tokens::high_contrast_dark()) {
@@ -65,8 +65,11 @@ fn tokens_for(t: &Theme) -> Tokens {
     }
 }
 
-/// MK-050: the border color for high-contrast surfaces, from snora tokens.
-pub fn hc_border(t: &Theme) -> Color {
+/// The snora `palette.border` token for the current preset.
+///
+/// Despite the former name (`hc_border`), this is not high-contrast only: it is
+/// read for every preset by panel, chip, card and dialog borders (D-13, D-1).
+pub fn border_token(t: &Theme) -> Color {
     to_iced_color(tokens_for(t).palette.border)
 }
 
@@ -110,7 +113,7 @@ pub mod size {
 /// Typography is preset-invariant (RFC MK-059 non-goals: all four snora
 /// presets share `Typography::default_roles()`), so a fixed token set is
 /// the correct source here, not a per-`Theme` lookup like
-/// `theme::muted`/`theme::hc_border`.
+/// `theme::muted`/`theme::border_token`.
 ///
 /// No `label()`: labels never take a line-height override (decision 5) —
 /// call sites at `size::LABEL` must not call anything in this module.
@@ -249,7 +252,7 @@ fn surface_border(t: &Theme, width: f32, radius: iced::border::Radius) -> Border
     Border {
         radius,
         width,
-        color: hc_border(t),
+        color: border_token(t),
     }
 }
 
@@ -275,9 +278,16 @@ pub fn panel_style(t: &Theme) -> container::Style {
 }
 
 /// Elevated card — the primary unit for rules, trace events, settings sections.
-/// Subtle shadow; no border; radius::LG.
+/// Subtle shadow; radius::LG.
+///
+/// D-13 (task 021 correction F1): Light and Dark take the `surface` fill and a
+/// 1 px token border, the same treatment as panels, because muted text on the
+/// previous Dark `weak` fill measured 4.22:1. The border keeps a card distinct
+/// from the panel it sits on, which is `surface` too. High-contrast is
+/// unchanged: its `weak`/`base` fill and 1.5 px border already pass.
 pub fn card_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
+    let hc = is_high_contrast(t);
     let bg = if ep.background.base.color.r < 0.5 {
         // dark mode: step up from base
         ep.background.weak.color
@@ -285,19 +295,20 @@ pub fn card_style(t: &Theme) -> container::Style {
         ep.background.base.color // light mode: white
     };
     container::Style {
-        background: Some(Background::Color(bg)),
+        background: Some(Background::Color(if hc {
+            bg
+        } else {
+            to_iced_color(tokens_for(t).palette.surface)
+        })),
         text_color: Some(ep.background.base.text),
-        border: if is_high_contrast(t) {
+        border: if hc {
             Border {
                 radius: radius::LG.into(),
                 width: 1.5,
-                color: hc_border(t),
+                color: border_token(t),
             }
         } else {
-            Border {
-                radius: radius::LG.into(),
-                ..Default::default()
-            }
+            surface_border(t, 1.0, radius::LG.into())
         },
         shadow: Shadow {
             color: Color::from_rgba(0.0, 0.0, 0.0, 0.06),
@@ -308,27 +319,52 @@ pub fn card_style(t: &Theme) -> container::Style {
     }
 }
 
-/// Selected variant of card_style — primary tint + stronger shadow.
+/// Selected variant of card_style — primary-coloured border + stronger shadow.
 /// The left accent strip is drawn by the caller (a 3px-wide container).
+///
+/// D-13 (task 021 correction F2): the primary tint measured 4.22:1 (Light) and
+/// 4.15:1 (Dark) under muted text, a fork from the token, so Light and Dark
+/// take the `surface` fill instead. Selection is carried by a 2 px primary
+/// border — twice the 1 px card border, so it is distinct by width as well as
+/// colour (MK-028 non-colour rule). High-contrast keeps its tint unchanged.
 pub fn card_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let p = ep.primary.base.color;
-    let alpha = if ep.background.base.color.r < 0.5 {
-        0.18
-    } else {
-        0.10
-    };
+    if is_high_contrast(t) {
+        let alpha = if ep.background.base.color.r < 0.5 {
+            0.18
+        } else {
+            0.10
+        };
+        return container::Style {
+            background: Some(Background::Color(Color {
+                r: p.r,
+                g: p.g,
+                b: p.b,
+                a: alpha,
+            })),
+            text_color: Some(ep.background.base.text),
+            border: Border {
+                radius: radius::LG.into(),
+                ..Default::default()
+            },
+            shadow: Shadow {
+                color: Color::from_rgba(p.r, p.g, p.b, 0.22),
+                offset: Vector::new(0.0, 2.0),
+                blur_radius: 6.0,
+            },
+            snap: true,
+        };
+    }
     container::Style {
-        background: Some(Background::Color(Color {
-            r: p.r,
-            g: p.g,
-            b: p.b,
-            a: alpha,
-        })),
+        background: Some(Background::Color(to_iced_color(
+            tokens_for(t).palette.surface,
+        ))),
         text_color: Some(ep.background.base.text),
         border: Border {
             radius: radius::LG.into(),
-            ..Default::default()
+            width: 2.0,
+            color: p,
         },
         shadow: Shadow {
             color: Color::from_rgba(p.r, p.g, p.b, 0.22),
@@ -366,7 +402,7 @@ pub fn chip_style(t: &Theme) -> container::Style {
 /// behind it (the wizard, `high_contrast_dark`), fill and shadow both
 /// composite to nothing and the card had no discernible edge at all
 /// (M8 capture case B2-1). `tokens.palette.border` is contrast-tested for
-/// all four presets — the same source `hc_border` already reads for the
+/// all four presets — the same source `border_token` already reads for the
 /// high-contrast pair — so this now inherits snora's repair instead of
 /// overpainting it, uniformly, not only where high contrast already forced
 /// a border elsewhere (`panel_style`, `card_style`).
@@ -420,7 +456,6 @@ pub fn hairline_style(t: &Theme) -> container::Style {
 }
 
 /// Left accent strip for the selected rail item or sidebar row.
-#[allow(dead_code)]
 pub fn accent_strip_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     container::Style {
@@ -433,7 +468,6 @@ pub fn accent_strip_style(t: &Theme) -> container::Style {
 }
 
 /// Left-rail selected destination background.
-#[allow(dead_code)]
 pub fn rail_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let p = ep.primary.base.color;
@@ -536,8 +570,9 @@ pub fn naked(theme: &Theme, _status: iced::widget::button::Status) -> iced::widg
 ///
 /// D-13: the tint is a translucent `strong`, which composites to 3.9:1 (Light)
 /// and 4.1:1 (Dark) under the muted chevron and count it carries. Light and
-/// Dark therefore take the `surface` fill with the same 1 px token border as
-/// panels; the high-contrast tint already passes (8.9:1) and is unchanged.
+/// Dark take the `surface` fill with a 2 px token border — double the 1 px
+/// card border, so a selected parent stays distinct from the unselected card
+/// beside it, which now shares the same fill. High-contrast tint is unchanged.
 pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let base = ep.background.strong.color;
@@ -561,7 +596,7 @@ pub fn card_parent_selected_style(t: &Theme) -> container::Style {
         text_color: Some(ep.background.base.text),
         border: surface_border(
             t,
-            if is_high_contrast(t) { 0.0 } else { 1.0 },
+            if is_high_contrast(t) { 0.0 } else { 2.0 },
             radius::LG.into(),
         ),
         shadow: Shadow::default(),

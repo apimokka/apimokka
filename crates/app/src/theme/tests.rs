@@ -1,6 +1,6 @@
-//! D-13 contract tests. These pin the §5 measurements (task 021) so a later
-//! change cannot silently trade muted-text contrast for panel separation, or
-//! the reverse.
+//! D-13 contract tests (task 021 and its correction round). They pin the §5
+//! measurements so a later change cannot silently trade muted-text contrast
+//! for surface separation, or the reverse.
 
 use super::*;
 use snora::design::{Tokens, theme as snora_theme};
@@ -28,10 +28,14 @@ fn over(fg: Color, bg: Color) -> Color {
     }
 }
 
-/// WCAG contrast ratio of `fg` on `bg`. Both are composited over white first,
-/// so a translucent colour is measured as it renders.
+/// WCAG contrast ratio of `fg` on `bg`. `bg` must be opaque: a translucent
+/// fill is composited over the page it sits on first (see `over`), so the
+/// figure is what renders. Passing a translucent `bg` is a bug in the caller.
 fn ratio(fg: Color, bg: Color) -> f32 {
-    let bg = over(bg, Color::WHITE);
+    assert!(
+        bg.a >= 1.0,
+        "ratio needs an opaque background; composite over the page first"
+    );
     let fg = over(fg, bg);
     let (a, b) = (luminance(fg), luminance(bg));
     let (hi, lo) = if a > b { (a, b) } else { (b, a) };
@@ -69,19 +73,14 @@ fn presets() -> [Preset; 4] {
     ]
 }
 
-/// The surfaces that carry muted text, as the §7.1 audit identified them.
-///
-/// Deliberately absent:
-/// - `card_style` — §8.7 keeps it out of scope (D-2).
-/// - `card_selected_style` — OPEN, escalated to the architect. Its primary
-///   tint measures 4.22:1 (Light) and 4.15:1 (Dark) under the muted hint on
-///   the selected file-route row (`screens/routes/sidebar.rs:109`). Fixing it
-///   changes the selection look, which is a design decision, not a D-13
-///   repair. Add it back here once that decision is taken.
-fn muted_surfaces(t: &Theme) -> [(&'static str, container::Style); 3] {
+/// Every style that places muted text, as the §7.1 audit and its correction
+/// round identified them. No exclusions.
+fn muted_surfaces(t: &Theme) -> [(&'static str, container::Style); 5] {
     [
         ("panel_style", panel_style(t)),
         ("chip_style", chip_style(t)),
+        ("card_style", card_style(t)),
+        ("card_selected_style", card_selected_style(t)),
         ("card_parent_selected_style", card_parent_selected_style(t)),
     ]
 }
@@ -93,12 +92,17 @@ fn fill(style: &container::Style) -> Color {
     }
 }
 
+/// The page a surface sits on in these tests: the preset's base colour.
+fn page_of(t: &Theme) -> Color {
+    t.extended_palette().background.base.color
+}
+
 #[test]
 fn muted_text_meets_aa_on_every_muted_surface_in_all_presets() {
     let mut failures = Vec::new();
     for p in presets() {
         let t = snora_theme(&p.tokens);
-        let page = t.extended_palette().background.base.color;
+        let page = page_of(&t);
         let muted = muted(&t);
         for (name, style) in muted_surfaces(&t) {
             let r = ratio(muted, over(fill(&style), page));
@@ -114,41 +118,94 @@ fn muted_text_meets_aa_on_every_muted_surface_in_all_presets() {
 }
 
 #[test]
-fn light_and_dark_panels_and_chips_fill_with_snora_surface() {
+fn light_and_dark_muted_surfaces_fill_with_snora_surface() {
     for p in presets().into_iter().filter(|p| !p.high_contrast) {
         let t = snora_theme(&p.tokens);
         let surface = to_iced_color(p.tokens.palette.surface);
-        assert_eq!(fill(&panel_style(&t)), surface, "{} panel", p.name);
-        assert_eq!(fill(&chip_style(&t)), surface, "{} chip", p.name);
+        for (name, style) in muted_surfaces(&t) {
+            // The selected card's fill is the surface; its colour is carried by
+            // the border (see the border tests below).
+            assert_eq!(fill(&style), surface, "{} {name} fill", p.name);
+        }
     }
 }
 
 #[test]
-fn light_and_dark_surfaces_stay_bordered_with_a_token_border() {
-    // Separation from the page is carried by the border, since `surface` is
-    // only 1.08–1.11:1 from the page in Light and Dark (§5).
+fn light_and_dark_surfaces_carry_token_borders_with_visible_contrast() {
+    // `surface` is 1.08–1.11:1 from the page in Light and Dark (§5), so the
+    // border is the edge. Each border must be a snora token and clear the
+    // WCAG 1.4.11 non-text threshold of 3:1 against the surface it outlines.
     for p in presets().into_iter().filter(|p| !p.high_contrast) {
         let t = snora_theme(&p.tokens);
-        let page = t.extended_palette().background.base.color;
+        let surface = to_iced_color(p.tokens.palette.surface);
         let token_border = to_iced_color(p.tokens.palette.border);
-        for (name, style) in [
-            ("panel_style", panel_style(&t)),
-            ("chip_style", chip_style(&t)),
-            ("card_parent_selected_style", card_parent_selected_style(&t)),
-        ] {
-            assert_eq!(style.border.width, 1.0, "{} {name} border width", p.name);
+        let primary = t.extended_palette().primary.base.color;
+        let expected = [
+            ("panel_style", token_border, 1.0),
+            ("chip_style", token_border, 1.0),
+            ("card_style", token_border, 1.0),
+            ("card_selected_style", primary, 2.0),
+            ("card_parent_selected_style", token_border, 2.0),
+        ];
+        for ((name, style), (expected_name, colour, width)) in
+            muted_surfaces(&t).into_iter().zip(expected)
+        {
+            assert_eq!(name, expected_name);
+            assert_eq!(style.border.width, width, "{} {name} border width", p.name);
             assert_eq!(
-                style.border.color, token_border,
+                style.border.color, colour,
                 "{} {name} border colour",
                 p.name
             );
-            let r = ratio(token_border, page);
+            let r = ratio(colour, surface);
             assert!(
                 r >= 3.0,
-                "{}: {name} border is {r:.2}:1 against the page, below 3:1",
+                "{}: {name} border is {r:.2}:1 against the surface, below 3:1",
                 p.name
             );
         }
+    }
+}
+
+#[test]
+fn surfaces_sharing_a_fill_stay_distinct_by_border() {
+    // Pairwise distinctions the design relies on, since the fills are equal.
+    // Each pair must differ by border width or colour.
+    for p in presets().into_iter().filter(|p| !p.high_contrast) {
+        let t = snora_theme(&p.tokens);
+        let panel = panel_style(&t).border;
+        let chip = chip_style(&t).border;
+        let card = card_style(&t).border;
+        let selected = card_selected_style(&t).border;
+        let parent = card_parent_selected_style(&t).border;
+
+        // Card on panel: same fill, so the card's border must exist.
+        assert!(
+            card.width > 0.0 && card.width == panel.width,
+            "{} card vs panel",
+            p.name
+        );
+        // Chip on panel: same fill, same border token; the pill shape carries it.
+        assert_eq!(chip.color, panel.color, "{} chip vs panel colour", p.name);
+        // Selected card vs unselected card: width and colour both differ.
+        assert!(
+            selected.width > card.width,
+            "{} selected vs card width",
+            p.name
+        );
+        assert_ne!(
+            selected.color, card.color,
+            "{} selected vs card colour",
+            p.name
+        );
+        // Selected parent vs unselected card: width differs.
+        assert!(parent.width > card.width, "{} parent vs card width", p.name);
+        // Selected parent vs selected card: colour differs.
+        assert_ne!(
+            parent.color, selected.color,
+            "{} parent vs selected colour",
+            p.name
+        );
     }
 }
 
@@ -165,13 +222,26 @@ fn high_contrast_presets_keep_their_iced_slots_and_borders() {
             "{} panel",
             p.name
         );
+        assert_eq!(panel_style(&t).border.width, 1.0, "{} panel border", p.name);
         assert_eq!(
             fill(&chip_style(&t)),
             ep.background.strong.color,
             "{} chip",
             p.name
         );
-        assert_eq!(panel_style(&t).border.width, 1.0, "{} panel border", p.name);
         assert_eq!(chip_style(&t).border.width, 0.0, "{} chip border", p.name);
+        assert_eq!(card_style(&t).border.width, 1.5, "{} card border", p.name);
+        assert_eq!(
+            card_selected_style(&t).border.width,
+            0.0,
+            "{} selected card border",
+            p.name
+        );
+        assert_eq!(
+            card_parent_selected_style(&t).border.width,
+            0.0,
+            "{} parent border",
+            p.name
+        );
     }
 }
