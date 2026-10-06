@@ -129,6 +129,36 @@ is reachable without input. These therefore **migrate to L3**:
 - per-preset and per-locale layout, including Japanese expansion;
 - 200% text scale, which decision 7 already records as not exercised here.
 
+> ### Pointer injection — assessed 2026-10-06, and deliberately not adopted
+>
+> Asked whether the dev team could run captures themselves with `niri msg` and
+> `xdotool`. The capability map, verified rather than recalled:
+>
+> | Need | Tool | State |
+> |---|---|---|
+> | Launch, float, resize, screenshot | `niri msg` | **Works.** Used for every capture since M8. |
+> | Keyboard | `wtype` (`zwp_virtual_keyboard_manager_v1`) | **Works.** Proven 2026-08-15. |
+> | Keyboard | `xdotool` | **Structurally cannot.** apimokka is a native Wayland surface, invisible to X11 clients by Wayland's own security model. Installed and functional; it cannot see the window. Not a skill or effort question. |
+> | Pointer | — | **No client installed.** `niri` 26.04 *does* implement `zwlr_virtual_pointer_manager_v1` — verified in the binary, including `create_virtual_pointer` and `motion`. `wlrctl` would speak it but is not in the configured repositories. |
+>
+> So the only gap is pointer, and it is a missing client rather than a missing
+> capability. **A virtual-pointer client is the same category as `wtype`** — a
+> compositor-mediated Wayland protocol, no kernel device, no root — and **not**
+> the category of `ydotool`, which needs `/dev/uinput`. Decision 3's 2026-08-04
+> amendment declined both together on the stronger one's grounds; that conflation
+> is already corrected in the acceptance-criteria note above.
+>
+> **Not adopted, because the gap closes on its own.** M12 (cycle C2) makes
+> MK-056's six primary scenarios keyboard-completable, and the first of them is
+> *"open an existing workspace and find the rule serving a given path"*. Once
+> that lands, `wtype` reaches a workspace unaided and captures become fully
+> scriptable with no new tool and no owner clicks. Adding an AUR package now
+> would solve a problem already scheduled to disappear, and installing software
+> on the project owner's desktop is their decision, not the architect's.
+>
+> **Until C2 lands, captures need owner pointer clicks** — three for task 021's.
+> Recorded so this is not re-litigated a fourth time.
+
 **The consequence for L3, stated plainly:** participants now carry verification
 load this design assigned to a script. That raises what the sessions must cover
 and should be reflected when scenarios are finalised — it is not a free
