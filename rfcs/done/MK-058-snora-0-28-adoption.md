@@ -100,7 +100,26 @@ snora = { version = "0.28", features = ["widgets", "design"] }
 ```
 
 snora guarantees rendered output is unchanged with existing call sites
-untouched. **Treat that as a claim to test, not a fact to assume.** Capture
+untouched. **Treat that as a claim to test, not a fact to assume.**
+
+> **The quoted claim was withdrawn by snora on 2026-10-20.** Their docs had said
+> that without the `design` feature, rendered output *"is unchanged from v0.25 —
+> a guarantee, not an aspiration"*; they now state it has not held since at least
+> 0.42.0, because releases since changed default-path appearance (toast colours,
+> sidebar buttons, the tab bar, label sizes) without the sentence being amended.
+> **What holds is composition only**: layer order, which surfaces appear, how they
+> dismiss, how they mirror.
+>
+> **Nothing in this RFC needs retracting, for two independent reasons.** The
+> withdrawn sentence is scoped to consumers compiling **without** `design`, and we
+> have had `design` enabled since MK-050 — so it never bound us. And the next
+> paragraph of this section, plus §5's caveat below, already recorded the narrower
+> reading in August 2026, in almost their new wording: *"`render_semantics`
+> asserts composition — layer order, which surfaces materialise, dismissal, RTL
+> mirroring — and nothing in their CI compares pixels."* The instruction to treat
+> it as a claim to test rather than a fact is what kept the record correct.
+> Annotated here so a future reader cannot lift the quoted claim without the
+> qualification that followed it. Capture
 screenshots of the principal screens in all four presets before and after the
 bump alone, with no other phase applied. Any visual difference at this point is
 a snora bug, and the handoff asks for it to be reported.
@@ -380,6 +399,28 @@ itself rather than to one feature of it.
 Anything else waits. This is reversible on the project owner's word; the
 default, and the safer one, is to do nothing.
 
+#### What the freeze is now holding back — updated 2026-10-21
+
+snora has reached **0.53.0**. Releases since our pin have changed things that
+bear directly on evidence this programme has already accepted, so the lift is no
+longer only a cost question:
+
+- **0.53.0 makes dark-theme modal dims visible as a light veil, and darkens the
+  light-theme dims.** That is the exact surface of **M8's case A6** — the defect
+  M8 existed for, where the `high_contrast_dark` dim composited to pure black and
+  was invisible. Our A6 evidence is a measured comparison at 0.42.0; a veil-based
+  dim is a different mechanism, not a tuning of `DIM_ALPHA`. **Pass A must be
+  re-captured on the upgrade, not reasoned about.**
+- Ancestor breadcrumbs gain an underline and a pixel of row height, and toast
+  text changes on six non-stock themes. Neither reaches us — we render no
+  breadcrumb and populate no toast stack — but both are prefab appearance changes
+  arriving in a minor, which is the pattern the withdrawn guarantee concealed.
+
+**Added to the lifting conditions:** whichever condition triggers the upgrade,
+the first task of it re-runs M8's Pass A and the D-13 contrast assertions. The
+assertions will run automatically; Pass A will not, and it needs owner pointer
+clicks until M12 lands.
+
 #### The note's one action does not apply to us — verified, not assumed
 
 §1 asks every consumer to check `quick-xml` for `RUSTSEC-2026-0194/0195`.
@@ -526,7 +567,14 @@ binding constraint:
 - ~~Phase 1 alone, 0.25.2 → 0.28.0~~ — **deferred, not abandoned.** Still a valid
   isolated test of the same guarantee across the span Phase 1 crossed, but its
   value has decayed: that span is shipped, reviewed, and CI-green on three
-  platforms, and snora's own `render_semantics` covers it. If it had broken
+  platforms, and snora's own `render_semantics` covers it. **Reasoning corrected
+  2026-10-21:** `render_semantics` covers *composition*, never appearance — this
+  RFC says so itself two sections above, and snora's 2026-10-20 withdrawal makes
+  it explicit. So appearance across the 0.25.2 → 0.28.0 span was never verified
+  by anything, and that clause should not have been offered as cover. **The
+  deferral still stands on its other ground**: M8's capture produced direct pixel
+  evidence of the build we actually ship at 0.42.0, which is worth more than
+  attributing a hypothetical regression to a span we have left. If it had broken
   appearance materially, Passes A and B would be reporting a problem. Recorded
   here so the omission is a decision rather than a gap.
 - Confirmation that the unconditional identifiers changed nothing here — folded

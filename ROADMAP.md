@@ -729,6 +729,16 @@ not because any of it is scheduled here. Detail:
   crate is **four items**, none of which needs them; a shipped GUI carries the
   rest regardless. Recorded as a supply-chain measurement, not a complaint.
 
+**A dependency-reduction input, recorded 2026-10-21.** Three unmaintained
+advisories — `RUSTSEC-2026-0370/0371/0372` on `zvariant`, `zbus_names` and
+`zvariant_derive` — reach us on Linux through iced's **default**
+`linux-theme-detection` feature (`iced_winit` → `mundy` → `zbus` 5). apimokka has
+no use for it: it offers four explicit presets and reads no system appearance.
+Turning the feature off would clear all three and drop the subtree, but
+**MK-054's non-goals rule out disabling iced defaults**, so it is out of scope
+here. The production project should decide deliberately — it is a free reduction
+if it has no system-theme requirement, and a breaking one if it does.
+
 **One further handover input, not from M11.** The production project should
 adopt **current** snora rather than inheriting our 0.42.0 pin, and re-verify
 appearance when it does. Our pin exists to hold M6's evidence still, which is a

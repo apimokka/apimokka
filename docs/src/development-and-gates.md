@@ -703,3 +703,40 @@ the crate anyway, by a path snora never sees:
 resolves 0.9.20, the patched version**, so nothing is owed. It is recorded
 because it is a clean instance of their closing rule: a dependency's advisory
 list describes its graph, never a bound on ours.
+
+### Addendum, 2026-10-21 — three new unmaintained advisories; six warnings
+
+| Command | Exit | Observed result |
+|---|---:|---|
+| `cargo audit` | 0 | **Zero vulnerabilities; six allowed warnings**; 1,348 advisories loaded; 434 packages scanned |
+
+Three advisories were added to the database since the 2026-09-17 entry, all
+**unmaintained**, none a vulnerability:
+
+| Advisory | Package | Version | Compiled | Resolved workspace dependency path |
+|---|---|---:|---|---|
+| RUSTSEC-2026-0370 | `zvariant` | 5.11.0 | **Yes**, Linux only | `zvariant → zbus 5 → mundy → iced_winit → iced → apimokka` |
+| RUSTSEC-2026-0371 | `zbus_names` | — | **Yes**, Linux only | same subtree |
+| RUSTSEC-2026-0372 | `zvariant_derive` | — | **Yes**, Linux only | same subtree |
+
+Carried over unchanged: `paste` (RUSTSEC-2024-0436, lockfile-only),
+`ttf-parser` (RUSTSEC-2026-0192), and `lru` (RUSTSEC-2026-0253, the accepted
+unsound risk recorded in `ROADMAP.md`'s risk table).
+
+**The gate is unaffected, by MK-054's deliberate policy**, not by accident: it
+blocks on a **vulnerability**, while unmaintained and unsound warnings are
+inventoried here. That policy was chosen in M4 and its non-goals explicitly
+reject denying every RustSec category.
+
+**Disclosed by snora on 2026-10-20 and independently confirmed here**, including
+the dependency path. They reach the graph through iced's default
+`linux-theme-detection` feature and do not depend on the snora version.
+
+**The remedy snora suggests is not available to this programme.** They offer
+*"turn off iced's `linux-theme-detection` if you don't need the system colour
+scheme"*. We do not need it — apimokka selects among four explicit presets and
+reads no system appearance — but **MK-054's non-goals list *"disable iced
+defaults"***, so switching a default iced feature off is out of scope for the
+mockup. Recorded instead as a production-integration input: the production
+project can clear three advisories and drop the whole `mundy`/`zbus` subtree if
+it likewise has no use for system theme detection.
