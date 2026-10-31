@@ -532,9 +532,22 @@ of the general model and the tab bar keyboard-operable. Region validity is
 change can leave a stale focus behind. The active state and the cursor were
 confirmed visually to read as one coherent state, not a doubled one.
 
-Slices 3–6 remain: Welcome and Dashboard; the sidebar tree; the segmented
-regions and the trace list; the palette moves and deleting the left rail
-(**D-16**).
+**Slice 3 complete 2026-10-31** (`cc56256`). Welcome and Dashboard joined the
+model, **closing D-12's headline symptom**: a keyboard-only user reaches an open
+workspace with **no pointer event of any kind**, captured end to end on Wayland
+with `wtype`. It introduced the design's identity cursor — one variant of one
+`Cursor` enum, not a second concept — for the workspace list, which is rebuilt on
+every keystroke in the search field, and it is the first slice where all four edge
+cases were live rather than N/A. It also retired the mixed-backend evidence
+tension carried since task 026.
+
+**It surfaced D-18**, recorded rather than fixed: `focused_region` is set only by
+keyboard paths, so a pointer click on a text field gives it native focus while the
+region model believes focus is elsewhere. To be resolved by slice 6 at the latest —
+a click landing in a region's item should enter that region.
+
+Slices 4–6 remain: the sidebar tree; the segmented regions and the trace list; the
+palette moves and deleting the left rail (**D-16**).
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from
