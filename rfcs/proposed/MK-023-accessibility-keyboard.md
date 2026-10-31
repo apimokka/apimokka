@@ -514,7 +514,7 @@ palette; the left rail deleted.
 
 **Implementation follows in six reviewable slices**, listed in that section.
 Slice 1 — capture status and the dialog default action — is handed off as
-`.git-exclude/tasks/dev-team/026-m12-slice1-capture-status-and-dialog-default.md`.
+`rfcs/handoffs/MK-023-accessibility-keyboard/026-m12-slice1-capture-status-and-dialog-default.md`.
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from

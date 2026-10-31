@@ -579,7 +579,7 @@ canonical gate green.
 >    mechanical checks a script could take.
 >
 > Recorded here rather than only in the session pack because
-> `.git-exclude/tasks/owner/003-m6-session-pack.md` is not versioned and this is
+> `rfcs/handoffs/MK-056-ux-acceptance-protocol/003-m6-session-pack.md` is not versioned and this is
 > a defect in an accepted design.
 >
 > #### Correction, 2026-09-17 — resolution 1 rested on a false premise

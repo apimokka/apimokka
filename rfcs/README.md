@@ -61,6 +61,27 @@ record. The lifecycle policy is the MK-000 entry below.
 
 ---
 
+## Handoffs (`handoffs/`)
+
+Companion execution documents for RFCs, per
+[MK-000](./done/MK-000-rfc-lifecycle.md)'s handoff convention. **A handoff has no
+lifecycle state of its own** — it inherits its RFC's. Directories are named
+`MK-NNN-slug` and must match an existing RFC; `scripts/check-rfcs.sh` enforces
+both, and that no handoff directory duplicates a lifecycle folder.
+
+| Handoffs | For | State |
+|---|---|---|
+| [MK-023](./handoffs/MK-023-accessibility-keyboard/) | Accessibility and keyboard contract | Design accepted 2026-10-31; slice 1 issued |
+| [MK-036](./handoffs/MK-036-content-microcopy/) | Content and microcopy | D-17 issued |
+| [MK-056](./handoffs/MK-056-ux-acceptance-protocol/) | UX acceptance protocol | M6 recruitment and session pack, live |
+
+Only **current, reviewed, implementation-useful** companions live here, as the
+policy requires. Handoffs for completed work are not migrated: their decisions
+are in the RFC and the `ROADMAP.md` defect register, which is where a reader
+looks.
+
+---
+
 ## Archive (`archive/`)
 
 Withdrawn or superseded RFCs are preserved as decisions not taken or later
