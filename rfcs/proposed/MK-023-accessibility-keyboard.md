@@ -324,12 +324,28 @@ subscription uses `iced::event::listen_with`, whose closure is handed an
 
 Together these close D-6 rather than stepping around it.
 
-**A dialog is a region with a default action.** `Enter` activates it — Test Rule's
-**Run**, the confirm dialog's **Proceed** — which also fixes the live defect the
-audit found, where `Enter` does nothing in either dialog **for pointer users
-too**. While a dialog is open it is the only region Tab cycles within, which is
-the focus containment MK-023 has wanted since its 2026-09-02 correction and which
-is achievable here because the application owns the cursor.
+**A dialog is a region whose cursor starts on its safe action.** `Enter`
+activates **the cursor's item**, not "the primary button" — a distinction that
+matters and that an earlier draft of this section got wrong.
+
+- **Test Rule**: the cursor starts on **Run** (`Message::TestRuleRun`). The action
+  is a local dry run with no side effect, so `Enter` may activate it immediately.
+- **The confirm dialog**: the cursor starts on **Cancel**, never on Proceed.
+  `Message::ConfirmProceed` deletes a rule set, or leaves or switches a workspace
+  discarding unsaved work. **`Enter` defaulting to Proceed would let one keystroke
+  destroy a rule set**, which fails *"finally clean, safe and secure"* outright.
+  Proceed is reached by moving the cursor first — deliberately, which is the point
+  of a confirmation.
+
+Escape continues to dismiss, so a keyboard user has two safe exits and one
+deliberate path to the destructive one.
+
+This also fixes the live defect the audit found, where `Enter` does nothing in
+either dialog **for pointer users too**.
+
+While a dialog is open it is the only region Tab cycles within, which is the focus
+containment MK-023 has wanted since its 2026-09-02 correction and which is
+achievable here because the application owns the cursor.
 
 ### The visible indicator
 
