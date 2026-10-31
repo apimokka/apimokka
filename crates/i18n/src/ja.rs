@@ -422,6 +422,7 @@ pub fn t(key: Key) -> &'static str {
         Key::ErrorShowDetails => "詳細を表示",
         Key::ErrorHideDetails => "詳細を隠す",
 
+        Key::SettingsLocale => "言語",
         Key::LocaleEn => "EN",
         Key::LocaleJa => "JA",
 

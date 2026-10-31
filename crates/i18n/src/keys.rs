@@ -467,6 +467,10 @@ pub enum Key {
     ErrorHideDetails,
 
     // ── Locale ────────────────────────────────────────────────────────────
+    /// D-17: the Settings field label for the language picker. Distinct from
+    /// `NavSettings` (the navigation tab's own label, "Settings"), which the
+    /// picker wrongly borrowed before this fix.
+    SettingsLocale,
     LocaleEn,
     LocaleJa,
 }

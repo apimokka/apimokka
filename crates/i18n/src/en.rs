@@ -442,6 +442,7 @@ pub fn t(key: Key) -> &'static str {
         Key::ErrorShowDetails => "Show details",
         Key::ErrorHideDetails => "Hide details",
 
+        Key::SettingsLocale => "Language",
         Key::LocaleEn => "EN",
         Key::LocaleJa => "JA",
 

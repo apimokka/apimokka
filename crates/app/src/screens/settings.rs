@@ -87,7 +87,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             widgets::field(app.t(Key::SettingsTheme), theme_btns),
             widgets::field(app.t(Key::SettingsAudienceMode), guidance_btns),
             widgets::field(
-                app.t(Key::NavSettings),
+                app.t(Key::SettingsLocale),
                 pick_list(
                     Locale::all().to_vec(),
                     Some(app.locale),
