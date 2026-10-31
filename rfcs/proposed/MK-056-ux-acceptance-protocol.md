@@ -158,6 +158,39 @@ is reachable without input. These therefore **migrate to L3**:
 >
 > **Until C2 lands, captures need owner pointer clicks** — three for task 021's.
 > Recorded so this is not re-litigated a fourth time.
+>
+> #### Superseded 2026-10-31 by the project owner's updated GUI rules
+>
+> The conclusion above — that pointer input has no available route and the gap
+> waits for C2 — **is no longer correct.** The owner's revised
+> `.git-exclude/rules/project-instructions-gui-common.md` records an evidence run
+> of 2026-10-25 finding that **on the X11 (XWayland) backend, `xdotool` keys do
+> reach this application**, and directs that the app be run through the X11
+> backend (`env -u WAYLAND_DISPLAY`) *"when mouse input is needed"*.
+>
+> So the route I reported as missing exists, and it is neither `wlrctl` nor
+> `ydotool`: it is the backend. My 2026-10-06 assessment examined which Wayland
+> protocol client was installed and never asked whether the application could be
+> run as an X11 client instead. The compositor-protocol analysis above is still
+> accurate; it was simply the wrong question.
+>
+> **Two things remain genuinely open, and they are not re-litigations:**
+>
+> 1. **Mouse on XWayland is expected, not probed.** The owner's run exercised
+>    *keys*. `xdotool click` against this application has never been observed to
+>    work. A probe comes first, exactly as `probe.sh` did for the Wayland case.
+> 2. **Backend may change appearance**, and the rules say as much by requiring
+>    before/after comparison on one backend only. Our pixel evidence is for the
+>    surfaces users see, and the shipped path is Wayland. An XWayland capture is
+>    evidence for XWayland. Which backend an appearance capture should use is a
+>    question for the capture's own handoff, with the backend recorded either way.
+>
+> **AT-SPI, the rules' preferred non-keyboard route, is unavailable to us.**
+> `iced` 0.14's manifest declares no `accesskit` or `a11y` dependency — verified,
+> not assumed — so there are no `do_action` or `grab_focus` targets to drive. That
+> matches §6's standing finding that iced 0.14 exposes no assistive-technology
+> API. For apimokka the rules' pointer route is therefore xdotool-on-X11, not
+> AT-SPI.
 
 **The consequence for L3, stated plainly:** participants now carry verification
 load this design assigned to a script. That raises what the sessions must cover
