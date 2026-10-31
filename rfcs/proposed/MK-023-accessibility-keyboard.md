@@ -524,9 +524,17 @@ closed. Evidence shows the confirm dialog raised over genuinely unsaved work
 (*"Switch workspaces? Unsaved edits will be lost"*, status chip reading
 **Unsaved (1)**) and the edit surviving the keystroke.
 
-Slices 2–6 remain: regions and the cursor; Welcome and Dashboard; the sidebar
-tree; the segmented regions and the trace list; the palette moves and deleting
-the left rail (**D-16**).
+**Slice 2 complete 2026-10-31** (`926a4fc`, CI run `41204093517` green on six
+legs). The region and cursor model exists: `Tab`/`Shift+Tab` between regions,
+arrows within, `Enter` activating, with `mode_picker_selected` removed in favour
+of the general model and the tab bar keyboard-operable. Region validity is
+**derived** on every keystroke rather than reset per transition, so no screen
+change can leave a stale focus behind. The active state and the cursor were
+confirmed visually to read as one coherent state, not a doubled one.
+
+Slices 3–6 remain: Welcome and Dashboard; the sidebar tree; the segmented
+regions and the trace list; the palette moves and deleting the left rail
+(**D-16**).
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from

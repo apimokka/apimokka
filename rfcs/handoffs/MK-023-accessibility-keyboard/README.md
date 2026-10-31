@@ -10,8 +10,9 @@ slices. One handoff per slice, added as each is issued.
 | Slice | Handoff | Covers |
 |---:|---|---|
 | 1 | [`026-m12-slice1-capture-status-and-dialog-default.md`](./026-m12-slice1-capture-status-and-dialog-default.md) | Read `event::Status`; dialog default actions. **Complete** — `dbf947c`, closed D-6 and the `Enter`-in-dialog defect. |
-| 2 | [`027-m12-slice2-regions-and-cursor.md`](./027-m12-slice2-regions-and-cursor.md) | The region and cursor model, Tab between and arrows within, proved on the tab bar and the mode picker. **The foundation slices 3–6 build on.** |
-| 3–6 | not yet issued | Welcome and Dashboard; the sidebar tree; segmented regions and the trace list; palette moves and deleting the left rail (D-16) |
+| 2 | [`027-m12-slice2-regions-and-cursor.md`](./027-m12-slice2-regions-and-cursor.md) | The region and cursor model. **Complete** — `926a4fc`, tab bar keyboard-operable, `mode_picker_selected` removed. |
+| 3 | [`028-m12-slice3-welcome-and-dashboard.md`](./028-m12-slice3-welcome-and-dashboard.md) | Welcome and Dashboard. Closes D-12's headline symptom; **the first slice where all four edge cases are live** — the list filters, empties and scrolls. |
+| 4–6 | not yet issued | the sidebar tree; segmented regions and the trace list; palette moves and deleting the left rail (D-16) |
 
 Slice numbering follows the design section's list; the file-name number is the
 dev-team task number, which review requests cite.
