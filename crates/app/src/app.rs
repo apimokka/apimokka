@@ -758,6 +758,21 @@ impl App {
                 }
             }
             Message::EnterPressed => {
+                // Task 026 (D-6, and the Enter-in-dialog defect task 024's
+                // audit found): both dialogs now get a default action, on the
+                // safe side. `Enter` in the confirm dialog cancels, never
+                // proceeds — `ConfirmProceed` can delete a rule set or
+                // discard unsaved work, and a dialog whose default action
+                // performs the destructive thing defeats the dialog (task
+                // 026 §4.2; `ConfirmProceed` stays reachable only by its own
+                // button, not by this key). Test Rule's default is `Run`,
+                // a local dry run with no side effect.
+                //
+                // Precedence follows `EscapePressed`'s existing order above
+                // (confirm_dialog first): a confirm dialog can be raised over
+                // other open state, and one keystroke must resolve to exactly
+                // one action.
+                //
                 // Re-dispatches the selected row's own `Message`, exactly as
                 // clicking it would (`GoWelcome`'s `ConfirmRequest`
                 // re-dispatch above is the same idiom). This is why the
@@ -765,7 +780,9 @@ impl App {
                 // from the identical table and filter `view` used to render
                 // the row the user is looking at, so the two can never
                 // disagree about what "selected" points to.
-                if self.command_palette.open {
+                if self.confirm_dialog.is_some() {
+                    self.update(Message::ConfirmCancel);
+                } else if self.command_palette.open {
                     if let Some(pos) = self.command_palette.selected {
                         let filtered = crate::palette_commands::filtered_indices(
                             self,
@@ -777,6 +794,8 @@ impl App {
                             self.update(selected_message);
                         }
                     }
+                } else if self.test_rule.open {
+                    self.update(Message::TestRuleRun);
                 } else if self.audience_mode.is_none()
                     && let Some(pos) = self.mode_picker_selected
                     && let Some(&(_, _, mode)) = screens::mode_picker::OPTIONS.get(pos)
@@ -3584,6 +3603,10 @@ mod tests_mk050;
 #[path = "app/palette_keyboard.rs"]
 mod tests_mk033;
 
+#[cfg(test)]
+#[path = "app/dialog_default_action.rs"]
+mod tests_mk023;
+
 // ── App view / subscription (not in the impl block above) ─────────────────────
 
 impl App {
@@ -3607,10 +3630,9 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        use iced::keyboard::key::Named;
-
-        // Deliberately `event::listen_with`, not `keyboard::listen()` —
-        // and deliberately ignoring the `status` it reports.
+        // Deliberately `event::listen_with`, not `keyboard::listen()` — and,
+        // since task 026 (D-6), deliberately **reading** the `status` it
+        // reports, with one named exception.
         //
         // Found live, driving the app with `wtype` for task 014's own
         // acceptance evidence, not by reading the code: `keyboard::listen()`
@@ -3625,41 +3647,56 @@ impl App {
         // presses to actually close it: one press for `text_input`'s own
         // capture, a second to reach `EscapePressed` here. A global
         // "close whatever is open" shortcut must not depend on which widget
-        // happens to hold focus, so this listens to every keyboard event,
-        // captured or not.
+        // happens to hold focus, so `Escape` alone is let through regardless
+        // of status.
         //
-        // Arrow keys and `Enter` are not affected by this specific capture
-        // — `text_input` only captures `Enter` when `.on_submit` is set,
-        // which the palette's search field never does — but are handled the
-        // same uncaptured-or-not way here, for one genuinely global keyboard
-        // path rather than two subscriptions with different semantics.
-        iced::event::listen_with(|event, _status, _window| {
-            let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) =
-                event
-            else {
-                return None;
-            };
-            if key == iced::keyboard::Key::Named(Named::Escape) {
-                return Some(Message::EscapePressed);
-            }
-            // Task 014 §3/§4: dispatched unconditionally — `update` decides
-            // whether the palette or the mode picker (or neither) is
-            // listening.
-            if key == iced::keyboard::Key::Named(Named::ArrowUp) {
-                return Some(Message::ArrowUp);
-            }
-            if key == iced::keyboard::Key::Named(Named::ArrowDown) {
-                return Some(Message::ArrowDown);
-            }
-            if key == iced::keyboard::Key::Named(Named::Enter) {
-                return Some(Message::EnterPressed);
-            }
-            // Dev-team handoff 002: key/modifier matching lives in the
-            // accelerator table, not inline arms, so it cannot drift from
-            // the palette's displayed shortcuts.
-            crate::accelerator::match_pressed(&key, modifiers)
-        })
+        // Everything else is now gated on `Status::Ignored`. Task 024's audit
+        // found that nothing here depended on the opposite: the only overlap
+        // between this global key set and any `text_input`'s captured set was
+        // `Escape` itself (D-6's own analysis), so admitting captured events
+        // for `ArrowUp`/`ArrowDown`/`Enter`/the accelerator table was already
+        // dead latitude, not a behaviour anything relied on. Closing it now
+        // is what stops `Enter` double-firing the moment a `text_input` ever
+        // captures it (`.on_submit` is permanently forbidden — see
+        // `theme/tests.rs`'s `no_text_input_sets_on_submit` — but this is the
+        // structural fix, not a promise nothing will add one later).
+        iced::event::listen_with(|event, status, _window| global_key_message(&event, status))
     }
+}
+
+/// The pure decision behind `App::subscription`'s `listen_with` closure,
+/// factored out so task 026's capture-status gating is unit-testable without
+/// a running `Subscription` — `listen_with`'s closure itself cannot be called
+/// from a test.
+fn global_key_message(event: &iced::Event, status: iced::event::Status) -> Option<Message> {
+    use iced::keyboard::key::Named;
+
+    let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) = event
+    else {
+        return None;
+    };
+    if *key == iced::keyboard::Key::Named(Named::Escape) {
+        return Some(Message::EscapePressed);
+    }
+    if status == iced::event::Status::Captured {
+        return None;
+    }
+    // Task 014 §3/§4: dispatched unconditionally — `update` decides
+    // whether the palette or the mode picker (or neither) is
+    // listening.
+    if *key == iced::keyboard::Key::Named(Named::ArrowUp) {
+        return Some(Message::ArrowUp);
+    }
+    if *key == iced::keyboard::Key::Named(Named::ArrowDown) {
+        return Some(Message::ArrowDown);
+    }
+    if *key == iced::keyboard::Key::Named(Named::Enter) {
+        return Some(Message::EnterPressed);
+    }
+    // Dev-team handoff 002: key/modifier matching lives in the
+    // accelerator table, not inline arms, so it cannot drift from
+    // the palette's displayed shortcuts.
+    crate::accelerator::match_pressed(key, *modifiers)
 }
 
 // ── Mock fallback content (seeded for the mockup) ─────────────────────────────
