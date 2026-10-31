@@ -513,8 +513,20 @@ reading the capture status already supplied; theme and audience mode moved to th
 palette; the left rail deleted.
 
 **Implementation follows in six reviewable slices**, listed in that section.
-Slice 1 — capture status and the dialog default action — is handed off as
-`rfcs/handoffs/MK-023-accessibility-keyboard/026-m12-slice1-capture-status-and-dialog-default.md`.
+
+**Slice 1 complete 2026-10-31** (`dbf947c`, CI run `41193214523` green on six
+legs). It closed **D-6** by reading the capture status the subscription was
+always handed, and gave both dialogs a default action on the safe side: Test
+Rule's `Enter` runs the test, the confirm dialog's **cancels**. That also fixed
+the live defect task 024's audit found, where `Enter` did nothing in either
+dialog **for pointer users too** — recorded in the inventory above and now
+closed. Evidence shows the confirm dialog raised over genuinely unsaved work
+(*"Switch workspaces? Unsaved edits will be lost"*, status chip reading
+**Unsaved (1)**) and the edit surviving the keystroke.
+
+Slices 2–6 remain: regions and the cursor; Welcome and Dashboard; the sidebar
+tree; the segmented regions and the trace list; the palette moves and deleting
+the left rail (**D-16**).
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from
