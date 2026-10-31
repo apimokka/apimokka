@@ -205,8 +205,26 @@ architect's 2026-10-06 recommendation called this *"extension, not invention"* �
 Open. D-12 is S1 and MK-056 §8 forbids deferring an S1, so the choice is between
 building it and the project owner narrowing what the mockup claims. The options,
 with a recommendation, are in
-`.git-exclude/reviewed/2026-10-31-task024-audit-review-and-decision-request.md` §3.
-**This RFC's Status does not change until that is decided.**
+`.git-exclude/reviewed/2026-10-31-task024-audit-review-and-decision-request.md` §3
+and its 2026-10-31 revision. **This RFC's Status does not change until that is
+decided.**
+
+**What the inventory above is not.** It is a gap inventory, not a design. The
+architect's first recommendation was to implement the two cheapest routes and
+inherit the rest; that was withdrawn the same day against the owner's
+fundamental philosophy — a model present on two surfaces and absent on the rest
+is the kind of UI that confuses rather than one *"for users not to be confused or
+misunderstand"*, and shipping it would have handed the production project a
+keyboard contract never executed, which is R1 finding B3's defect created
+deliberately.
+
+**The recommendation is therefore an external design first**, amending this RFC,
+settling tree and list navigation, the segmented-control idiom, the dialog
+default action (resolving D-6), the palette's role, D-16's left rail — and,
+under *"Less is more"*, whether all nine surfaces should keep their current shape
+at all, since five segmented controls repeating one idiom is itself a signal that
+the answer may be fewer controls rather than more navigation. Implementation
+follows acceptance, in reviewable slices.
 
 ## Focus order — Routes screen (the most-used view)
 
