@@ -11,8 +11,9 @@ slices. One handoff per slice, added as each is issued.
 |---:|---|---|
 | 1 | [`026-m12-slice1-capture-status-and-dialog-default.md`](./026-m12-slice1-capture-status-and-dialog-default.md) | Read `event::Status`; dialog default actions. **Complete** — `dbf947c`, closed D-6 and the `Enter`-in-dialog defect. |
 | 2 | [`027-m12-slice2-regions-and-cursor.md`](./027-m12-slice2-regions-and-cursor.md) | The region and cursor model. **Complete** — `926a4fc`, tab bar keyboard-operable, `mode_picker_selected` removed. |
-| 3 | [`028-m12-slice3-welcome-and-dashboard.md`](./028-m12-slice3-welcome-and-dashboard.md) | Welcome and Dashboard. Closes D-12's headline symptom; **the first slice where all four edge cases are live** — the list filters, empties and scrolls. |
-| 4–6 | not yet issued | the sidebar tree; segmented regions and the trace list; palette moves and deleting the left rail (D-16) |
+| 3 | [`028-m12-slice3-welcome-and-dashboard.md`](./028-m12-slice3-welcome-and-dashboard.md) | Welcome and Dashboard. **Complete** — `cc56256`, closed D-12's headline symptom; a keyboard-only user reaches a workspace with no pointer event. Surfaced D-18. |
+| 4 | [`029-m12-slice4-sidebar-tree.md`](./029-m12-slice4-sidebar-tree.md) | The routes sidebar tree. **Structurally the hardest** — three expansion behaviours in one sidebar, and the one place the data model cannot express the design. |
+| 5–6 | not yet issued | segmented regions and the trace list; palette moves and deleting the left rail (D-16) |
 
 Slice numbering follows the design section's list; the file-name number is the
 dev-team task number, which review requests cite.
