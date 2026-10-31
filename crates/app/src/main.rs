@@ -3,6 +3,7 @@ mod app;
 mod match_test;
 mod message;
 mod palette_commands;
+mod regions;
 mod screens;
 mod selection;
 mod shell;

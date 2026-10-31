@@ -1,28 +1,29 @@
 //! Horizontal tab bar. Each tab occupies 1/N of the full width (equal columns).
 //! Text is explicitly centered within each cell.
 
-use apimokka_i18n::Key;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Padding};
 
 use crate::app::App;
 use crate::message::Message;
-use crate::selection::WorkspaceTab;
+use crate::regions::{Region, TAB_BAR_ORDER};
 use crate::theme::{self, size, space};
 use crate::widgets;
 
 pub fn view(app: &App) -> Element<'_, Message> {
-    let tabs = [
-        (WorkspaceTab::Routes, Key::NavRoutes),
-        (WorkspaceTab::Trace, Key::NavTrace),
-        (WorkspaceTab::Settings, Key::NavSettings),
-    ];
-
-    let tab_items: Vec<Element<Message>> = tabs
+    let tab_items: Vec<Element<Message>> = TAB_BAR_ORDER
         .iter()
-        .map(|(tab, key)| {
+        .enumerate()
+        .map(|(pos, (tab, key))| {
             let active = app.tab == *tab;
             let label = app.t(*key);
+            // Task 027 §3.2: "active" (this tab is displayed) and "has the
+            // cursor" (the keyboard is pointing at it) are different states,
+            // drawn independently — the cursor border must be visible
+            // whether or not it sits on the active tab, and must not render
+            // at all once the tab bar no longer holds focus.
+            let has_cursor =
+                app.focused_region == Some(Region::TabBar) && app.region_cursor == Some(pos);
 
             // 3 px accent strip below active tab
             let indicator: Element<Message> = if active {
@@ -51,9 +52,20 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 theme::seg_inactive
             });
 
-            container(column![btn, indicator].align_x(Alignment::Center))
-                .width(Length::FillPortion(1))
-                .into()
+            // Task 027: the keyboard cursor, drawn as an outer border around
+            // the whole cell so it reads as its own state rather than
+            // merging with `seg_active`'s fill (§3.2).
+            container(
+                container(column![btn, indicator].align_x(Alignment::Center)).style(
+                    if has_cursor {
+                        theme::cursor_style
+                    } else {
+                        |_: &iced::Theme| iced::widget::container::Style::default()
+                    },
+                ),
+            )
+            .width(Length::FillPortion(1))
+            .into()
         })
         .collect();
 

@@ -610,6 +610,31 @@ pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     }
 }
 
+// ── Keyboard cursor indicator ──────────────────────────────────────────────────
+//
+// MK-023 slice 2 (task 027): the region/cursor keyboard model's visible
+// indicator — "the 2 px primary border `card_selected_style` already draws",
+// reused rather than invented. Unlike `card_selected_style`, this carries no
+// fill or shadow: it wraps an existing widget (a tab bar cell, a list row)
+// purely to draw a border on top of whatever that widget already renders, so
+// it must add nothing but the border itself.
+
+/// The keyboard cursor: a 2 px primary border, drawn only around the item
+/// the cursor currently names, in the region that currently holds focus
+/// (task 027 §3.2 — no other region shows a cursor while it does not hold
+/// focus). Transparent otherwise, so it never competes with the wrapped
+/// widget's own fill (a tab's `seg_active`/`seg_inactive`, a card's
+/// `card_style`/`card_selected_style`).
+pub fn cursor_style(t: &Theme) -> container::Style {
+    container::Style {
+        background: None,
+        text_color: None,
+        border: card_selected_style(t).border,
+        shadow: Shadow::default(),
+        snap: true,
+    }
+}
+
 // ── Text input style ──────────────────────────────────────────────────────────
 
 /// D-15: `iced::widget::text_input::default` derives four colour roles from

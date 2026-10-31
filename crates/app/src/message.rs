@@ -41,12 +41,24 @@ pub enum Message {
     // ── Keyboard ──────────────────────────────────────────────────────────
     EscapePressed,
     ToggleCommandPalette,
-    /// MK-033 §3 / task 014 §4: moves the palette's row selection, or the
-    /// mode picker's, depending on which is showing. A no-op otherwise.
+    /// MK-033 §3 / task 014 §4: moves the palette's row selection when it is
+    /// open. Otherwise moves the keyboard cursor within the screen's
+    /// currently focused region (task 027, MK-023 slice 2) — the mode
+    /// picker's cards, the tab bar, or whichever later region holds focus.
+    /// A no-op where neither applies.
     ArrowUp,
     ArrowDown,
-    /// MK-033 line 92 / task 014 §4: executes the palette's selected row, or
-    /// confirms the mode picker's selected card. A no-op otherwise.
+    /// Task 027 (MK-023 slice 2): moves the keyboard cursor to the next
+    /// region in the current screen's declared order, wrapping. The dialog
+    /// region (task 026) takes priority when one is open, same as `Enter`.
+    TabPressed,
+    /// The reverse of `TabPressed`.
+    ShiftTabPressed,
+    /// MK-033 line 92 / task 014 §4: executes the palette's selected row when
+    /// it is open; otherwise activates the focused region's cursor item
+    /// (task 027) — confirming the mode picker's card, switching the tab
+    /// bar's tab, or (task 026) the open dialog's default action, which
+    /// takes priority over all of the above. A no-op where none applies.
     EnterPressed,
 
     // ── Workspace switcher ────────────────────────────────────────────────

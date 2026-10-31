@@ -418,10 +418,19 @@ pub struct App {
     transient_problem_operation: Option<TransientOperation>,
     pub show_problem_details: bool,
     pub audience_mode: Option<apimokka_model::AudienceMode>,
-    /// Task 014 §4 (MK-023 first-screen gap): keyboard selection into
-    /// `screens::mode_picker::OPTIONS`, shown only while `audience_mode` is
-    /// `None`. `None` = nothing selected yet.
-    pub mode_picker_selected: Option<usize>,
+    /// Task 027 (MK-023 slice 2): the screen region currently holding the
+    /// keyboard cursor, or `None` if the user has not yet pressed `Tab` or
+    /// an arrow key since the current screen became reachable. Replaces
+    /// task 014's `mode_picker_selected`, which this generalises — see
+    /// `regions::Region`. Not trusted across a screen change without
+    /// `valid_focused_region` re-checking it against
+    /// `Region::order_for(self)`: no message here enumerates every
+    /// transition that could make a screen's regions change.
+    pub focused_region: Option<crate::regions::Region>,
+    /// The cursor's position within `focused_region`'s current item list.
+    /// `None` exactly when `focused_region` is `None` or that region is
+    /// empty.
+    pub region_cursor: Option<usize>,
     // ── MK-041 layout density toggles ─────────────────────────────────────
     pub rule_when_more: bool,
     pub settings_advanced_more: bool,
@@ -520,7 +529,8 @@ impl App {
             transient_problem_operation: None,
             show_problem_details: false,
             audience_mode: None, // None → first-run picker shown
-            mode_picker_selected: None,
+            focused_region: None,
+            region_cursor: None,
             rule_when_more: false,
             settings_advanced_more: false,
             rule_set_config_more: false,
@@ -732,12 +742,15 @@ impl App {
                     .len();
                     self.command_palette.selected =
                         move_selection(self.command_palette.selected, filtered_len, -1);
-                } else if self.audience_mode.is_none() {
-                    self.mode_picker_selected = move_selection(
-                        self.mode_picker_selected,
-                        screens::mode_picker::OPTIONS.len(),
-                        -1,
-                    );
+                } else if !self.blocks_region_navigation() {
+                    // Task 027 (MK-023 slice 2): the command palette keeps
+                    // its own pre-existing selection mechanism, untouched;
+                    // every other screen's arrow handling goes through the
+                    // general region/cursor model instead of a per-screen
+                    // special case. A dialog on top of the screen must not
+                    // let an arrow key reach through to it — see
+                    // `blocks_region_navigation`.
+                    self.move_region_cursor(-1);
                 }
             }
             Message::ArrowDown => {
@@ -749,12 +762,22 @@ impl App {
                     .len();
                     self.command_palette.selected =
                         move_selection(self.command_palette.selected, filtered_len, 1);
-                } else if self.audience_mode.is_none() {
-                    self.mode_picker_selected = move_selection(
-                        self.mode_picker_selected,
-                        screens::mode_picker::OPTIONS.len(),
-                        1,
-                    );
+                } else if !self.blocks_region_navigation() {
+                    self.move_region_cursor(1);
+                }
+            }
+            Message::TabPressed => {
+                // Task 027: the dialog region (task 026) and the palette
+                // keep their own existing mechanisms; `Tab` only moves
+                // between the screen's *declared* regions, which neither of
+                // those is in this slice.
+                if !self.blocks_region_navigation() {
+                    self.focus_adjacent_region(1);
+                }
+            }
+            Message::ShiftTabPressed => {
+                if !self.blocks_region_navigation() {
+                    self.focus_adjacent_region(-1);
                 }
             }
             Message::EnterPressed => {
@@ -796,11 +819,16 @@ impl App {
                     }
                 } else if self.test_rule.open {
                     self.update(Message::TestRuleRun);
-                } else if self.audience_mode.is_none()
-                    && let Some(pos) = self.mode_picker_selected
-                    && let Some(&(_, _, mode)) = screens::mode_picker::OPTIONS.get(pos)
+                } else if let Some(region) = self.valid_focused_region()
+                    && let Some(cursor) = self.region_cursor
+                    && let Some(message) = region.activation_message(cursor)
                 {
-                    self.update(Message::ChooseAudienceMode(mode));
+                    // Task 027: activates whichever region currently holds
+                    // the cursor — the mode picker's card or the tab bar's
+                    // tab — read from the same table `view` renders, so
+                    // `Enter` can never confirm something other than what is
+                    // visibly highlighted (the D-9 lesson, applied here).
+                    self.update(message);
                 }
             }
 
@@ -3254,6 +3282,101 @@ impl App {
         ));
     }
 
+    // ── MK-023 slice 2 (task 027): the region/cursor keyboard model ────────
+
+    /// Whether a surface with its own, higher-priority keyboard mechanism is
+    /// currently on top of the screen. Dialogs are not yet regions in this
+    /// slice (that is a later one — see MK-023's "a dialog is a region"
+    /// design note), so `Tab`/`Shift+Tab` and the arrows must not reach
+    /// through an open dialog *or the open palette* to the screen underneath
+    /// — `EnterPressed`'s own `if`/`else if` chain above already encodes the
+    /// same precedence for activation (confirm dialog, then palette, then
+    /// Test Rule), this just extends it to movement. The palette belongs
+    /// here too: its own `ArrowUp`/`ArrowDown` arms check `command_palette.open`
+    /// first and only fall through to `move_region_cursor` otherwise, but
+    /// `TabPressed`/`ShiftTabPressed` have no such arm of their own — without
+    /// it here, `Tab` would move the tab bar's cursor, unseen, behind an open
+    /// palette (review finding F1, task 027).
+    fn blocks_region_navigation(&self) -> bool {
+        self.confirm_dialog.is_some() || self.command_palette.open || self.test_rule.open
+    }
+
+    /// The region actually holding the cursor, re-derived against the
+    /// current screen rather than trusted — see `regions` module docs on why
+    /// `focused_region` is never read directly outside this function.
+    fn valid_focused_region(&self) -> Option<crate::regions::Region> {
+        let order = crate::regions::Region::order_for(self);
+        self.focused_region.filter(|region| order.contains(region))
+    }
+
+    /// Set `region` as focused and place the cursor per task 027 §3.1: on
+    /// the region's active item if it has one, otherwise its first item: an
+    /// empty region gets no cursor at all.
+    fn enter_region(&mut self, region: crate::regions::Region) {
+        let len = region.len();
+        self.focused_region = Some(region);
+        self.region_cursor = if len == 0 {
+            None
+        } else {
+            Some(region.active_index(self).unwrap_or(0).min(len - 1))
+        };
+    }
+
+    /// `ArrowUp`/`ArrowDown` outside the command palette: moves the cursor
+    /// within the currently focused region, saturating at both ends (never
+    /// wrapping — matches task 014's mode-picker behaviour exactly, which
+    /// this generalises). The first arrow press with no region focused yet
+    /// focuses the screen's first region instead of also applying `delta`,
+    /// reproducing M9's "the first press selects index 0, in either
+    /// direction" behaviour (`palette_keyboard.rs`'s
+    /// `mode_picker_arrow_keys_move_between_the_two_options`).
+    fn move_region_cursor(&mut self, delta: isize) {
+        match self.valid_focused_region() {
+            Some(region) => {
+                let len = region.len();
+                if len == 0 {
+                    self.region_cursor = None;
+                    return;
+                }
+                let current = self.region_cursor.unwrap_or(0) as isize;
+                self.region_cursor = Some((current + delta).clamp(0, len as isize - 1) as usize);
+            }
+            None => {
+                if let Some(&region) = crate::regions::Region::order_for(self).first() {
+                    self.enter_region(region);
+                }
+            }
+        }
+    }
+
+    /// `Tab`/`Shift+Tab`: moves the cursor to the next (`delta = 1`) or
+    /// previous (`delta = -1`) region in the current screen's declared
+    /// order, wrapping at both ends (task 027 §6: "cycle the declared order
+    /// and wrap" — unlike `move_region_cursor`'s saturation *within* a
+    /// region, movement *between* regions wraps).
+    fn focus_adjacent_region(&mut self, delta: isize) {
+        let order = crate::regions::Region::order_for(self);
+        let Some(&first) = order.first() else {
+            self.focused_region = None;
+            self.region_cursor = None;
+            return;
+        };
+        let current_pos = self
+            .valid_focused_region()
+            .and_then(|region| order.iter().position(|&r| r == region));
+        let next_pos = match current_pos {
+            Some(pos) => {
+                let len = order.len() as isize;
+                (((pos as isize + delta) % len) + len) as usize % order.len()
+            }
+            None => {
+                self.enter_region(first);
+                return;
+            }
+        };
+        self.enter_region(order[next_pos]);
+    }
+
     fn requires_workspace_confirmation(&self) -> bool {
         self.snapshot
             .as_ref()
@@ -3607,6 +3730,10 @@ mod tests_mk033;
 #[path = "app/dialog_default_action.rs"]
 mod tests_mk023;
 
+#[cfg(test)]
+#[path = "app/region_cursor.rs"]
+mod tests_mk023_slice2;
+
 // ── App view / subscription (not in the impl block above) ─────────────────────
 
 impl App {
@@ -3692,6 +3819,16 @@ fn global_key_message(event: &iced::Event, status: iced::event::Status) -> Optio
     }
     if *key == iced::keyboard::Key::Named(Named::Enter) {
         return Some(Message::EnterPressed);
+    }
+    if *key == iced::keyboard::Key::Named(Named::Tab) {
+        // Task 027 (MK-023 slice 2): never captured by a focused field — the
+        // design's own key-budget table confirms it, so this needs no
+        // special-casing the way `Escape` does above.
+        return Some(if modifiers.shift() {
+            Message::ShiftTabPressed
+        } else {
+            Message::TabPressed
+        });
     }
     // Dev-team handoff 002: key/modifier matching lives in the
     // accelerator table, not inline arms, so it cannot drift from

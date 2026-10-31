@@ -190,23 +190,28 @@ fn enter_executes_the_selected_rows_message_under_a_filter() {
 }
 
 // ── §4: the mode picker uses the same selected-row-plus-Enter idiom ──────
+//
+// Task 027 (MK-023 slice 2): `mode_picker_selected` is gone, replaced by the
+// general `focused_region`/`region_cursor` pair. These four tests are the
+// refactor's safety net, rewritten against the new fields rather than
+// deleted — task 027 §6 requires the mode picker to behave exactly as
+// before, and this is the test that would catch it if it did not.
 
 #[test]
 fn mode_picker_arrow_keys_move_between_the_two_options() {
+    use crate::regions::Region;
+
     let mut a = App::new().0;
     assert!(a.audience_mode.is_none());
     a.update(Message::ArrowDown);
-    assert_eq!(a.mode_picker_selected, Some(0));
+    assert_eq!(a.focused_region, Some(Region::ModePicker));
+    assert_eq!(a.region_cursor, Some(0));
     a.update(Message::ArrowDown);
-    assert_eq!(
-        a.mode_picker_selected,
-        Some(1),
-        "two options, saturates at 1"
-    );
+    assert_eq!(a.region_cursor, Some(1), "two options, saturates at 1");
     a.update(Message::ArrowDown);
-    assert_eq!(a.mode_picker_selected, Some(1), "must not wrap back to 0");
+    assert_eq!(a.region_cursor, Some(1), "must not wrap back to 0");
     a.update(Message::ArrowUp);
-    assert_eq!(a.mode_picker_selected, Some(0));
+    assert_eq!(a.region_cursor, Some(0));
 }
 
 #[test]
@@ -214,19 +219,22 @@ fn mode_picker_enter_confirms_the_visibly_selected_card() {
     let mut a = App::new().0;
     a.update(Message::ArrowDown);
     a.update(Message::ArrowDown);
-    assert_eq!(a.mode_picker_selected, Some(1));
+    assert_eq!(a.region_cursor, Some(1));
     a.update(Message::EnterPressed);
     assert_eq!(
         a.audience_mode,
         Some(crate::screens::mode_picker::OPTIONS[1].2),
-        "Enter must confirm exactly the option at the selected index"
+        "Enter must confirm exactly the option at the cursor's index"
     );
 }
 
 #[test]
 fn mode_picker_enter_is_a_noop_with_no_selection() {
     let mut a = App::new().0;
-    assert_eq!(a.mode_picker_selected, None);
+    assert_eq!(
+        a.focused_region, None,
+        "nothing focused until a key moves it"
+    );
     a.update(Message::EnterPressed);
     assert!(
         a.audience_mode.is_none(),
@@ -235,13 +243,30 @@ fn mode_picker_enter_is_a_noop_with_no_selection() {
 }
 
 #[test]
-fn mode_picker_arrow_keys_are_a_noop_once_a_mode_is_chosen() {
+fn mode_picker_arrow_keys_move_the_tab_bar_instead_once_a_mode_is_chosen() {
+    use crate::regions::Region;
+    use crate::selection::WorkspaceTab;
+
+    // Task 027's actual change, not a no-op: once in a workspace, arrow keys
+    // now drive the tab bar's cursor instead of doing nothing — the mode
+    // picker's own region is simply no longer in `Region::order_for` for
+    // this screen, confirmed via `regions::tests::order_for_is_the_tab_bar_inside_a_workspace`.
     let mut a = expert_in_workspace();
-    a.mode_picker_selected = None;
     a.update(Message::ArrowDown);
     assert_eq!(
-        a.mode_picker_selected, None,
-        "arrow keys must not touch the mode picker once it is no longer shown"
+        a.focused_region,
+        Some(Region::TabBar),
+        "arrow keys must not resurrect the mode picker once it is no longer shown"
+    );
+    assert_eq!(
+        a.region_cursor,
+        Some(0),
+        "first press focuses the tab bar on the active tab (Routes, index 0)"
+    );
+    assert_eq!(
+        a.tab,
+        WorkspaceTab::Routes,
+        "no tab switched yet — Enter does that"
     );
 }
 

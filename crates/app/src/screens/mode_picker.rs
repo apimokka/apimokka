@@ -6,12 +6,14 @@
 //!
 //! MK-023's first-screen gap (task 014 §4): a keyboard-only user could not
 //! reach this screen's cards at all before this table existed, since
-//! `Message::ChooseAudienceMode` fired only from a button `.on_press`. `OPTIONS`
-//! is the same table `view` (which card to render, and which one is
-//! highlighted) and `App::update` (which `AudienceMode` arrow keys/Enter
-//! select) both read — the same selected-row-plus-Enter idiom the command
-//! palette uses, so the application has one keyboard interaction model
-//! rather than two.
+//! `Message::ChooseAudienceMode` fired only from a button `.on_press`.
+//! `OPTIONS` is the same table `view` and `regions::Region::ModePicker`'s
+//! methods both read.
+//!
+//! Task 027 (MK-023 slice 2): the screen's own `mode_picker_selected` field
+//! is gone. The cursor is now `App::focused_region`/`region_cursor`, the same
+//! mechanism the tab bar uses — this screen is the model's proof surface,
+//! not a special case.
 
 use apimokka_i18n::Key;
 use apimokka_model::AudienceMode;
@@ -20,6 +22,7 @@ use iced::{Element, Length, Padding};
 
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::Region;
 use crate::theme::{self, pad, size, space};
 
 /// One selectable card, in on-screen order. `App::update` indexes into this
@@ -41,7 +44,8 @@ pub const OPTIONS: &[(Key, Key, AudienceMode)] = &[
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let card = |pos: usize, title: Key, desc: Key, mode: AudienceMode| -> Element<Message> {
-        let selected = app.mode_picker_selected == Some(pos);
+        let selected =
+            app.focused_region == Some(Region::ModePicker) && app.region_cursor == Some(pos);
         button(
             container(
                 column![
