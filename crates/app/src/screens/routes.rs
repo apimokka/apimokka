@@ -20,6 +20,11 @@ use apimokka_i18n::Key;
 use iced::widget::{column, container, row};
 use iced::{Element, Length};
 
+/// Task 029 §4 edge case 4: the `Id` `App::update_and_dispatch` scrolls when
+/// the sidebar's keyboard cursor moves — same D-5 approximation Dashboard's
+/// workspace list and the command palette's results list already use.
+pub(crate) const SIDEBAR_SCROLLABLE_ID: &str = "mk023-sidebar";
+
 pub fn view(app: &App) -> Element<'_, Message> {
     let sidebar = sidebar::left_sidebar(app);
     let centre = centre_panel(app);

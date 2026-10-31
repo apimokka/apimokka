@@ -28,8 +28,27 @@ fn order_for_is_the_mode_picker_before_a_mode_is_chosen() {
 }
 
 #[test]
-fn order_for_is_the_tab_bar_inside_a_workspace() {
+fn order_for_is_the_tab_bar_and_sidebar_on_the_routes_tab() {
+    // Task 029: Routes is the tab OpenWorkspace lands on, and the sidebar
+    // only renders there — mirrors `screens::routes::view` only being
+    // reached on that tab.
     let a = expert_in_workspace();
+    assert_eq!(
+        a.tab,
+        crate::selection::WorkspaceTab::Routes,
+        "test setup sanity"
+    );
+    assert_eq!(Region::order_for(&a), &[Region::TabBar, Region::Sidebar]);
+}
+
+#[test]
+fn order_for_is_only_the_tab_bar_on_trace_and_settings() {
+    use crate::selection::WorkspaceTab;
+
+    let mut a = expert_in_workspace();
+    a.update(Message::SwitchTab(WorkspaceTab::Trace));
+    assert_eq!(Region::order_for(&a), &[Region::TabBar]);
+    a.update(Message::SwitchTab(WorkspaceTab::Settings));
     assert_eq!(Region::order_for(&a), &[Region::TabBar]);
 }
 

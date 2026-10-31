@@ -1,3 +1,11 @@
+//! Boundary decision: single-responsibility — reducer tests for the region/
+//! cursor keyboard model (`Tab`/`Shift+Tab`, the arrows, `Enter`) across
+//! every slice that has extended it (027, 028, 029). `regions/tests.rs`
+//! covers `Region`'s own table-lookup methods in isolation; this file
+//! exercises the `App::update` integration — the actual acceptance surface —
+//! and grows with each slice because that surface is one coherent model, not
+//! one file per slice.
+//!
 //! Task 027 (MK-023 slice 2) reducer tests for `Tab`/`Shift+Tab` and the
 //! cursor movement they and the arrows drive. `regions/tests.rs` covers
 //! `Region`'s own table-lookup methods in isolation; these exercise the
@@ -487,5 +495,456 @@ fn tabbing_past_search_leaves_it_as_the_focused_region() {
         a.focused_region,
         Some(Region::DashboardSearch),
         "Tab must move focus off Search — update_and_dispatch unfocuses it on this transition"
+    );
+}
+
+// ── Task 029 (MK-023 slice 4): the routes sidebar tree ────────────────────
+//
+// §7's four edge cases, live again, this time against `Region::Sidebar` —
+// the model's second identity-cursored region and the first whose identity
+// list has real internal structure (an accordion, two independent toggles)
+// rather than a single flat filter.
+
+use crate::regions::SidebarRow;
+use apimokka_model::{NodeId, RuleSetId};
+
+fn rule_set_ids(a: &App) -> Vec<RuleSetId> {
+    a.snapshot
+        .as_ref()
+        .expect("test setup sanity")
+        .rule_sets
+        .iter()
+        .map(|rs| rs.id)
+        .collect()
+}
+
+fn rule_ids_in(a: &App, rs_id: RuleSetId) -> Vec<NodeId> {
+    a.snapshot
+        .as_ref()
+        .expect("test setup sanity")
+        .find_rule_set(rs_id)
+        .expect("test setup sanity")
+        .rules
+        .iter()
+        .map(|r| r.id)
+        .collect()
+}
+
+fn tab_into_sidebar(a: &mut App) {
+    a.update(Message::TabPressed); // TabBar
+    a.update(Message::TabPressed); // Sidebar
+    assert_eq!(a.focused_region, Some(Region::Sidebar), "test setup sanity");
+}
+
+// ── Tab order and cycling ──────────────────────────────────────────────────
+
+#[test]
+fn tab_cycles_tab_bar_and_sidebar_on_routes_and_wraps() {
+    let mut a = expert_in_workspace();
+    a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::TabBar));
+    a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::Sidebar));
+    a.update(Message::TabPressed);
+    assert_eq!(
+        a.focused_region,
+        Some(Region::TabBar),
+        "wraps back to the tab bar (task 029 §2's two-region Tab order)"
+    );
+}
+
+// ── §3.1 / Edge case 3: entering resets to the active item, or the first ──
+
+#[test]
+fn entering_the_sidebar_starts_on_the_first_rule_set_header_when_nothing_is_selected() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    tab_into_sidebar(&mut a);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::RuleSetHeader(rs_ids[0]))),
+        "nothing is selected yet, so the cursor starts at the first row (task 027 §3.1)"
+    );
+}
+
+#[test]
+fn entering_the_sidebar_resumes_on_the_currently_selected_rule() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    let rule_ids = rule_ids_in(&a, rs_ids[1]);
+    a.update(Message::SelectRule(rule_ids[0]));
+    assert_eq!(
+        a.focused_region, None,
+        "selecting via message alone does not move focus"
+    );
+
+    a.update(Message::TabPressed); // TabBar
+    a.update(Message::TabPressed); // Sidebar
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::Rule(rule_ids[0]))),
+        "entering resumes on the selected rule (§3.1's active-item clause), \
+         not the first row — the sidebar's `active_index` mirrors the centre \
+         panel's own rule>file>script>rule-set priority"
+    );
+}
+
+// ── ArrowUp/ArrowDown move within the flattened sequence ──────────────────
+
+#[test]
+fn arrow_down_moves_from_the_first_rule_set_header_to_the_second() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::RuleSetHeader(rs_ids[1]))),
+        "both rule sets start collapsed, so their headers are adjacent rows"
+    );
+}
+
+#[test]
+fn arrow_down_saturates_at_the_last_row() {
+    let mut a = expert_in_workspace();
+    tab_into_sidebar(&mut a);
+    // Rows with nothing expanded: two rule-set headers, AddRuleSet,
+    // FallbackHeader, MiddlewareHeader — five total.
+    for _ in 0..10 {
+        a.update(Message::ArrowDown);
+    }
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::MiddlewareHeader)),
+        "must not wrap past the last row"
+    );
+}
+
+// ── §4: ArrowRight expands, or moves to the first child when expanded ─────
+
+#[test]
+fn arrow_right_on_a_collapsed_rule_set_header_expands_and_selects_it() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    tab_into_sidebar(&mut a);
+    assert_eq!(a.rule_set_open, None, "test setup sanity");
+    a.update(Message::ArrowRight);
+    assert_eq!(
+        a.rule_set_open,
+        Some(rs_ids[0]),
+        "task 029 §4: ArrowRight on a collapsed header activates it — \
+         SelectRuleSet both expands and selects"
+    );
+    assert_eq!(a.selection.rule_set, Some(rs_ids[0]));
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::RuleSetHeader(rs_ids[0]))),
+        "the cursor stays on the header — Right and Enter coincide here, \
+         they do not also move the cursor"
+    );
+}
+
+#[test]
+fn arrow_right_on_an_expanded_rule_set_header_moves_to_its_first_rule() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    let rule_ids = rule_ids_in(&a, rs_ids[0]);
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowRight); // expand
+    a.update(Message::ArrowRight); // now expanded: move to first child
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::Rule(rule_ids[0]))),
+        "task 029 §4: Right on an already-expanded header moves to its first child"
+    );
+}
+
+#[test]
+fn arrow_right_on_a_collapsed_fallback_header_toggles_it_open() {
+    let mut a = expert_in_workspace();
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowDown); // RuleSetHeader(errors)
+    a.update(Message::ArrowDown); // AddRuleSet
+    a.update(Message::ArrowDown); // FallbackHeader
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::FallbackHeader)),
+        "test setup sanity"
+    );
+    assert!(!a.fallback_section_open, "test setup sanity");
+    a.update(Message::ArrowRight);
+    assert!(a.fallback_section_open);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::FallbackHeader)),
+        "expanding must not also move the cursor off the header"
+    );
+}
+
+#[test]
+fn arrow_right_is_a_noop_on_a_leaf_row() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowRight); // expand rule set 0
+    a.update(Message::ArrowRight); // move to first rule
+    let cursor_before = a.region_cursor.clone();
+    let rule_set_open_before = a.rule_set_open;
+    a.update(Message::ArrowRight); // a rule has no children to expand into
+    assert_eq!(
+        a.region_cursor, cursor_before,
+        "a leaf row has nothing to expand"
+    );
+    assert_eq!(a.rule_set_open, rule_set_open_before);
+    let _ = rs_ids;
+}
+
+// ── §4: ArrowLeft collapses, or moves to the parent ───────────────────────
+
+#[test]
+fn arrow_left_collapses_an_expanded_rule_set_header_without_changing_selection() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowRight); // expand + select rule set 0
+    assert_eq!(a.rule_set_open, Some(rs_ids[0]), "test setup sanity");
+    a.update(Message::ArrowLeft);
+    assert_eq!(
+        a.rule_set_open, None,
+        "task 029 §4: the keyboard-only collapse path — no message closes \
+         a rule set on its own, so ArrowLeft sets `rule_set_open` directly"
+    );
+    assert_eq!(
+        a.selection.rule_set,
+        Some(rs_ids[0]),
+        "collapsing must not change what is selected — only the pointer-\
+         equivalent action (another SelectRuleSet) does that"
+    );
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::RuleSetHeader(rs_ids[0]))),
+        "the cursor stays on the header it just collapsed"
+    );
+}
+
+#[test]
+fn arrow_left_on_a_collapsed_rule_set_header_is_a_noop() {
+    let mut a = expert_in_workspace();
+    tab_into_sidebar(&mut a);
+    assert_eq!(a.rule_set_open, None, "test setup sanity");
+    a.update(Message::ArrowLeft);
+    assert_eq!(
+        a.rule_set_open, None,
+        "no parent above a top-level, already-collapsed header"
+    );
+}
+
+#[test]
+fn arrow_left_on_a_rule_moves_to_its_rule_sets_header_without_collapsing_it() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    let rule_ids = rule_ids_in(&a, rs_ids[0]);
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowRight); // expand rule set 0
+    a.update(Message::ArrowRight); // move to first rule
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::Rule(rule_ids[0]))),
+        "test setup sanity"
+    );
+    a.update(Message::ArrowLeft);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::RuleSetHeader(rs_ids[0]))),
+        "first Left moves to the parent header"
+    );
+    assert_eq!(
+        a.rule_set_open,
+        Some(rs_ids[0]),
+        "moving to the parent must not also collapse it — a second Left does that"
+    );
+    a.update(Message::ArrowLeft);
+    assert_eq!(
+        a.rule_set_open, None,
+        "second Left, now on the header itself, collapses it"
+    );
+}
+
+#[test]
+fn arrow_left_on_a_fallback_file_moves_to_the_fallback_header() {
+    let mut a = expert_in_workspace();
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowDown); // RuleSetHeader(errors)
+    a.update(Message::ArrowDown); // AddRuleSet
+    a.update(Message::ArrowDown); // FallbackHeader
+    a.update(Message::ArrowRight); // open it
+    a.update(Message::ArrowRight); // move to first fallback file
+    assert!(
+        matches!(
+            &a.region_cursor,
+            Some(Cursor::Sidebar(SidebarRow::FallbackFile(_)))
+        ),
+        "test setup sanity"
+    );
+    a.update(Message::ArrowLeft);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::FallbackHeader))
+    );
+}
+
+// ── Edge case 1: clamp on shortening, including the accordion case ───────
+
+#[test]
+fn accordion_clamp_opening_rule_set_b_while_the_cursor_sits_on_a_rule_in_a() {
+    let mut a = expert_in_workspace();
+    let rs_ids = rule_set_ids(&a);
+    let rule_ids_a = rule_ids_in(&a, rs_ids[0]);
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowRight); // expand rule set A (rs_ids[0])
+    a.update(Message::ArrowRight); // cursor onto its first rule
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::Rule(rule_ids_a[0]))),
+        "test setup sanity"
+    );
+    // Opening B closes A in the accordion — same message a pointer click on
+    // B's header would send (task 029 §4: "no change to pointer behaviour").
+    a.update(Message::SelectRuleSet(rs_ids[1]));
+    assert_eq!(
+        a.rule_set_open,
+        Some(rs_ids[1]),
+        "test setup sanity: B is open, A is not"
+    );
+    assert_ne!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::Rule(rule_ids_a[0]))),
+        "the cursor's row no longer exists once A collapses"
+    );
+    assert!(
+        a.region_cursor.is_some(),
+        "task 029 §7 edge case 1: a valid cursor must survive the collapse, \
+         not just not-crash"
+    );
+    let rows = crate::regions::sidebar_rows(&a);
+    assert!(
+        rows.contains(&match a.region_cursor.clone().unwrap() {
+            Cursor::Sidebar(r) => r,
+            _ => panic!("wrong cursor kind"),
+        }),
+        "the surviving cursor must name a row that is actually still visible"
+    );
+}
+
+// ── Edge case 2: an empty sidebar has no cursor, and Enter is a no-op ─────
+
+#[test]
+fn a_sidebar_with_no_snapshot_has_no_cursor_and_enter_does_not_panic() {
+    // Not reachable through the public `Message` interface while on the
+    // Routes tab (`AppView::Workspace` only follows a successful
+    // `install_workspace`, which always leaves a `Some` snapshot) — the same
+    // honesty slice 2 gave its own `len == 0` branches. Exercised directly
+    // against the defensive path itself, the same idiom as
+    // `move_region_cursor_self_heals_when_the_stored_identity_is_no_longer_in_the_list`
+    // above.
+    let mut a = expert_in_workspace();
+    tab_into_sidebar(&mut a);
+    a.snapshot = None;
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.region_cursor, None,
+        "no snapshot means no rows — the empty region has no cursor"
+    );
+    a.update(Message::EnterPressed);
+    assert_eq!(
+        a.view,
+        AppView::Workspace,
+        "Enter on an empty region is a no-op, not a panic"
+    );
+}
+
+// ── Enter activates exactly the cursor's row ──────────────────────────────
+
+#[test]
+fn enter_on_a_fallback_file_opens_it() {
+    let mut a = expert_in_workspace();
+    let path = a
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .fallback_files
+        .first()
+        .unwrap()
+        .path
+        .clone();
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowDown); // RuleSetHeader(errors)
+    a.update(Message::ArrowDown); // AddRuleSet
+    a.update(Message::ArrowDown); // FallbackHeader
+    a.update(Message::ArrowRight); // open it
+    a.update(Message::ArrowRight); // move to first fallback file
+    a.update(Message::EnterPressed);
+    assert_eq!(a.selection.file_route, Some(path));
+}
+
+#[test]
+fn enter_on_the_inert_add_fallback_file_row_is_a_noop() {
+    let mut a = expert_in_workspace();
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowDown); // RuleSetHeader(errors)
+    a.update(Message::ArrowDown); // AddRuleSet
+    a.update(Message::ArrowDown); // FallbackHeader
+    a.update(Message::ArrowRight); // open it
+    let fallback_count = a.snapshot.as_ref().unwrap().fallback_files.len();
+    for _ in 0..fallback_count {
+        a.update(Message::ArrowDown);
+    }
+    a.update(Message::ArrowDown); // AddFallbackFile
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Sidebar(SidebarRow::AddFallbackFile)),
+        "test setup sanity"
+    );
+    let selection_before = a.selection.clone();
+    a.update(Message::EnterPressed);
+    assert_eq!(
+        a.selection, selection_before,
+        "no file I/O in this mockup — matches the row's own on_press-less button"
+    );
+}
+
+// ── §5: the generalised focus-release decision, tested at the reducer level ─
+
+#[test]
+fn focus_release_decision_is_a_noop_without_a_transition() {
+    assert_eq!(
+        super::focus_release_decision(Some(Region::Sidebar), Some(Region::Sidebar)),
+        None,
+        "same region before and after: nothing to release, or Trace's filter \
+         field would lose focus on every keystroke-adjacent message"
+    );
+    assert_eq!(super::focus_release_decision(None, None), None);
+}
+
+#[test]
+fn focus_release_decision_unfocuses_on_entering_a_region_without_a_text_field() {
+    assert_eq!(
+        super::focus_release_decision(Some(Region::DashboardSearch), Some(Region::Sidebar)),
+        Some(super::FocusRelease::Unfocus)
+    );
+    assert_eq!(
+        super::focus_release_decision(Some(Region::TabBar), Some(Region::Sidebar)),
+        Some(super::FocusRelease::Unfocus),
+        "task 029 §5: generalised — this transition involves no text-field \
+         region at all, which is exactly the D-18 case a click into a \
+         rule-editor field needs released on the next Tab"
+    );
+}
+
+#[test]
+fn focus_release_decision_focuses_on_entering_a_text_field_region() {
+    assert_eq!(
+        super::focus_release_decision(Some(Region::DashboardCreate), Some(Region::DashboardSearch)),
+        Some(super::FocusRelease::Focus)
     );
 }

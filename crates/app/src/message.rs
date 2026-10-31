@@ -48,6 +48,15 @@ pub enum Message {
     /// A no-op where neither applies.
     ArrowUp,
     ArrowDown,
+    /// Task 029 (MK-023 slice 4): on the sidebar, expands the cursor's row,
+    /// or moves to its first child when already expanded; on every other
+    /// region, a no-op (no region has Left/Right semantics of its own yet).
+    /// Captured by a focused `text_input` (unlike `ArrowUp`/`ArrowDown`/
+    /// `Tab`) — see `App::update_and_dispatch`'s §5 generalisation.
+    ArrowRight,
+    /// The reverse of `ArrowRight`: collapses the cursor's row, or moves to
+    /// its parent when it has none to collapse.
+    ArrowLeft,
     /// Task 027 (MK-023 slice 2): moves the keyboard cursor to the next
     /// region in the current screen's declared order, wrapping. The dialog
     /// region (task 026) takes priority when one is open, same as `Enter`.

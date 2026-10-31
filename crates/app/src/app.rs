@@ -570,7 +570,19 @@ impl App {
     // Update
     // ─────────────────────────────────────────────────────────────────────────
 
+    /// Task 029: wraps the reducer with `reclamp_identity_cursor`, which must
+    /// run after *every* message — including ones an early `return` inside
+    /// the reducer skips past — so the wrapper, not the reducer body, is
+    /// where it is guaranteed to happen. `update_reducer`'s own internal
+    /// `self.update(...)` re-dispatches (confirm/revert chains, mostly) each
+    /// pass back through here too; reclamping more than once per outer call
+    /// is harmless; it is a no-op once the cursor is already valid.
     pub fn update(&mut self, msg: Message) {
+        self.update_reducer(msg);
+        self.reclamp_identity_cursor();
+    }
+
+    fn update_reducer(&mut self, msg: Message) {
         if self
             .snapshot
             .as_ref()
@@ -768,6 +780,20 @@ impl App {
                     self.move_region_cursor(1);
                 }
             }
+            Message::ArrowRight => {
+                // Unlike ArrowUp/Down, the palette has no Left/Right
+                // behaviour of its own — `blocks_region_navigation` already
+                // covers "the palette is open" alongside dialogs and Test
+                // Rule, so no separate palette branch is needed here.
+                if !self.blocks_region_navigation() {
+                    self.sidebar_arrow_right();
+                }
+            }
+            Message::ArrowLeft => {
+                if !self.blocks_region_navigation() {
+                    self.sidebar_arrow_left();
+                }
+            }
             Message::TabPressed => {
                 // Task 027: the dialog region (task 026) and the palette
                 // keep their own existing mechanisms; `Tab` only moves
@@ -914,11 +940,9 @@ impl App {
             // Dashboard
             Message::DashSearch(q) => {
                 self.dash_search = q;
-                // Task 028 §3.2: reclamp immediately — `view` reads
-                // `region_cursor` every frame, so a cursor left pointing at
-                // a now-filtered-away workspace would render wrong (or on
-                // nothing) until the next arrow press self-heals it.
-                self.reclamp_dashboard_workspace_cursor();
+                // Task 028 §3.2's reclamp now happens generically, in
+                // `update`'s wrapper (`reclamp_identity_cursor`) after every
+                // message — see task 029's generalisation of it.
             }
             Message::DashPinToggle(_) => {}
 
@@ -1693,33 +1717,55 @@ impl App {
         let opening_palette =
             matches!(msg, Message::ToggleCommandPalette) && !self.command_palette.open;
         let is_arrow_key = matches!(msg, Message::ArrowUp | Message::ArrowDown);
-        let was_search_focused =
-            self.focused_region == Some(crate::regions::Region::DashboardSearch);
+        let is_navigation_key =
+            is_arrow_key || matches!(msg, Message::ArrowLeft | Message::ArrowRight);
+        let before_region = self.focused_region;
         self.update(msg);
+        let after_region = self.focused_region;
 
         if opening_palette && self.command_palette.open {
             return iced::widget::operation::focus(screens::command_palette::SEARCH_INPUT_ID);
         }
 
-        // Task 028 §3.1: whichever transition moved the cursor into or out of
-        // `DashboardSearch` — `Tab`, `Shift+Tab`, `Enter` opening a workspace
-        // and leaving the screen, anything — is covered by comparing before
-        // and after rather than special-casing each `Message` that could
-        // cause it, the same "derive, don't duplicate" reasoning
-        // `valid_focused_region` already applies one level up. `focusable::
-        // unfocus` has no Task-returning wrapper in `iced::widget::operation`
-        // (unlike `focus`); `iced::advanced::widget::operate` is the general
-        // "run this `Operation`" entry point the `focus`/`focus_next` helpers
-        // themselves are built from, reached through the `advanced` feature.
-        let is_search_focused =
-            self.focused_region == Some(crate::regions::Region::DashboardSearch);
-        if is_search_focused && !was_search_focused {
-            return iced::widget::operation::focus(screens::dashboard::SEARCH_INPUT_ID);
-        }
-        if was_search_focused && !is_search_focused {
-            return iced::advanced::widget::operate(
-                iced::advanced::widget::operation::focusable::unfocus(),
-            );
+        // Task 028 §3.1, generalised in task 029 §5: entering a region
+        // without a text field must release any text field that still holds
+        // native keyboard focus — not only `DashboardSearch` leaving, but
+        // *any* transition landing on a region `contains_text_field` says
+        // has none. D-18 is why this had to generalise: a rule-editor field
+        // can hold native focus (reachable today only by clicking it, since
+        // the rule editor is not itself a region) while `focused_region`
+        // moves elsewhere via `Tab`/`Shift+Tab`/an arrow-driven entry, and
+        // without this, `ArrowLeft`/`ArrowRight` on the sidebar would be
+        // silently swallowed — captured by the still-focused field before
+        // `global_key_message` ever sees them (§5's key-budget point).
+        // Compares before/after rather than naming regions one by one, the
+        // same reasoning `valid_focused_region` and task 028 §3.1 already
+        // apply. `focusable::unfocus` has no `Task`-returning wrapper in
+        // `iced::widget::operation` (unlike `focus`); `iced::advanced::
+        // widget::operate` is the general "run this `Operation`" entry point
+        // the `focus`/`focus_next` helpers are themselves built from,
+        // reached through the `advanced` feature.
+        //
+        // Honest limit: this only fires on a *transition* (`after_region !=
+        // before_region`), because that is the only point `update_and_dispatch`
+        // itself runs again after a stray click. A click that lands directly
+        // in a rule-editor field without any subsequent region transition is
+        // D-18 itself (recorded, not this slice's to fix) — iced 0.14 has no
+        // `on_focus` for `text_input` to react to the click the moment it
+        // happens, so no transition-independent fix is expressible with the
+        // operations iced gives us. The very next region transition (a Tab,
+        // or any arrow that lands on a different region) clears it, which is
+        // the earliest point this mechanism can observe.
+        match focus_release_decision(before_region, after_region) {
+            Some(FocusRelease::Focus) => {
+                return iced::widget::operation::focus(screens::dashboard::SEARCH_INPUT_ID);
+            }
+            Some(FocusRelease::Unfocus) => {
+                return iced::advanced::widget::operate(
+                    iced::advanced::widget::operation::focusable::unfocus(),
+                );
+            }
+            None => {}
         }
 
         // D-5: `scrollable` has no "scroll this child into view" operation —
@@ -1770,6 +1816,29 @@ impl App {
                 let y = pos as f32 / last_index;
                 return iced::widget::operation::snap_to(
                     screens::dashboard::WORKSPACES_SCROLLABLE_ID,
+                    iced::widget::scrollable::RelativeOffset { x: 0.0, y },
+                );
+            }
+        }
+
+        // Task 029 §4 edge case 4: the same D-5 approximation again, for the
+        // sidebar — `ArrowUp`/`ArrowDown` move within it, and `ArrowLeft`/
+        // `ArrowRight` can too (moving to a parent, into a newly expanded
+        // section, or onto a newly expanded header's first child), so this
+        // checks `is_navigation_key` rather than the narrower `is_arrow_key`
+        // the two blocks above use. Same honesty as both of them: iced 0.14
+        // still exposes no exact "scroll this child into view", only a
+        // linear position estimate.
+        if is_navigation_key
+            && self.focused_region == Some(crate::regions::Region::Sidebar)
+            && let Some(crate::regions::Cursor::Sidebar(row)) = &self.region_cursor
+        {
+            let rows = crate::regions::sidebar_rows(self);
+            if let Some(pos) = rows.iter().position(|r| r == row) {
+                let last_index = rows.len().saturating_sub(1).max(1) as f32;
+                let y = pos as f32 / last_index;
+                return iced::widget::operation::snap_to(
+                    screens::routes::SIDEBAR_SCROLLABLE_ID,
                     iced::widget::scrollable::RelativeOffset { x: 0.0, y },
                 );
             }
@@ -3409,23 +3478,20 @@ impl App {
 
         match self.valid_focused_region() {
             Some(region) if region.uses_identity_cursor() => {
-                let names: Vec<String> = crate::regions::dashboard_filtered_workspaces(self)
-                    .into_iter()
-                    .map(|ws| ws.name)
-                    .collect();
-                if names.is_empty() {
+                let items = region.identity_list(self);
+                if items.is_empty() {
                     self.region_cursor = None;
                     return;
                 }
-                let current = match &self.region_cursor {
-                    Some(Cursor::WorkspaceName(name)) => names.iter().position(|n| n == name),
-                    _ => None,
-                };
+                let current = self
+                    .region_cursor
+                    .as_ref()
+                    .and_then(|c| items.iter().position(|i| i == c));
                 let next = match current {
-                    Some(i) => (i as isize + delta).clamp(0, names.len() as isize - 1) as usize,
+                    Some(i) => (i as isize + delta).clamp(0, items.len() as isize - 1) as usize,
                     None => 0,
                 };
-                self.region_cursor = Some(Cursor::WorkspaceName(names[next].clone()));
+                self.region_cursor = Some(items[next].clone());
             }
             Some(region) => {
                 let len = region.len(self);
@@ -3449,28 +3515,153 @@ impl App {
         }
     }
 
-    /// Task 028 §3.2: re-derive the cursor against the *current* filtered
-    /// list right after it changes, rather than waiting for the next arrow
-    /// press to discover the stored identity is gone. Without this, a user
-    /// who types a character that filters their cursor's workspace away
-    /// would see a stale cursor (rendered on nothing, or on whatever used to
-    /// be at that position) until they next pressed an arrow key — the
-    /// clamp must be immediate, not lazy, because `view` reads
-    /// `region_cursor` on every frame, not only after `move_region_cursor`
-    /// runs. A no-op unless `DashboardWorkspaces` is the focused region.
-    fn reclamp_dashboard_workspace_cursor(&mut self) {
-        use crate::regions::Cursor;
-
-        if self.focused_region != Some(crate::regions::Region::DashboardWorkspaces) {
+    /// Re-derive the cursor against the *current* identity list right after
+    /// any message that could have changed it, rather than waiting for the
+    /// next arrow press to discover the stored identity is gone. Originated
+    /// in task 028 §3.2 (typing a character that filters the cursor's
+    /// workspace away), generalised in task 029 (closing a rule set via the
+    /// accordion, or a section toggle, while the cursor sits on one of its
+    /// now-hidden children — task 029 §7's accordion-clamp edge case).
+    ///
+    /// Called from `App::update` after *every* message (see its wrapper),
+    /// not from each message that could invalidate a cursor individually —
+    /// enumerating "every message that can change `rule_set_open`, the two
+    /// section bools, or the snapshot's own rule/file/script lists" would be
+    /// exactly the per-transition special-casing the design warns against
+    /// (the same reasoning `valid_focused_region` already applies to region
+    /// validity itself). Cheap and a no-op when the cursor is already valid,
+    /// so running it unconditionally costs nothing observable.
+    ///
+    /// `view` reads `region_cursor` every frame, not only after
+    /// `move_region_cursor` runs, so the clamp must be immediate rather than
+    /// lazy — the same reasoning task 028 §3.2 gave for the search field.
+    fn reclamp_identity_cursor(&mut self) {
+        let Some(region) = self.valid_focused_region() else {
+            return;
+        };
+        if !region.uses_identity_cursor() {
             return;
         }
-        let names: Vec<String> = crate::regions::dashboard_filtered_workspaces(self)
-            .into_iter()
-            .map(|ws| ws.name)
-            .collect();
-        let still_present = matches!(&self.region_cursor, Some(Cursor::WorkspaceName(name)) if names.contains(name));
+        let items = region.identity_list(self);
+        let still_present = self
+            .region_cursor
+            .as_ref()
+            .is_some_and(|c| items.contains(c));
         if !still_present {
-            self.region_cursor = names.into_iter().next().map(Cursor::WorkspaceName);
+            self.region_cursor = items.into_iter().next();
+        }
+    }
+
+    /// `ArrowRight` (task 029 §4): on a collapsed expandable row (a rule-set,
+    /// fallback, or middleware header), activates it — `SelectRuleSet`
+    /// already expands and selects in one message, so this and `Enter`
+    /// coincide there, stated plainly rather than designed in; the two
+    /// section headers get the same expand via their own toggle message. On
+    /// an *already* expanded header, moves to the first child by reusing
+    /// `move_region_cursor`'s own identity-list walk — the header's children
+    /// are already the next rows in `sidebar_rows` once it is open, so
+    /// "move to the first child" and "move the cursor forward by one" are
+    /// the same operation here, not two things to keep in sync. A no-op
+    /// everywhere else (no row has children to expand into).
+    fn sidebar_arrow_right(&mut self) {
+        use crate::regions::{Cursor, Region, SidebarRow};
+
+        if self.valid_focused_region() != Some(Region::Sidebar) {
+            return;
+        }
+        let Some(Cursor::Sidebar(row)) = self.region_cursor.clone() else {
+            return;
+        };
+        match row {
+            SidebarRow::RuleSetHeader(id) => {
+                if self.rule_set_open == Some(id) {
+                    self.move_region_cursor(1);
+                } else {
+                    self.update(Message::SelectRuleSet(id));
+                }
+            }
+            SidebarRow::FallbackHeader => {
+                if self.fallback_section_open {
+                    self.move_region_cursor(1);
+                } else {
+                    self.update(Message::ToggleFallbackSection);
+                }
+            }
+            SidebarRow::MiddlewareHeader => {
+                if self.middleware_section_open {
+                    self.move_region_cursor(1);
+                } else {
+                    self.update(Message::ToggleMiddlewareSection);
+                }
+            }
+            SidebarRow::Rule(_)
+            | SidebarRow::AddRule(_)
+            | SidebarRow::AddRuleSet
+            | SidebarRow::FallbackFile(_)
+            | SidebarRow::AddFallbackFile
+            | SidebarRow::MiddlewareScript(_)
+            | SidebarRow::AddScript => {}
+        }
+    }
+
+    /// `ArrowLeft` (task 029 §4): on an *expanded* header, collapses it — the
+    /// keyboard-only collapse path task 029 §4 adds for rule sets, since no
+    /// message does this on its own (`rule_set_open` only ever changes via
+    /// `SelectRuleSet`, which opens one and implicitly closes any other; the
+    /// two section bools already have `Toggle*Section` for this). On a
+    /// *collapsed* header there is no parent to move to (every header is
+    /// top-level) — a no-op, same as a leaf row's own section header being
+    /// collapsed already. On a child row (a rule, its "+ Add rule" row, a
+    /// fallback file, or a middleware script), moves to its parent header
+    /// without also collapsing it — a second `ArrowLeft` on the header,
+    /// landed on by this first one, does that, the same two-step a file
+    /// tree's Left key usually takes. A no-op on `AddRuleSet` (top-level, no
+    /// parent, nothing to collapse).
+    fn sidebar_arrow_left(&mut self) {
+        use crate::regions::{Cursor, Region, SidebarRow};
+
+        if self.valid_focused_region() != Some(Region::Sidebar) {
+            return;
+        }
+        let Some(Cursor::Sidebar(row)) = self.region_cursor.clone() else {
+            return;
+        };
+        match row {
+            SidebarRow::RuleSetHeader(id) => {
+                if self.rule_set_open == Some(id) {
+                    self.rule_set_open = None;
+                }
+            }
+            SidebarRow::FallbackHeader => {
+                if self.fallback_section_open {
+                    self.update(Message::ToggleFallbackSection);
+                }
+            }
+            SidebarRow::MiddlewareHeader => {
+                if self.middleware_section_open {
+                    self.update(Message::ToggleMiddlewareSection);
+                }
+            }
+            SidebarRow::AddRuleSet => {}
+            SidebarRow::Rule(id) => {
+                if let Some(rs_id) = self
+                    .snapshot
+                    .as_ref()
+                    .and_then(|s| s.find_rule(id))
+                    .map(|(rule_set, _)| rule_set.id)
+                {
+                    self.region_cursor = Some(Cursor::Sidebar(SidebarRow::RuleSetHeader(rs_id)));
+                }
+            }
+            SidebarRow::AddRule(rs_id) => {
+                self.region_cursor = Some(Cursor::Sidebar(SidebarRow::RuleSetHeader(rs_id)));
+            }
+            SidebarRow::FallbackFile(_) | SidebarRow::AddFallbackFile => {
+                self.region_cursor = Some(Cursor::Sidebar(SidebarRow::FallbackHeader));
+            }
+            SidebarRow::MiddlewareScript(_) | SidebarRow::AddScript => {
+                self.region_cursor = Some(Cursor::Sidebar(SidebarRow::MiddlewareHeader));
+            }
         }
     }
 
@@ -3916,6 +4107,39 @@ impl App {
     }
 }
 
+/// What `update_and_dispatch` should do about native text-field focus after a
+/// region transition (task 028 §3.1, generalised task 029 §5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FocusRelease {
+    /// Entered a region with a text field: focus it.
+    Focus,
+    /// Entered a region without one: release whatever still holds native
+    /// focus, if anything (a no-op if nothing does).
+    Unfocus,
+}
+
+/// The pure decision behind the `Task` `update_and_dispatch` returns for a
+/// focus transition, factored out so it is unit-testable without an `App` or
+/// a running `Task` — the same reasoning `global_key_message` below is
+/// factored out for. `None` when `before == after`: no transition occurred,
+/// so there is nothing to do (critically, this is *not* the same as "do
+/// nothing" meaning "unfocus" — repeatedly dispatching `unfocus()` on every
+/// message regardless of a transition would kill typing in any text field
+/// outside the region model entirely, e.g. Trace's filter field).
+fn focus_release_decision(
+    before: Option<crate::regions::Region>,
+    after: Option<crate::regions::Region>,
+) -> Option<FocusRelease> {
+    if before == after {
+        return None;
+    }
+    match after {
+        Some(region) if region.contains_text_field() => Some(FocusRelease::Focus),
+        Some(_) => Some(FocusRelease::Unfocus),
+        None => None,
+    }
+}
+
 /// The pure decision behind `App::subscription`'s `listen_with` closure,
 /// factored out so task 026's capture-status gating is unit-testable without
 /// a running `Subscription` — `listen_with`'s closure itself cannot be called
@@ -3941,6 +4165,16 @@ fn global_key_message(event: &iced::Event, status: iced::event::Status) -> Optio
     }
     if *key == iced::keyboard::Key::Named(Named::ArrowDown) {
         return Some(Message::ArrowDown);
+    }
+    // Task 029 §5: `ArrowLeft`/`ArrowRight` ARE captured by a focused
+    // `text_input` (unlike `ArrowUp`/`ArrowDown`/`Tab` above) — the
+    // `status == Captured` check already above this point is what drops
+    // them in that case; nothing further to special-case here.
+    if *key == iced::keyboard::Key::Named(Named::ArrowRight) {
+        return Some(Message::ArrowRight);
+    }
+    if *key == iced::keyboard::Key::Named(Named::ArrowLeft) {
+        return Some(Message::ArrowLeft);
     }
     if *key == iced::keyboard::Key::Named(Named::Enter) {
         return Some(Message::EnterPressed);
