@@ -185,6 +185,37 @@ is reachable without input. These therefore **migrate to L3**:
 >    evidence for XWayland. Which backend an appearance capture should use is a
 >    question for the capture's own handoff, with the backend recorded either way.
 >
+> #### Probed 2026-10-31 — mouse injection works, with one conversion to get right
+>
+> Task 022 settled the open probe. **A synthetic mouse click does reach apimokka
+> on X11/XWayland** — the first proof in this programme — inside a nested niri
+> session sized at launch. Two narrower findings came with it:
+>
+> - **`xdotool key --window <id>` is not honoured for input here; the bare
+>   `xdotool key` form, relying on established X input focus, is.** This narrows
+>   the rules' 2026-10-25 key-reachability record, and it means the rules' focus
+>   check is load-bearing rather than ceremonial — the bare form goes wherever
+>   focus is.
+> - **Screenshot and pointer coordinates differ by the chrome height.** The
+>   screenshot captured 1536×864 while the X11 window measured 1536×834, so
+>   `xdotool` `y` = screenshot `y` − 30. A ~500×110 px target absorbed the error
+>   and a ~40 px button did not, which presented as a "dead zone" until the
+>   arithmetic was checked. **Derive the offset per run** rather than assuming 30.
+>   Full analysis in
+>   `.git-exclude/reviewed/2026-10-31-task022-probe-and-capture-review.md`.
+>
+> **A nested compositor is now a proven mechanism**, with its recipe recorded in
+> `.git-exclude/release-evidence/2026-10-31-task021-d13-capture/RESULTS.md` §2 —
+> the `winit` output name, the `scale` match the winit backend requires, and the
+> `gaps 0` plus `default-column-width` pair that makes the window fill the canvas
+> at creation. It satisfies the launch-size rule and cannot expose the
+> maintainer's other windows.
+>
+> **Consequence for L3 and for every future capture: owner pointer clicks are no
+> longer structurally required.** That removes the dependency this protocol has
+> carried since M8, and it means the M8 Pass A re-capture owed at the snora
+> freeze lift is scriptable too.
+
 > **AT-SPI, the rules' preferred non-keyboard route, is unavailable to us.**
 > `iced` 0.14's manifest declares no `accesskit` or `a11y` dependency — verified,
 > not assumed — so there are no `do_action` or `grab_focus` targets to drive. That
