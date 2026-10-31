@@ -226,6 +226,186 @@ at all, since five segmented controls repeating one idiom is itself a signal tha
 the answer may be fewer controls rather than more navigation. Implementation
 follows acceptance, in reviewable slices.
 
+## External design — the keyboard interaction model
+
+**Status: accepted by the project owner 2026-10-31** as the external design that
+D-12 requires. Internal design, program design and implementation follow from it,
+in slices. This section is the contract; the control inventory above is the
+problem statement it answers.
+
+### Why a conventional focus model is unavailable
+
+In `iced_widget` 0.14.2 only `text_input` and `text_editor` implement `Focusable`.
+A `button`, `pick_list`, `radio` or `checkbox` cannot take focus, so there is no
+focus ring to move and no traversal to wire. **The application must own the
+selection itself.** That is not a workaround; it is the only model the toolkit
+permits, and it should be designed deliberately rather than approximated per
+screen.
+
+### The key budget, measured rather than assumed
+
+`text_input` captures exactly: `ArrowLeft`, `ArrowRight`, `Backspace`, `Delete`,
+`End`, `Escape`, `Home`, and `Enter` only when `on_submit` is set — verified in
+`iced_widget-0.14.2/src/text_input.rs`.
+
+| Key | Captured by a focused field? | Therefore usable for |
+|---|---|---|
+| **Tab / Shift+Tab** | **No** | Moving between regions — always available, even while typing |
+| **ArrowUp / ArrowDown** | **No** | Moving within a region — always available |
+| ArrowLeft / ArrowRight | **Yes** | Within-region movement **only where the region holds no text field** |
+| Enter | Only with `on_submit` | Activation — and `on_submit` is therefore forbidden, see D-6 below |
+| Escape | Always | Dismissal, already handled |
+
+This budget is the reason the model below works: the two movements a user performs
+constantly are on keys nothing competes for.
+
+### One model: regions and a cursor
+
+**At any moment exactly one *region* holds the keyboard cursor, and the cursor
+names one item within it.**
+
+- **Tab / Shift+Tab** move between regions, in a fixed order per screen.
+- **ArrowUp / ArrowDown** move the cursor within the region.
+- **ArrowLeft / ArrowRight** move within regions that are horizontal, and
+  collapse/expand in the tree — available because those regions contain no text
+  field.
+- **Enter** activates the cursor's item.
+- **Escape** is unchanged: dismissal only, in the existing priority order.
+
+Entering a region whose item is a text field focuses that field, so typing works
+without a separate mode. This reuses `text_input::focus`, which M9 already wires.
+
+**One model, every screen.** Task 024's audit found nine surfaces each needing
+their own selection concept; this is one concept applied nine times instead of
+nine idioms. A user who learns it on the first screen knows it everywhere, which
+is what *"for users not to be confused or misunderstand"* requires.
+
+### A cursor stores identity where the list can change
+
+The audit found the sidebar's selection lives as opaque IDs rather than an index,
+and read that as an obstacle. **It is the better shape and the design adopts it.**
+
+- Where the list can change under the cursor — the sidebar tree, the trace list —
+  **store the item's identity and derive its position on demand** from a function
+  over the current snapshot. A stored index goes stale when the list shortens,
+  which is the first of M9's four edge cases and the one most easily got wrong.
+- Where the list is fixed and short — the tab bar, a segmented control, a
+  dialog's actions — an index is sufficient and simpler.
+
+This is the `accelerator.rs` and `palette_commands.rs` precedent again: derive from
+one source rather than storing a second copy that can disagree.
+
+### The tree is a flattened visible sequence
+
+The sidebar is two-level. The design does **not** invent a tree-walking scheme:
+
+- a function yields the **visible** rows in display order — collapsed children
+  simply absent;
+- `ArrowUp`/`ArrowDown` move along that sequence;
+- `ArrowLeft` collapses an expanded row, or moves to the parent when already
+  collapsed; `ArrowRight` expands, or moves to the first child when already
+  expanded.
+
+This is the conventional tree-as-list behaviour users already know from file
+trees, and it removes the "index into a tree" problem entirely: there is no tree
+index, only a position in a derived list.
+
+### Activation, dialogs, and the resolution of D-6
+
+**D-6 is resolved by reading the capture status we already receive.** The
+subscription uses `iced::event::listen_with`, whose closure is handed an
+`event::Status`; today it is bound as `_status` and discarded. The design:
+
+- **ignore any key event already captured by a focused widget**, except `Escape`,
+  which is deliberately overridden for the reason M9 recorded;
+- **never set `on_submit`** on any `text_input`. With `on_submit` unset, `Enter`
+  is not captured, so activation reaches the application cleanly and the
+  double-fire D-6 warns about cannot occur.
+
+Together these close D-6 rather than stepping around it.
+
+**A dialog is a region with a default action.** `Enter` activates it — Test Rule's
+**Run**, the confirm dialog's **Proceed** — which also fixes the live defect the
+audit found, where `Enter` does nothing in either dialog **for pointer users
+too**. While a dialog is open it is the only region Tab cycles within, which is
+the focus containment MK-023 has wanted since its 2026-09-02 correction and which
+is achievable here because the application owns the cursor.
+
+### The visible indicator
+
+The cursor uses the **2 px primary border** that `card_selected_style` already
+draws. Task 022's capture judged it reads clearly as selection in both presets, on
+exactly these list-like surfaces, so this reuses a validated visual rather than
+inventing one. Border width and colour together are a non-colour cue, satisfying
+MK-022 and the non-colour requirement.
+
+### What the model removes — *"Less is more"*
+
+The audit counted nine navigable surfaces. **The design does not make all nine
+navigable**, because five of them repeating one idiom is a signal about the
+product, not only about the keyboard:
+
+- **Theme and audience mode move to the command palette.** Both are global,
+  infrequent, and already belong to the palette's "operate on current context"
+  pattern; theme has a row there today. They stop being segmented controls to
+  navigate and become commands to invoke.
+- **Method, respond-mode and test-rule method stay** as horizontal regions. They
+  are contextual and frequent — part of editing a rule, not a setting.
+
+Seven regions remain, and two controls leave the keyboard model by leaving the
+screen rather than by being excluded from it.
+
+**D-4 stands.** With Welcome and Dashboard becoming regions, the palette is no
+longer needed for navigation outside a workspace, so making it render there is
+unnecessary and the "inert outside `AppView::Workspace`" resolution is kept.
+
+### D-16's left rail is deleted, not wired
+
+`shell/left_rail.rs` implements a navigation surface nothing renders, duplicating
+what the tab bar does. Adding it to the keyboard model would mean designing
+navigation for a surface users never see. **Delete it, and amend MK-027
+accordingly** — an unrendered implementation in the tree is a specification that
+misleads, which is the defect D-16 records rather than a thing to preserve.
+
+### Implementation slices
+
+Independently reviewable, in order. The first is a live bug fix and is deliberately
+first.
+
+1. **Capture status and the dialog default action.** Read `Status`; add the
+   dialog region with `Enter` activating Test Rule's Run and the confirm dialog's
+   Proceed. Closes D-6 and the audit's correctness defect.
+2. **Regions and the cursor**, with Tab/Shift+Tab, applied to the tab bar and the
+   mode picker — replacing `mode_picker_selected` with the general model and
+   proving it against a surface that already works.
+3. **Welcome and Dashboard** — the flat-list case, which unblocks scenarios 1 and 2
+   at their first step.
+4. **The sidebar tree**, including collapse and expand.
+5. **The segmented regions** and the trace list.
+6. **Theme and audience mode to the palette**; delete the left rail.
+
+### What the tests must validate
+
+Per the owner's testing rule, tests validate **this design**, not the code that
+happens to be written:
+
+- the four edge cases, for every region: clamp on shortening, empty region has no
+  cursor and `Enter` is a no-op, entering a region resets the cursor, and whether
+  the cursor can leave the visible scroll — **stated plainly where it can**;
+- identity-stored cursors survive a list changing under them;
+- a captured key event does not reach the application, and `Escape` still does;
+- no `text_input` sets `on_submit`;
+- every region's indicator is rendered when the cursor is in it.
+
+### Acceptance
+
+**A keyboard-only run of all six primary scenarios, driven by injected keys, with
+no pointer click anywhere in it.** The audit's inventory is the checklist: every
+control it lists must be reachable, or the design must say why it no longer
+exists. On acceptance this RFC moves to `done/` with its mechanism executed —
+which is the whole point, after three RFCs were returned from `done/` for the
+opposite.
+
 ## Focus order — Routes screen (the most-used view)
 
 ```
