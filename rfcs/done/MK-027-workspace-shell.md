@@ -86,6 +86,29 @@ Drop-down with EN and JA. Switching is instant and persists across sessions (imp
 
 ## Left rail
 
+> ### Correction, 2026-10-31 — this section is specified and not rendered
+>
+> **`shell/left_rail.rs` implements the rail below. Nothing invokes it.** Its only
+> reference outside its own file is the `pub mod` declaration in `shell/mod.rs`;
+> `shell/tab_bar.rs` renders Routes, Trace and Settings instead. No RFC records
+> that substitution — MK-021, MK-041 and this document were all checked.
+>
+> **Everything else in this RFC did ship**: the top bar, the status chip group,
+> the global action group and the view controls. Under the RFC-lifecycle policy's
+> granularity clause, partial implementation qualifies for `done/` when the main
+> design decision shipped and the remainder is recorded, which is what this note
+> does. The RFC is not returned to `proposed/`.
+>
+> **Read this section as unvalidated.** A production implementation should treat
+> the rail as a design that was never executed here — its breakpoint widths, its
+> collapse behaviour and its selected-state indicator have no evidence behind
+> them, and the tab bar is what this mockup actually demonstrates.
+>
+> Recorded as **D-16** in `ROADMAP.md`. Whether `left_rail.rs` is deleted or wired
+> follows D-12's scope decision. MK-024's breakpoint references to the rail, and
+> MK-023's, inherit this correction.
+
+
 ### Layout
 
 ```
