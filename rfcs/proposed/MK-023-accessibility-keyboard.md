@@ -490,3 +490,44 @@ Both error and empty-state copy must avoid blame and unhelpful generic language.
 
 - Custom focus-ring styling — handled in MK-022 component rules (the theme picks the ring colour; this RFC only requires it be visible).
 - Specific shortcut conflicts on JA / non-US keyboards — flagged as a v2 follow-up.
+
+## Status
+
+**Status.** Proposed — the folder and the metadata field are correct, and the
+paragraph below explains why an accepted design does not yet move this file.
+
+**Returned from `done/` 2026-08-15** because its central mechanism had never been
+built; the correction block at the head of this RFC records that in full.
+
+**First-screen half shipped 2026-09-05** as milestone M9 (`74e7f75`): the mode
+picker became keyboard-operable, which was MK-023's first-screen gap. **The
+second screen then stopped a keyboard user**, recorded as D-12 (S1).
+
+**External design accepted by the project owner 2026-10-31** — the § *External
+design — the keyboard interaction model* section above. What was accepted is the
+**design**, not an implementation: one model of regions and a cursor, Tab between
+and arrows within, on the keys `text_input` never captures; cursors that store
+identity where a list can change; the tree as a flattened visible sequence;
+dialogs as regions whose cursor starts on the **safe** action; D-6 closed by
+reading the capture status already supplied; theme and audience mode moved to the
+palette; the left rail deleted.
+
+**Implementation follows in six reviewable slices**, listed in that section.
+Slice 1 — capture status and the dialog default action — is handed off as
+`.git-exclude/tasks/dev-team/026-m12-slice1-capture-status-and-dialog-default.md`.
+
+**This RFC moves to `done/` when its mechanism has been executed**, not when the
+design was agreed. That distinction is the whole reason it was returned from
+`done/` in the first place, and the reason three other RFCs were returned with it.
+
+> **A lifecycle note, and it is now the second instance.** Under
+> `.git-exclude/rules/000-rfc-lifecycle-policy.md` the project has adopted the
+> **5-folder variant**, in which `accepted/` means *"review complete; implementer
+> may start"*. That is exactly this RFC's state as of 2026-10-31, and exactly
+> MK-056's since 2026-08-02. **`rfcs/accepted/` does not exist**, and
+> `scripts/check-rfcs.sh` requires only `proposed/`, `done/` and `archive/`, so
+> the gate enforces the variant the project did not adopt. Recorded as finding B1
+> of `.git-exclude/reviewed/2026-10-06-roles-and-rules-compliance-audit.md`, where
+> the migration is described and still awaits authorization. Until then these two
+> RFCs sit in `proposed/`, whose policy meaning — *"the implementer should not yet
+> start work"* — is the opposite of their real state.
