@@ -192,6 +192,40 @@ is reachable without input. These therefore **migrate to L3**:
 > API. For apimokka the rules' pointer route is therefore xdotool-on-X11, not
 > AT-SPI.
 
+> ### L2's scripts do not comply with the revised GUI rules — recorded 2026-10-31
+>
+> The project owner revised
+> `.git-exclude/rules/project-instructions-gui-common.md` on 2026-10-31, adding a
+> § *GUI Evidence and Automation Rules*. Audited in
+> `.git-exclude/reviewed/2026-10-31-gui-rules-compliance-audit.md`; recorded here
+> because that audit is untracked and this is the decision it bears on.
+>
+> **`scripts/ux/` already complies** on window selection by process id, on killing
+> by pid, and on absolute screenshot paths. **It does not comply** on four points:
+>
+> 1. **`ux_float_and_resize` is the prohibited mechanism** — the rules forbid
+>    obtaining a window size by resizing or floating a running window, because on a
+>    shared desktop that rearranges the layout and the capture can then expose
+>    other sessions. **The entire L2 size matrix is built on this function**, and
+>    apimokka has no window-size setting, so the sanctioned route is a **nested
+>    compositor sized at launch**.
+> 2. No zero-running-instance precondition before launch.
+> 3. No focus check before a keystroke (`niri msg -j focused-window`, compared by
+>    pid; by window id on XWayland).
+> 4. The backend is never stated, and the rules require it and forbid comparing
+>    across backends.
+>
+> **Deliberately not scheduled.** Rewriting the size matrix is entangled with
+> whether L2 is reclaimed at all, which is the open acceptance-criteria defect
+> recorded under *Acceptance criteria* above. Dev-team task 022 fixes only what
+> task 021's capture needs and explicitly excludes the rest.
+>
+> **If L2 is reclaimed, this is the first work of it, not an afterthought** — a
+> size matrix that cannot legally obtain its sizes has no evidence to produce. If
+> L2 is not reclaimed, `scripts/ux/` becomes historical and the non-compliance is
+> moot; say so explicitly at that point rather than leaving the scripts to look
+> current.
+
 **The consequence for L3, stated plainly:** participants now carry verification
 load this design assigned to a script. That raises what the sessions must cover
 and should be reflected when scenarios are finalised — it is not a free
