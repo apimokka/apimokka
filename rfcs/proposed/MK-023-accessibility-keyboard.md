@@ -156,6 +156,58 @@ Notes:
 - `Enter` is intentionally restricted to non-danger primary actions to prevent accidental destructive activation. Danger actions require explicit focus on the danger button.
 - The command palette is the canonical fallback for any action that lacks a dedicated shortcut. Adding a shortcut is preferred when it serves a frequent workflow; otherwise the palette suffices.
 
+## Control inventory — measured 2026-10-31, task 024's audit
+
+Promoted here from `.git-exclude/review-request/2026-10-31-task024-audit-halt.md`
+because it is **specification, and that directory is not under version control.**
+Whatever the project owner decides about D-12's scope, this inventory is what a
+production implementation needs and what this repository exists to hand over.
+
+### What the application dispatches globally today
+
+`Message::ArrowUp` / `ArrowDown` / `EnterPressed` are dispatched unconditionally
+from `iced::event::listen_with` and touch **exactly two fields in the whole
+application**: `command_palette.selected` and `mode_picker_selected`.
+`EscapePressed` is the only other global route and is **dismiss-only** — it closes
+overlays in priority order and activates nothing.
+
+### Per-scenario gaps
+
+| Scenario | Controls with no keyboard route | Shape of the work |
+|---|---|---|
+| 1. Open a workspace, find a rule | Welcome's 2 buttons; Dashboard's workspace list; the sidebar's rule-set and rule rows | **A two-level tree.** Selection lives in `selection::RouteSelection` as opaque IDs, not a navigable index, so arrow navigation needs index↔ID mapping that does not exist even latently — and collapse/expand interacting with arrow position has no precedent here. |
+| 2. Wizard and add a rule | Wizard: 3 section toggles, 3 starter radios, TLS checkbox, Create; then the sidebar add actions, `rule_editor`'s 3 `pick_list`s, 6 method buttons, 2 respond-mode tabs | The wizard's two text fields are natively focusable; everything else is not. |
+| 3. Edit conditions, Test Rule | `rule_editor` as above; header/body add-remove (4 buttons); the Test Rule dialog's 5 method buttons, Run and Close | **Run is unreachable by `Enter`** — see below. |
+| 4. Inspect a trace event | Pause, Clear, the trace event list (by-ID selection again), 3 outcome-specific actions, Replay | Same missing index concept as the sidebar, without the tree. |
+| 5. Save and revert a fallback draft | `text_editor` (natively focusable); Format, Save, Revert; the confirm dialog's Cancel and Proceed | **Proceed is unreachable by `Enter`.** |
+| 6. Theme, locale, audience mode | 4 theme buttons, 2 audience-mode buttons, the locale `pick_list` | A `pick_list` is unreachable by any focus mechanism in iced 0.14. |
+
+### Two findings that are defects rather than gaps
+
+1. **`EnterPressed` never consults `test_rule.open` or `confirm_dialog`.** Both are
+   modal surfaces with an obvious default action, and Enter does nothing in them —
+   **for pointer users too**. This is a correctness defect, not a missing feature.
+2. **It cannot be fixed by adding `.on_submit`** without waking **D-6**: Test
+   Rule's dialog holds three `text_input`s, and `listen_with` ignores capture
+   status, so `Enter` would be consumed by the field *and* dispatched globally,
+   firing twice. A mechanism decision is required before code.
+
+### Why this is more than "extend what M9 built"
+
+Nine-plus new navigable state fields would be needed, each requiring M9's four edge
+cases (clamp on shortening, empty-list no-op, reset on entry, scroll visibility);
+five of them are segmented controls repeating one idiom; one is the tree above. The
+architect's 2026-10-06 recommendation called this *"extension, not invention"* —
+**the audit shows it is invention**, and that assessment was made without measuring.
+
+### Scope status
+
+Open. D-12 is S1 and MK-056 §8 forbids deferring an S1, so the choice is between
+building it and the project owner narrowing what the mockup claims. The options,
+with a recommendation, are in
+`.git-exclude/reviewed/2026-10-31-task024-audit-review-and-decision-request.md` §3.
+**This RFC's Status does not change until that is decided.**
+
 ## Focus order — Routes screen (the most-used view)
 
 ```
