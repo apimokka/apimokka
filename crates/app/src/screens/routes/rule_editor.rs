@@ -247,6 +247,7 @@ pub(super) fn rule_editor<'a>(
                     .unwrap_or_default();
                 let inp = text_input("", &current)
                     .on_input(Message::RuleWeightChanged)
+                    .style(theme::text_input_style)
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(100.0));
@@ -259,6 +260,7 @@ pub(super) fn rule_editor<'a>(
                     .unwrap_or_default();
                 let inp = text_input("", &current)
                     .on_input(Message::RulePriorityChanged)
+                    .style(theme::text_input_style)
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(100.0));
@@ -397,6 +399,7 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
             row![
                 text_input(app.t(Key::UrlPathField), &p.url_path)
                     .on_input(Message::RuleSetUrlPath)
+                    .style(theme::text_input_style)
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fill),
@@ -465,6 +468,7 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
             row![
                 text_input(app.t(Key::HeaderColumnName), &h.name)
                     .on_input(move |v| Message::HeaderSetName { index: i, value: v })
+                    .style(theme::text_input_style)
                     .size(size::CAPTION)
                     .padding(Padding::from([space::S2, space::S2]))
                     .width(Length::Fixed(110.0)),
@@ -478,6 +482,7 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
                     let val_el: Element<Message> = if show_val {
                         text_input(app.t(Key::HeaderColumnValue), &h.value)
                             .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
+                            .style(theme::text_input_style)
                             .size(size::CAPTION)
                             .padding(Padding::from([space::S2, space::S2]))
                             .width(Length::Fill)
@@ -530,6 +535,7 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
                 row![
                     text_input("user.id", &b.path)
                         .on_input(move |v| Message::BodySetPath { index: i, value: v })
+                        .style(theme::text_input_style)
                         .size(size::CAPTION)
                         .padding(Padding::from([space::S2, space::S2]))
                         .width(Length::Fill),
@@ -546,6 +552,7 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
                         let bval: Element<Message> = if show_val {
                             text_input(app.t(Key::BodyValuePlaceholder), &b.value)
                                 .on_input(move |v| Message::BodySetValue { index: i, value: v })
+                                .style(theme::text_input_style)
                                 .size(size::CAPTION)
                                 .padding(Padding::from([space::S2, space::S2]))
                                 .width(Length::Fill)
@@ -614,6 +621,7 @@ fn respond_card<'a>(
     let body_el: Element<Message> = if is_inline {
         text_input(app.t(Key::RespondBodyPlaceholder), &p.respond.text)
             .on_input(Message::RespondSetText)
+            .style(theme::text_input_style)
             .size(size::BODY)
             .padding(Padding::from([space::S2, space::S3]))
             .width(Length::Fill)
@@ -621,6 +629,7 @@ fn respond_card<'a>(
     } else {
         text_input("path/to/response.json", &p.respond.file_path)
             .on_input(Message::RespondSetFilePath)
+            .style(theme::text_input_style)
             .size(size::BODY)
             .padding(Padding::from([space::S2, space::S3]))
             .width(Length::Fill)
@@ -641,6 +650,7 @@ fn respond_card<'a>(
                     app.t(Key::RespondStatusLabel),
                     text_input("200 OK", &p.respond.status)
                         .on_input(Message::RespondSetStatus)
+                        .style(theme::text_input_style)
                         .size(size::CAPTION)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fixed(110.0))
@@ -652,6 +662,7 @@ fn respond_card<'a>(
                     row![
                         text_input("0", &delay_str)
                             .on_input(Message::RespondSetDelay)
+                            .style(theme::text_input_style)
                             .size(size::CAPTION)
                             .padding(Padding::from([space::S2, space::S3]))
                             .width(Length::Fixed(70.0)),

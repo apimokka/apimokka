@@ -85,6 +85,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 app.t(Key::DottedPathPasteLabel),
                 text_input("{\"user\":{\"id\":123}}", &pa.json_input)
                     .on_input(Message::PathAssistantSetJson)
+                    .style(theme::text_input_style)
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fill)

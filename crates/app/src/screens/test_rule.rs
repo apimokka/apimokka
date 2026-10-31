@@ -100,6 +100,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 app.t(Key::TestRulePath),
                 text_input("/api/orders", &tr.url_path)
                     .on_input(Message::TestRuleSetPath)
+                    .style(theme::text_input_style)
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fill)
@@ -109,6 +110,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 app.t(Key::TestRuleHeaders),
                 text_input("content-type: application/json", &tr.headers_text)
                     .on_input(Message::TestRuleSetHeaders)
+                    .style(theme::text_input_style)
                     .size(size::CAPTION)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fill)
@@ -118,6 +120,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 app.t(Key::TestRuleBody),
                 text_input("{}", &tr.body)
                     .on_input(Message::TestRuleSetBody)
+                    .style(theme::text_input_style)
                     .size(size::CAPTION)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fill)

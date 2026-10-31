@@ -610,6 +610,78 @@ pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     }
 }
 
+// ── Text input style ──────────────────────────────────────────────────────────
+
+/// D-15: `iced::widget::text_input::default` derives four colour roles from
+/// slots `snora::design::theme` does not guarantee for text — `secondary.base`
+/// (placeholder, and disabled value by inheritance), `background.strongest`
+/// (disabled placeholder), and `background.strong` (border). Same defect
+/// class as D-13, across a whole widget rather than one container: we styled
+/// no `text_input` at all, so iced's own default ran unexamined.
+///
+/// Starts from `iced::widget::text_input::default` and overrides only the
+/// four failing roles (task 023 §4.1) — M8's Pass B accepted that stock
+/// controls follow the palette (B1–B4), and that evidence stays valid only if
+/// the fields it validated keep deriving from the same place.
+///
+/// §4.3 decision: a placeholder and a disabled field's *value* cannot share
+/// one colour. `text_muted` is right for a placeholder (guaranteed ≥4.5:1 on
+/// `background.base`, the active fill) but fails on `background.weak` (the
+/// disabled fill) — the exact D-13 failure, one token over. `text_secondary`
+/// is the token that clears 4.5:1 on `weak` in all four presets, so disabled
+/// `value` takes it. Disabled `placeholder` (an empty disabled field, e.g.
+/// `settings.rs`'s log-file path before one is set) takes the same token:
+/// no third guaranteed tier sits between muted and secondary, and a disabled
+/// field's content — present or absent — is equally something the user is
+/// meant to read, not decoration to dim further.
+///
+/// The border (`background.strong`, 1.54–1.58:1 against the fill in every
+/// preset) becomes `border_token` for Active — D-13's non-text edge, ≥3:1
+/// there in every preset. It is **not** reused for Disabled: `border_token`
+/// is contrast-tested against `base` and `surface`, not `weak`, and measures
+/// only 2.51 / 2.95 against it in Light / Dark — short of the 3:1 floor.
+/// Disabled's border takes `text_secondary` instead, the same token already
+/// carrying that status's text, which clears 3:1 against `weak` everywhere
+/// (6.53 / 7.10 / 12.91 / 16.50). Hover's border (`background.base.text`) and
+/// the focus ring (`primary.strong`) are untouched: neither is in the failing
+/// set, and the focus ring is pinned by a test instead so a future change
+/// cannot quietly take a passing role away.
+pub fn text_input_style(
+    theme: &Theme,
+    status: iced::widget::text_input::Status,
+) -> iced::widget::text_input::Style {
+    use iced::widget::text_input::Status;
+
+    let mut style = iced::widget::text_input::default(theme, status);
+    match status {
+        Status::Active => {
+            style.border.color = border_token(theme);
+            style.placeholder = muted(theme);
+        }
+        Status::Hovered => {
+            style.placeholder = muted(theme);
+        }
+        Status::Focused { .. } => {
+            style.placeholder = muted(theme);
+        }
+        Status::Disabled => {
+            // `border_token` only clears 3:1 against this status's `weak`
+            // fill in the high-contrast pair (15.58 / 20.59); Light and Dark
+            // measure 2.51 / 2.95, short of the non-text floor, because the
+            // token is contrast-tested against `base` and `surface`, not
+            // `weak`. `text_secondary` is already the role carrying this
+            // status's text and clears 3:1 against `weak` in every preset
+            // (6.53 / 7.10 / 12.91 / 16.50) — reused for the border too,
+            // rather than reaching for a token not tested for this pairing.
+            let secondary = to_iced_color(tokens_for(theme).palette.text_secondary);
+            style.border.color = secondary;
+            style.value = secondary;
+            style.placeholder = secondary;
+        }
+    }
+    style
+}
+
 #[cfg(test)]
 #[path = "theme/tests.rs"]
 mod tests;

@@ -273,3 +273,136 @@ fn high_contrast_presets_keep_their_iced_slots_and_borders() {
         );
     }
 }
+
+// ── D-15 contract tests (task 023). text_input's colour roles, pinned so a
+// later change cannot silently reintroduce an unguaranteed colour. ──────────
+
+use iced::widget::text_input::{self, Status};
+
+#[test]
+fn text_input_placeholder_meets_aa_in_all_presets() {
+    // Active, Hovered and Focused all use the same placeholder colour.
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let base = page_of(&t);
+        for status in [
+            Status::Active,
+            Status::Hovered,
+            Status::Focused { is_hovered: false },
+        ] {
+            let r = ratio(text_input_style(&t, status).placeholder, base);
+            if r < 4.5 {
+                failures.push(format!("{} {status:?} {r:.2}:1", p.name));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "placeholder below AA 4.5:1: {failures:?}"
+    );
+    // Discriminates against the pre-fix value: stock `secondary.base` measures
+    // 1.00–1.09 against `background.base` in every preset (task 023 §3).
+}
+
+#[test]
+fn text_input_disabled_value_and_placeholder_meet_aa_in_all_presets() {
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let weak = t.extended_palette().background.weak.color;
+        let style = text_input_style(&t, Status::Disabled);
+        for (role, colour) in [("value", style.value), ("placeholder", style.placeholder)] {
+            let r = ratio(colour, weak);
+            if r < 4.5 {
+                failures.push(format!("{} disabled {role} {r:.2}:1", p.name));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "disabled text below AA 4.5:1: {failures:?}"
+    );
+    // Discriminates: stock disabled `value` (= active placeholder) measures
+    // 1.02–1.35 against `background.weak`; stock disabled `placeholder`
+    // (`background.strongest`) measures 1.14–1.46 (task 023 §3).
+}
+
+#[test]
+fn text_input_borders_meet_non_text_contrast_in_all_presets() {
+    // Active's border sits on `background.base`; Disabled's sits on
+    // `background.weak` and is not the same token (see `text_input_style`'s
+    // doc comment — `border_token` alone does not clear 3:1 there).
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let base = page_of(&t);
+        let weak = t.extended_palette().background.weak.color;
+        let active = ratio(text_input_style(&t, Status::Active).border.color, base);
+        let disabled = ratio(text_input_style(&t, Status::Disabled).border.color, weak);
+        if active < 3.0 {
+            failures.push(format!("{} active border {active:.2}:1", p.name));
+        }
+        if disabled < 3.0 {
+            failures.push(format!("{} disabled border {disabled:.2}:1", p.name));
+        }
+    }
+    assert!(failures.is_empty(), "border below 3:1: {failures:?}");
+    // Discriminates: stock border (`background.strong`) measures 1.54–1.58
+    // against `background.base` in every preset (task 023 §3).
+}
+
+#[test]
+fn text_input_focus_ring_stays_above_non_text_contrast() {
+    // Pin: already passes today (10.00–17.70); not touched by the fix. Assert
+    // it so a future change cannot quietly take it away.
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let base = page_of(&t);
+        let r = ratio(
+            text_input_style(&t, Status::Focused { is_hovered: false })
+                .border
+                .color,
+            base,
+        );
+        assert!(r >= 3.0, "{}: focus ring {r:.2}:1, below 3:1", p.name);
+    }
+}
+
+#[test]
+fn text_input_style_starts_from_iced_default() {
+    // Task 023 §4.1 / acceptance criterion 2: every untouched role (icon,
+    // selection, hover/focus border, active/hovered/focused background) must
+    // still equal what `text_input::default` produces, so M8's Pass B
+    // evidence (stock controls follow the palette) stays valid.
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        for status in [
+            Status::Active,
+            Status::Hovered,
+            Status::Focused { is_hovered: false },
+            Status::Disabled,
+        ] {
+            let base = text_input::default(&t, status);
+            let ours = text_input_style(&t, status);
+            assert_eq!(
+                ours.background, base.background,
+                "{} {status:?} background",
+                p.name
+            );
+            assert_eq!(ours.icon, base.icon, "{} {status:?} icon", p.name);
+            assert_eq!(
+                ours.selection, base.selection,
+                "{} {status:?} selection",
+                p.name
+            );
+        }
+        // Hover and Focus borders are untouched (not in the failing set).
+        let hover_base = text_input::default(&t, Status::Hovered).border;
+        let hover_ours = text_input_style(&t, Status::Hovered).border;
+        assert_eq!(hover_ours, hover_base, "{} hover border", p.name);
+        let focus_base = text_input::default(&t, Status::Focused { is_hovered: false }).border;
+        let focus_ours = text_input_style(&t, Status::Focused { is_hovered: false }).border;
+        assert_eq!(focus_ours, focus_base, "{} focus border", p.name);
+    }
+}

@@ -17,6 +17,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             t(Key::WizardFieldName),
             text_input("payments-mock", &w.name)
                 .on_input(Message::WizardSetName)
+                .style(theme::text_input_style)
                 .size(size::BODY)
                 .padding(Padding::from([space::S2, space::S3]))
                 .width(Length::Fill)
@@ -26,6 +27,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             t(Key::WizardFieldFolder),
             text_input("~/projects", &w.folder)
                 .on_input(Message::WizardSetFolder)
+                .style(theme::text_input_style)
                 .size(size::BODY)
                 .padding(Padding::from([space::S2, space::S3]))
                 .width(Length::Fill)
@@ -46,6 +48,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     t(Key::WizardFieldHost),
                     text_input("127.0.0.1", &w.host)
                         .on_input(Message::WizardSetHost)
+                        .style(theme::text_input_style)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fill)
@@ -55,6 +58,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     t(Key::WizardFieldPort),
                     text_input("8080", &w.port)
                         .on_input(Message::WizardSetPort)
+                        .style(theme::text_input_style)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fixed(100.0))
@@ -119,6 +123,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 t(Key::WizardQueueSize),
                 text_input("1024", &w.queue_size)
                     .on_input(Message::WizardSetQueueSize)
+                    .style(theme::text_input_style)
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(120.0))

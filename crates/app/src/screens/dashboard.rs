@@ -19,6 +19,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
     let search = text_input(app.t(Key::DashSearchPlaceholder), &app.dash_search)
         .on_input(Message::DashSearch)
+        .style(theme::text_input_style)
         .size(size::BODY)
         .padding(Padding::from([space::S2, space::S3]))
         .width(Length::Fill);

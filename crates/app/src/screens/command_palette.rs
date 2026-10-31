@@ -93,6 +93,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             text_input(app.t(Key::PaletteSearch), &app.command_palette.query)
                 .id(SEARCH_INPUT_ID)
                 .on_input(Message::PaletteQuery)
+                .style(theme::text_input_style)
                 .size(size::BODY)
                 .padding(Padding::from([space::S3, space::S4]))
                 .width(Length::Fill),

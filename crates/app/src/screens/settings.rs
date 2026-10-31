@@ -122,6 +122,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     app.t(Key::SettingsHost),
                     text_input("127.0.0.1", &drafts.listener_ip)
                         .on_input(Message::SettingsSetHost)
+                        .style(theme::text_input_style)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fill)
@@ -132,6 +133,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     app.t(Key::SettingsPort),
                     text_input("8080", &drafts.listener_port)
                         .on_input(Message::SettingsSetPort)
+                        .style(theme::text_input_style)
                         .size(size::BODY)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fixed(100.0))
@@ -233,6 +235,7 @@ fn push_logs_trace_sections<'a>(
         widgets::field(
             app.t(Key::SettingsLogFile),
             text_input("", &s.log_file)
+                .style(theme::text_input_style)
                 .size(size::BODY)
                 .padding(Padding::from([space::S2, space::S3]))
                 .width(Length::Fill)
@@ -257,6 +260,7 @@ fn push_logs_trace_sections<'a>(
                         .unwrap_or_default()
                         .to_string()
                 )
+                .style(theme::text_input_style)
                 .size(size::BODY)
                 .padding(Padding::from([space::S2, space::S3]))
                 .width(Length::Fixed(120.0))

@@ -48,6 +48,7 @@ fn event_stream<'a>(app: &'a App, events: &[&'a MatchTraceEvent]) -> Element<'a,
         row![
             text_input(app.t(Key::TraceFilterPath), &app.trace_filter)
                 .on_input(Message::TraceFilterChanged)
+                .style(theme::text_input_style)
                 .size(size::BODY)
                 .padding(Padding::from([space::S2, space::S3]))
                 .width(Length::Fill),

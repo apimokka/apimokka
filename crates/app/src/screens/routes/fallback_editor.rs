@@ -151,6 +151,7 @@ pub(super) fn fallback_file_editor<'a>(
                 t(Key::FallbackStatusLabel),
                 text_input("200 OK", status)
                     .on_input(Message::FallbackFileSetStatus)
+                    .style(theme::text_input_style)
                     .size(size::CAPTION)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(110.0))
