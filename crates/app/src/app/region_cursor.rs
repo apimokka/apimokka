@@ -28,10 +28,15 @@
 //!    fully on screen, with no scrollable container around either. Stated
 //!    plainly rather than claimed to scroll, per task 026's precedent for
 //!    the same kind of non-applicable case.
+//!
+//! Task 028 (MK-023 slice 3) makes all four live, for the first time, against
+//! `DashboardWorkspaces` — the model's first region whose list can shorten,
+//! empty, and scroll. Its tests sit in their own section below, after the
+//! Tab/Shift+Tab tests this slice also extends to Welcome and Dashboard.
 
 use super::*;
 use crate::message::Message;
-use crate::regions::Region;
+use crate::regions::{Cursor, Region};
 use crate::selection::WorkspaceTab;
 use apimokka_model::AudienceMode;
 
@@ -41,6 +46,26 @@ fn expert_in_workspace() -> App {
     a.update(Message::OpenWorkspace("test".into()));
     assert_eq!(a.view, AppView::Workspace, "test setup sanity");
     a
+}
+
+fn expert_at_dashboard() -> App {
+    let mut a = App::new().0;
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    a.update(Message::GoDashboard);
+    assert_eq!(a.view, AppView::Dashboard, "test setup sanity");
+    a
+}
+
+/// Tabs from Dashboard's first region all the way to `DashboardWorkspaces`.
+fn tab_into_dashboard_workspaces(a: &mut App) {
+    a.update(Message::TabPressed); // DashboardCreate
+    a.update(Message::TabPressed); // DashboardSearch
+    a.update(Message::TabPressed); // DashboardWorkspaces
+    assert_eq!(
+        a.focused_region,
+        Some(Region::DashboardWorkspaces),
+        "test setup sanity"
+    );
 }
 
 // ── Tab / Shift+Tab: cycle the declared order and wrap (task 027 §6) ──────
@@ -57,7 +82,7 @@ fn tab_focuses_the_single_available_region_and_stays_there() {
     assert_eq!(a.focused_region, None, "nothing focused at launch");
     a.update(Message::TabPressed);
     assert_eq!(a.focused_region, Some(Region::ModePicker));
-    assert_eq!(a.region_cursor, Some(0));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
     // Wraps to the same (only) region rather than clearing focus.
     a.update(Message::TabPressed);
     assert_eq!(a.focused_region, Some(Region::ModePicker));
@@ -72,23 +97,53 @@ fn tab_focuses_the_tab_bar_inside_a_workspace() {
     assert_eq!(a.focused_region, Some(Region::TabBar));
     assert_eq!(
         a.region_cursor,
-        Some(0),
+        Some(Cursor::Index(0)),
         "Routes is active and at index 0 — entering starts there, not elsewhere"
     );
 }
 
 #[test]
-fn tab_and_shift_tab_are_a_noop_on_welcome_and_dashboard() {
+fn tab_focuses_welcomes_single_region_and_stays_there() {
     let mut a = App::new().0;
     a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
     assert_eq!(a.view, AppView::Welcome, "test setup sanity");
     a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::WelcomeActions));
+    a.update(Message::TabPressed);
     assert_eq!(
-        a.focused_region, None,
-        "no region declared for Welcome in this slice (slice 3)"
+        a.focused_region,
+        Some(Region::WelcomeActions),
+        "wraps to the same (only) region rather than clearing focus"
     );
     a.update(Message::ShiftTabPressed);
-    assert_eq!(a.focused_region, None);
+    assert_eq!(a.focused_region, Some(Region::WelcomeActions));
+}
+
+#[test]
+fn tab_cycles_dashboards_three_regions_in_visual_order() {
+    let mut a = App::new().0;
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    a.update(Message::GoDashboard);
+    assert_eq!(a.view, AppView::Dashboard, "test setup sanity");
+
+    a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::DashboardCreate));
+    a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::DashboardSearch));
+    a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::DashboardWorkspaces));
+    a.update(Message::TabPressed);
+    assert_eq!(
+        a.focused_region,
+        Some(Region::DashboardCreate),
+        "Tab wraps back to the first region (task 028 §2)"
+    );
+    a.update(Message::ShiftTabPressed);
+    assert_eq!(
+        a.focused_region,
+        Some(Region::DashboardWorkspaces),
+        "Shift+Tab wraps the other way"
+    );
 }
 
 // ── §3.1: entering a region sets the cursor on the active item ───────────
@@ -103,7 +158,7 @@ fn entering_the_tab_bar_starts_the_cursor_on_whichever_tab_is_active() {
     assert_eq!(a.focused_region, Some(Region::TabBar));
     assert_eq!(
         a.region_cursor,
-        Some(2),
+        Some(Cursor::Index(2)),
         "entering must start on the active tab, not the first (task 027 §3.1)"
     );
 }
@@ -114,7 +169,7 @@ fn entering_the_mode_picker_starts_at_the_first_item_since_nothing_is_active() {
     a.update(Message::TabPressed);
     assert_eq!(
         a.region_cursor,
-        Some(0),
+        Some(Cursor::Index(0)),
         "no mode is chosen yet, so there is no active item to resume — \
          the cursor starts at the first (task 027 §3.1, last line)"
     );
@@ -126,18 +181,26 @@ fn entering_the_mode_picker_starts_at_the_first_item_since_nothing_is_active() {
 fn arrow_keys_move_the_tab_bar_cursor_without_switching_tabs() {
     let mut a = expert_in_workspace();
     a.update(Message::TabPressed);
-    assert_eq!(a.region_cursor, Some(0));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
     a.update(Message::ArrowDown);
-    assert_eq!(a.region_cursor, Some(1));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(1)));
     assert_eq!(
         a.tab,
         WorkspaceTab::Routes,
         "moving the cursor must not activate anything — only Enter does (task 027 §3.2)"
     );
     a.update(Message::ArrowDown);
-    assert_eq!(a.region_cursor, Some(2), "saturates, three tabs");
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(2)),
+        "saturates, three tabs"
+    );
     a.update(Message::ArrowDown);
-    assert_eq!(a.region_cursor, Some(2), "must not wrap past the last tab");
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(2)),
+        "must not wrap past the last tab"
+    );
 }
 
 #[test]
@@ -148,7 +211,7 @@ fn enter_switches_the_tab_the_cursor_is_on() {
     a.update(Message::ArrowDown);
     assert_eq!(
         a.region_cursor,
-        Some(2),
+        Some(Cursor::Index(2)),
         "test setup sanity: cursor on Settings"
     );
     a.update(Message::EnterPressed);
@@ -250,5 +313,179 @@ fn tab_is_gated_by_capture_status_like_every_other_non_escape_key() {
             Some(Message::ShiftTabPressed)
         ),
         "Shift+Tab"
+    );
+}
+
+// ── Task 028 (MK-023 slice 3): Welcome and Dashboard ──────────────────────
+//
+// §5's four edge cases, tested live against `DashboardWorkspaces` — the
+// model's first identity-cursored region and the first region any of them
+// can actually occur against (slices 1–2's regions are both fixed-length,
+// recorded as N/A in this file's module doc above).
+
+#[test]
+fn welcome_enter_on_open_workspace_reaches_dashboard() {
+    let mut a = App::new().0;
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    assert_eq!(a.view, AppView::Welcome, "test setup sanity");
+    a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::WelcomeActions));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
+    a.update(Message::EnterPressed);
+    assert_eq!(a.view, AppView::Dashboard);
+}
+
+#[test]
+fn welcome_enter_on_create_new_workspace_reaches_the_wizard() {
+    let mut a = App::new().0;
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    a.update(Message::TabPressed);
+    a.update(Message::ArrowDown);
+    assert_eq!(a.region_cursor, Some(Cursor::Index(1)));
+    a.update(Message::EnterPressed);
+    assert_eq!(a.view, AppView::Wizard);
+}
+
+#[test]
+fn dashboard_enter_on_create_reaches_the_wizard() {
+    let mut a = expert_at_dashboard();
+    a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::DashboardCreate));
+    a.update(Message::EnterPressed);
+    assert_eq!(a.view, AppView::Wizard);
+}
+
+// ── Edge case 3: entering DashboardWorkspaces resets to the first item ────
+// (its `active_index` is always `None` — nothing is "the open workspace"
+// while browsing, so there is no "active" item to resume per task 027 §3.1's
+// own fallback clause.)
+
+#[test]
+fn entering_dashboard_workspaces_starts_the_cursor_on_the_first_item() {
+    let mut a = expert_at_dashboard();
+    tab_into_dashboard_workspaces(&mut a);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::WorkspaceName("shop-api-mock".into())),
+        "test setup's mock data puts shop-api-mock first"
+    );
+}
+
+// ── Edge case 1: clamp on shortening ───────────────────────────────────────
+// `Region::DashboardWorkspaces` has no "active" item to resume (above), so
+// every *re-entry* already lands on a valid first item by construction —
+// the one state that can actually drift is the cursor's own position
+// *while the Workspaces region already holds it*, exercised directly here
+// against `App::reclamp_dashboard_workspace_cursor`/`move_region_cursor`'s
+// identity branch rather than through a specific pointer-free keystroke
+// sequence (the filter can only change while `DashboardSearch` has native
+// focus, which this slice's own `enter_region` always gives a fresh cursor
+// on return — the defect this guards is a stale identity reaching `view`
+// or `Enter`, not a specific route to it).
+
+#[test]
+fn typing_a_filter_that_removes_the_cursors_workspace_falls_back_to_a_surviving_item() {
+    let mut a = expert_at_dashboard();
+    tab_into_dashboard_workspaces(&mut a);
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::WorkspaceName("billing-sandbox".into())),
+        "test setup sanity"
+    );
+    a.update(Message::DashSearch("qa".into()));
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::WorkspaceName("qa-edge-cases".into())),
+        "billing-sandbox no longer matches \"qa\" — the cursor must fall back \
+         to a surviving item immediately, not wait for the next arrow press"
+    );
+}
+
+#[test]
+fn move_region_cursor_self_heals_when_the_stored_identity_is_no_longer_in_the_list() {
+    // Exercises `move_region_cursor`'s identity branch directly: a stored
+    // name the current filtered list no longer contains must not panic or
+    // stick — pressing an arrow key lands on a real item.
+    let mut a = expert_at_dashboard();
+    tab_into_dashboard_workspaces(&mut a);
+    a.region_cursor = Some(Cursor::WorkspaceName("no-such-workspace".into()));
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::WorkspaceName("shop-api-mock".into())),
+        "an unrecognised stored identity must resolve to a real item, not panic or stay stale"
+    );
+}
+
+// ── Edge case 2: an empty region has no cursor, and Enter is a no-op ──────
+
+#[test]
+fn a_filter_matching_nothing_leaves_no_cursor_and_enter_does_not_open_anything() {
+    let mut a = expert_at_dashboard();
+    tab_into_dashboard_workspaces(&mut a);
+    a.update(Message::DashSearch("no-such-workspace-matches-this".into()));
+    assert_eq!(
+        a.region_cursor, None,
+        "no workspace matches — no cursor, per task 028 §5 edge case 2"
+    );
+    a.update(Message::EnterPressed);
+    assert_eq!(
+        a.view,
+        AppView::Dashboard,
+        "Enter on an empty region must be a no-op, not a panic or a stale open"
+    );
+}
+
+#[test]
+fn arrow_keys_are_a_noop_on_an_empty_filtered_list() {
+    let mut a = expert_at_dashboard();
+    tab_into_dashboard_workspaces(&mut a);
+    a.update(Message::DashSearch("no-such-workspace-matches-this".into()));
+    assert_eq!(a.region_cursor, None, "test setup sanity");
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.region_cursor, None,
+        "must not panic or synthesize a cursor"
+    );
+    a.update(Message::ArrowUp);
+    assert_eq!(a.region_cursor, None);
+}
+
+// ── Enter opens exactly the cursor's (post-filter) workspace ──────────────
+
+#[test]
+fn enter_opens_the_workspace_the_cursor_is_on_after_filtering() {
+    let mut a = expert_at_dashboard();
+    tab_into_dashboard_workspaces(&mut a);
+    a.update(Message::DashSearch("sandbox".into()));
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::WorkspaceName("billing-sandbox".into())),
+        "test setup sanity: only billing-sandbox matches"
+    );
+    a.update(Message::EnterPressed);
+    assert_eq!(a.view, AppView::Workspace);
+}
+
+// ── §3.1: leaving DashboardSearch unfocuses it ────────────────────────────
+// `App::update` is a pure reducer and never calls `iced`'s focus operations
+// itself (`update_and_dispatch` does, verified live in this slice's
+// keyboard-only capture) — what the reducer alone can promise, and what
+// this pins, is that `focused_region` itself leaves `DashboardSearch`
+// exactly when the design says it should, which is the signal
+// `update_and_dispatch` reads to decide to unfocus.
+
+#[test]
+fn tabbing_past_search_leaves_it_as_the_focused_region() {
+    let mut a = expert_at_dashboard();
+    a.update(Message::TabPressed); // DashboardCreate
+    a.update(Message::TabPressed); // DashboardSearch
+    assert_eq!(a.focused_region, Some(Region::DashboardSearch));
+    a.update(Message::TabPressed); // DashboardWorkspaces
+    assert_ne!(
+        a.focused_region,
+        Some(Region::DashboardSearch),
+        "Tab must move focus off Search — update_and_dispatch unfocuses it on this transition"
     );
 }

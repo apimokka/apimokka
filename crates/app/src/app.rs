@@ -429,8 +429,10 @@ pub struct App {
     pub focused_region: Option<crate::regions::Region>,
     /// The cursor's position within `focused_region`'s current item list.
     /// `None` exactly when `focused_region` is `None` or that region is
-    /// empty.
-    pub region_cursor: Option<usize>,
+    /// empty. Task 028 (MK-023 slice 3): an index for every region except
+    /// `DashboardWorkspaces`, which stores the workspace's identity instead
+    /// — see `regions::Cursor`.
+    pub region_cursor: Option<crate::regions::Cursor>,
     // ── MK-041 layout density toggles ─────────────────────────────────────
     pub rule_when_more: bool,
     pub settings_advanced_more: bool,
@@ -820,8 +822,8 @@ impl App {
                 } else if self.test_rule.open {
                     self.update(Message::TestRuleRun);
                 } else if let Some(region) = self.valid_focused_region()
-                    && let Some(cursor) = self.region_cursor
-                    && let Some(message) = region.activation_message(cursor)
+                    && let Some(cursor) = self.region_cursor.clone()
+                    && let Some(message) = region.activation_message(&cursor)
                 {
                     // Task 027: activates whichever region currently holds
                     // the cursor — the mode picker's card or the tab bar's
@@ -912,6 +914,11 @@ impl App {
             // Dashboard
             Message::DashSearch(q) => {
                 self.dash_search = q;
+                // Task 028 §3.2: reclamp immediately — `view` reads
+                // `region_cursor` every frame, so a cursor left pointing at
+                // a now-filtered-away workspace would render wrong (or on
+                // nothing) until the next arrow press self-heals it.
+                self.reclamp_dashboard_workspace_cursor();
             }
             Message::DashPinToggle(_) => {}
 
@@ -1686,10 +1693,33 @@ impl App {
         let opening_palette =
             matches!(msg, Message::ToggleCommandPalette) && !self.command_palette.open;
         let is_arrow_key = matches!(msg, Message::ArrowUp | Message::ArrowDown);
+        let was_search_focused =
+            self.focused_region == Some(crate::regions::Region::DashboardSearch);
         self.update(msg);
 
         if opening_palette && self.command_palette.open {
             return iced::widget::operation::focus(screens::command_palette::SEARCH_INPUT_ID);
+        }
+
+        // Task 028 §3.1: whichever transition moved the cursor into or out of
+        // `DashboardSearch` — `Tab`, `Shift+Tab`, `Enter` opening a workspace
+        // and leaving the screen, anything — is covered by comparing before
+        // and after rather than special-casing each `Message` that could
+        // cause it, the same "derive, don't duplicate" reasoning
+        // `valid_focused_region` already applies one level up. `focusable::
+        // unfocus` has no Task-returning wrapper in `iced::widget::operation`
+        // (unlike `focus`); `iced::advanced::widget::operate` is the general
+        // "run this `Operation`" entry point the `focus`/`focus_next` helpers
+        // themselves are built from, reached through the `advanced` feature.
+        let is_search_focused =
+            self.focused_region == Some(crate::regions::Region::DashboardSearch);
+        if is_search_focused && !was_search_focused {
+            return iced::widget::operation::focus(screens::dashboard::SEARCH_INPUT_ID);
+        }
+        if was_search_focused && !is_search_focused {
+            return iced::advanced::widget::operate(
+                iced::advanced::widget::operation::focusable::unfocus(),
+            );
         }
 
         // D-5: `scrollable` has no "scroll this child into view" operation —
@@ -1715,6 +1745,34 @@ impl App {
                 screens::command_palette::RESULTS_SCROLLABLE_ID,
                 iced::widget::scrollable::RelativeOffset { x: 0.0, y },
             );
+        }
+
+        // Task 028 §3.3: same D-5 approximation as above, applied to the
+        // Dashboard workspace list. iced 0.14 still exposes no "scroll this
+        // child into view" operation, only an absolute/relative viewport
+        // offset, so this maps the cursor's position in the *current*
+        // filtered list to a linear offset exactly as the palette's results
+        // list does. Honestly imprecise in the same way D-5 is: a list whose
+        // rows vary in height (none do here — every row is the same
+        // fixed shape) or that scrolls during typing rather than only on
+        // arrow presses would need a different mechanism; neither applies to
+        // this list.
+        if is_arrow_key
+            && self.focused_region == Some(crate::regions::Region::DashboardWorkspaces)
+            && let Some(crate::regions::Cursor::WorkspaceName(name)) = &self.region_cursor
+        {
+            let names: Vec<String> = crate::regions::dashboard_filtered_workspaces(self)
+                .into_iter()
+                .map(|ws| ws.name)
+                .collect();
+            if let Some(pos) = names.iter().position(|n| n == name) {
+                let last_index = names.len().saturating_sub(1).max(1) as f32;
+                let y = pos as f32 / last_index;
+                return iced::widget::operation::snap_to(
+                    screens::dashboard::WORKSPACES_SCROLLABLE_ID,
+                    iced::widget::scrollable::RelativeOffset { x: 0.0, y },
+                );
+            }
         }
 
         iced::Task::none()
@@ -3311,14 +3369,24 @@ impl App {
 
     /// Set `region` as focused and place the cursor per task 027 §3.1: on
     /// the region's active item if it has one, otherwise its first item: an
-    /// empty region gets no cursor at all.
+    /// empty region gets no cursor at all. Task 028: for an identity-cursored
+    /// region (`uses_identity_cursor`), the computed index is translated into
+    /// the identity at that position (`identity_at`) rather than stored
+    /// directly — entry always goes through an index first because
+    /// `active_index`'s "which item is active" question is answered the same
+    /// way regardless of how the result is stored.
     fn enter_region(&mut self, region: crate::regions::Region) {
-        let len = region.len();
+        let len = region.len(self);
         self.focused_region = Some(region);
         self.region_cursor = if len == 0 {
             None
         } else {
-            Some(region.active_index(self).unwrap_or(0).min(len - 1))
+            let index = region.active_index(self).unwrap_or(0).min(len - 1);
+            if region.uses_identity_cursor() {
+                region.identity_at(self, index)
+            } else {
+                Some(crate::regions::Cursor::Index(index))
+            }
         };
     }
 
@@ -3330,22 +3398,79 @@ impl App {
     /// reproducing M9's "the first press selects index 0, in either
     /// direction" behaviour (`palette_keyboard.rs`'s
     /// `mode_picker_arrow_keys_move_between_the_two_options`).
+    ///
+    /// Task 028: an identity-cursored region re-derives its current position
+    /// by searching the *live* list for the stored identity rather than
+    /// trusting a remembered index — this is task 027 §3.2's clamp-on-
+    /// shortening edge case, expressed as "the search simply does not find a
+    /// filtered-away identity" rather than a bounds check on a stale number.
     fn move_region_cursor(&mut self, delta: isize) {
+        use crate::regions::Cursor;
+
         match self.valid_focused_region() {
+            Some(region) if region.uses_identity_cursor() => {
+                let names: Vec<String> = crate::regions::dashboard_filtered_workspaces(self)
+                    .into_iter()
+                    .map(|ws| ws.name)
+                    .collect();
+                if names.is_empty() {
+                    self.region_cursor = None;
+                    return;
+                }
+                let current = match &self.region_cursor {
+                    Some(Cursor::WorkspaceName(name)) => names.iter().position(|n| n == name),
+                    _ => None,
+                };
+                let next = match current {
+                    Some(i) => (i as isize + delta).clamp(0, names.len() as isize - 1) as usize,
+                    None => 0,
+                };
+                self.region_cursor = Some(Cursor::WorkspaceName(names[next].clone()));
+            }
             Some(region) => {
-                let len = region.len();
+                let len = region.len(self);
                 if len == 0 {
                     self.region_cursor = None;
                     return;
                 }
-                let current = self.region_cursor.unwrap_or(0) as isize;
-                self.region_cursor = Some((current + delta).clamp(0, len as isize - 1) as usize);
+                let current = match self.region_cursor {
+                    Some(Cursor::Index(i)) => i as isize,
+                    _ => 0,
+                };
+                self.region_cursor = Some(Cursor::Index(
+                    (current + delta).clamp(0, len as isize - 1) as usize,
+                ));
             }
             None => {
                 if let Some(&region) = crate::regions::Region::order_for(self).first() {
                     self.enter_region(region);
                 }
             }
+        }
+    }
+
+    /// Task 028 §3.2: re-derive the cursor against the *current* filtered
+    /// list right after it changes, rather than waiting for the next arrow
+    /// press to discover the stored identity is gone. Without this, a user
+    /// who types a character that filters their cursor's workspace away
+    /// would see a stale cursor (rendered on nothing, or on whatever used to
+    /// be at that position) until they next pressed an arrow key — the
+    /// clamp must be immediate, not lazy, because `view` reads
+    /// `region_cursor` on every frame, not only after `move_region_cursor`
+    /// runs. A no-op unless `DashboardWorkspaces` is the focused region.
+    fn reclamp_dashboard_workspace_cursor(&mut self) {
+        use crate::regions::Cursor;
+
+        if self.focused_region != Some(crate::regions::Region::DashboardWorkspaces) {
+            return;
+        }
+        let names: Vec<String> = crate::regions::dashboard_filtered_workspaces(self)
+            .into_iter()
+            .map(|ws| ws.name)
+            .collect();
+        let still_present = matches!(&self.region_cursor, Some(Cursor::WorkspaceName(name)) if names.contains(name));
+        if !still_present {
+            self.region_cursor = names.into_iter().next().map(Cursor::WorkspaceName);
         }
     }
 

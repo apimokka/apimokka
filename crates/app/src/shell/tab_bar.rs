@@ -22,8 +22,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
             // drawn independently — the cursor border must be visible
             // whether or not it sits on the active tab, and must not render
             // at all once the tab bar no longer holds focus.
-            let has_cursor =
-                app.focused_region == Some(Region::TabBar) && app.region_cursor == Some(pos);
+            let has_cursor = app.focused_region == Some(Region::TabBar)
+                && app.region_cursor == Some(crate::regions::Cursor::Index(pos));
 
             // 3 px accent strip below active tab
             let indicator: Element<Message> = if active {

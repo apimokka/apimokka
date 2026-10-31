@@ -44,8 +44,8 @@ pub const OPTIONS: &[(Key, Key, AudienceMode)] = &[
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let card = |pos: usize, title: Key, desc: Key, mode: AudienceMode| -> Element<Message> {
-        let selected =
-            app.focused_region == Some(Region::ModePicker) && app.region_cursor == Some(pos);
+        let selected = app.focused_region == Some(Region::ModePicker)
+            && app.region_cursor == Some(crate::regions::Cursor::Index(pos));
         button(
             container(
                 column![

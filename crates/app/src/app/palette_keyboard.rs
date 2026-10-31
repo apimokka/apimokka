@@ -199,27 +199,37 @@ fn enter_executes_the_selected_rows_message_under_a_filter() {
 
 #[test]
 fn mode_picker_arrow_keys_move_between_the_two_options() {
-    use crate::regions::Region;
+    use crate::regions::{Cursor, Region};
 
     let mut a = App::new().0;
     assert!(a.audience_mode.is_none());
     a.update(Message::ArrowDown);
     assert_eq!(a.focused_region, Some(Region::ModePicker));
-    assert_eq!(a.region_cursor, Some(0));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
     a.update(Message::ArrowDown);
-    assert_eq!(a.region_cursor, Some(1), "two options, saturates at 1");
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(1)),
+        "two options, saturates at 1"
+    );
     a.update(Message::ArrowDown);
-    assert_eq!(a.region_cursor, Some(1), "must not wrap back to 0");
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(1)),
+        "must not wrap back to 0"
+    );
     a.update(Message::ArrowUp);
-    assert_eq!(a.region_cursor, Some(0));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
 }
 
 #[test]
 fn mode_picker_enter_confirms_the_visibly_selected_card() {
+    use crate::regions::Cursor;
+
     let mut a = App::new().0;
     a.update(Message::ArrowDown);
     a.update(Message::ArrowDown);
-    assert_eq!(a.region_cursor, Some(1));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(1)));
     a.update(Message::EnterPressed);
     assert_eq!(
         a.audience_mode,
@@ -244,7 +254,7 @@ fn mode_picker_enter_is_a_noop_with_no_selection() {
 
 #[test]
 fn mode_picker_arrow_keys_move_the_tab_bar_instead_once_a_mode_is_chosen() {
-    use crate::regions::Region;
+    use crate::regions::{Cursor, Region};
     use crate::selection::WorkspaceTab;
 
     // Task 027's actual change, not a no-op: once in a workspace, arrow keys
@@ -260,7 +270,7 @@ fn mode_picker_arrow_keys_move_the_tab_bar_instead_once_a_mode_is_chosen() {
     );
     assert_eq!(
         a.region_cursor,
-        Some(0),
+        Some(Cursor::Index(0)),
         "first press focuses the tab bar on the active tab (Routes, index 0)"
     );
     assert_eq!(

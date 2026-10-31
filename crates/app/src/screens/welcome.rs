@@ -1,6 +1,7 @@
 //! MK-025 — S-00 Welcome.
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Cursor, Region, WELCOME_ACTIONS};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
@@ -17,9 +18,39 @@ pub fn view(app: &App) -> Element<'_, Message> {
     .spacing(space::S2)
     .align_x(Alignment::Center);
 
-    let open_btn = widgets::primary_btn(app.t(Key::WelcomeOpenWorkspace), Message::GoDashboard);
-    let create_btn = widgets::secondary_btn(app.t(Key::WelcomeCreateWorkspace), Message::GoWizard);
-    let actions = row![open_btn, create_btn]
+    // Task 028 §2: rendered from the same table `regions::Region::WelcomeActions`
+    // reads, so the visible actions and the keyboard's idea of them can never
+    // disagree (the D-9 lesson). Position 0 (Open workspace) stays primary,
+    // position 1 (Create new workspace) stays secondary — the same visual
+    // distinction the screen always had.
+    let action_items: Vec<Element<Message>> = WELCOME_ACTIONS
+        .iter()
+        .enumerate()
+        .map(|(pos, &(key, message))| {
+            let has_cursor = app.focused_region == Some(Region::WelcomeActions)
+                && app.region_cursor == Some(Cursor::Index(pos));
+            let btn = if pos == 0 {
+                widgets::primary_btn(app.t(key), message())
+            } else {
+                widgets::secondary_btn(app.t(key), message())
+            };
+            // `cursor_style`'s border is drawn at the wrapping container's own
+            // bounds; without a gap the primary/secondary button's own
+            // opaque background (its own child, rendered on top) paints
+            // straight over it. `space::S1` gives the border room to show,
+            // the same reason `tab_bar::view`'s wrap has the indicator strip
+            // beneath its button rather than butting the border against it.
+            container(btn)
+                .padding(space::S1)
+                .style(if has_cursor {
+                    theme::cursor_style
+                } else {
+                    |_: &iced::Theme| iced::widget::container::Style::default()
+                })
+                .into()
+        })
+        .collect();
+    let actions = row(action_items)
         .spacing(space::S3)
         .align_y(Alignment::Center);
 
