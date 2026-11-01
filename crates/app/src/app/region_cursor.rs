@@ -1,6 +1,6 @@
 //! Boundary decision: single-responsibility — reducer tests for the region/
 //! cursor keyboard model (`Tab`/`Shift+Tab`, the arrows, `Enter`) across
-//! every slice that has extended it (027, 028, 029). `regions/tests.rs`
+//! every slice that has extended it (027, 028, 029, 030). `regions/tests.rs`
 //! covers `Region`'s own table-lookup methods in isolation; this file
 //! exercises the `App::update` integration — the actual acceptance surface —
 //! and grows with each slice because that surface is one coherent model, not
@@ -945,6 +945,471 @@ fn focus_release_decision_unfocuses_on_entering_a_region_without_a_text_field() 
 fn focus_release_decision_focuses_on_entering_a_text_field_region() {
     assert_eq!(
         super::focus_release_decision(Some(Region::DashboardCreate), Some(Region::DashboardSearch)),
-        Some(super::FocusRelease::Focus)
+        Some(super::FocusRelease::Focus(
+            crate::screens::dashboard::SEARCH_INPUT_ID.into()
+        ))
     );
+}
+
+#[test]
+fn focus_release_decision_carries_the_editors_own_per_field_id() {
+    use crate::regions::EditorField;
+
+    // Task 030 §5: generalises `Focus` to carry *which* id, since the editor
+    // has many text-field regions rather than one fixed one.
+    assert_eq!(
+        super::focus_release_decision(
+            Some(Region::Editor(EditorField::Method)),
+            Some(Region::Editor(EditorField::UrlPath))
+        ),
+        Some(super::FocusRelease::Focus("editor-url-path".into()))
+    );
+}
+
+// ── Task 030 (MK-023 slice 5): the rule editor and the trace screen ────────
+
+use crate::regions::EditorField;
+use apimokka_model::HeaderOp;
+
+/// `shop-api-mock`'s third rule in `main.toml` — the only mock rule with
+/// both a header and body conditions (one header, two body), so it is the
+/// one rule that exercises every row kind the editor can show.
+fn rule_with_conditions(a: &App) -> NodeId {
+    a.snapshot.as_ref().expect("test setup sanity").rule_sets[0].rules[2].id
+}
+
+fn select_rule_with_conditions(a: &mut App) -> NodeId {
+    let id = rule_with_conditions(a);
+    a.update(Message::SelectRule(id));
+    id
+}
+
+/// Tabs forward until `target` is the focused region, or panics after a
+/// generous bound — a stuck Tab chain should fail the test, not hang it.
+fn tab_until(a: &mut App, target: Region) {
+    for _ in 0..40 {
+        a.update(Message::TabPressed);
+        if a.focused_region == Some(target) {
+            return;
+        }
+    }
+    panic!(
+        "Tab never reached {target:?}; focused_region is {:?}",
+        a.focused_region
+    );
+}
+
+// ── Tab order matches reading order ────────────────────────────────────────
+
+#[test]
+fn editor_fields_order_matches_reading_order_for_a_simple_rule() {
+    use crate::regions::editor_fields;
+
+    let mut a = expert_in_workspace();
+    let health_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(health_id));
+    assert_eq!(
+        editor_fields(&a),
+        vec![
+            EditorField::TestRule,
+            EditorField::Duplicate,
+            EditorField::MoveUp,
+            EditorField::MoveDown,
+            EditorField::Delete,
+            EditorField::UrlPath,
+            EditorField::UrlPathOp,
+            EditorField::Method,
+            EditorField::AddHeader,
+            EditorField::AddBody,
+            EditorField::RespondMode,
+            EditorField::RespondBody,
+            EditorField::RespondStatus,
+            EditorField::RespondDelay,
+            EditorField::PerRuleField,
+        ],
+        "GET /health has no conditions, so both lists are empty but still \
+         present via their Add rows — shop-api-mock's strategy is \
+         WeightedRandom (test setup sanity, confirmed at the fixture), so \
+         PerRuleField (the weight) is present; no MoreWhenToggle (Expert \
+         mode shows both cards directly)"
+    );
+}
+
+#[test]
+fn editor_fields_includes_every_row_for_a_rule_with_conditions() {
+    use crate::regions::editor_fields;
+
+    let mut a = expert_in_workspace();
+    select_rule_with_conditions(&mut a);
+    assert_eq!(
+        editor_fields(&a),
+        vec![
+            EditorField::TestRule,
+            EditorField::Duplicate,
+            EditorField::MoveUp,
+            EditorField::MoveDown,
+            EditorField::Delete,
+            EditorField::UrlPath,
+            EditorField::UrlPathOp,
+            EditorField::Method,
+            EditorField::HeaderName(0),
+            EditorField::HeaderOp(0),
+            EditorField::HeaderValue(0),
+            EditorField::HeaderRemove(0),
+            EditorField::AddHeader,
+            EditorField::BodyPath(0),
+            EditorField::BodyPathAssistant(0),
+            EditorField::BodyOp(0),
+            EditorField::BodyValue(0),
+            EditorField::BodyRemove(0),
+            EditorField::BodyPath(1),
+            EditorField::BodyPathAssistant(1),
+            EditorField::BodyOp(1),
+            EditorField::BodyValue(1),
+            EditorField::BodyRemove(1),
+            EditorField::AddBody,
+            EditorField::RespondMode,
+            EditorField::RespondBody,
+            EditorField::RespondStatus,
+            EditorField::RespondDelay,
+            EditorField::PerRuleField,
+        ],
+        "reading order: WHEN column top to bottom (url path, method, each \
+         header row, each body row), then RESPOND column"
+    );
+}
+
+#[test]
+fn header_value_field_is_absent_once_its_operator_makes_it_irrelevant() {
+    use crate::regions::editor_fields;
+
+    let mut a = expert_in_workspace();
+    select_rule_with_conditions(&mut a);
+    assert!(
+        editor_fields(&a).contains(&EditorField::HeaderValue(0)),
+        "test setup sanity: Contains has a value"
+    );
+    a.update(Message::HeaderSetOp {
+        index: 0,
+        op: HeaderOp::Exists,
+    });
+    assert!(
+        !editor_fields(&a).contains(&EditorField::HeaderValue(0)),
+        "Exists ignores the value field — mirrors the view's own show_val condition"
+    );
+}
+
+#[test]
+fn more_when_toggle_and_condition_rows_follow_guided_modes_disclosure() {
+    use crate::regions::editor_fields;
+
+    let mut a = expert_in_workspace();
+    select_rule_with_conditions(&mut a);
+    a.update(Message::ChooseAudienceMode(
+        apimokka_model::AudienceMode::Guided,
+    ));
+    assert!(
+        !a.rule_when_more,
+        "test setup sanity: Guided starts collapsed"
+    );
+
+    let collapsed = editor_fields(&a);
+    assert!(
+        collapsed.contains(&EditorField::MoreWhenToggle),
+        "the toggle itself is always a region when Guided"
+    );
+    assert!(
+        !collapsed
+            .iter()
+            .any(|f| matches!(f, EditorField::HeaderName(_) | EditorField::BodyPath(_))),
+        "collapsed: no header/body rows exist to Tab to at all"
+    );
+
+    a.update(Message::ToggleRuleWhenMore);
+    let expanded = editor_fields(&a);
+    assert!(expanded.contains(&EditorField::HeaderName(0)));
+    assert!(expanded.contains(&EditorField::BodyPath(0)));
+}
+
+#[test]
+fn tab_reaches_the_editor_after_the_sidebar_on_the_routes_tab() {
+    let mut a = expert_in_workspace();
+    let health_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(health_id));
+    tab_until(&mut a, Region::TabBar);
+    a.update(Message::TabPressed); // Sidebar
+    assert_eq!(a.focused_region, Some(Region::Sidebar));
+    a.update(Message::TabPressed); // first editor field
+    assert_eq!(
+        a.focused_region,
+        Some(Region::Editor(EditorField::TestRule))
+    );
+}
+
+// ── §3: a pick_list region cycles the value, asserting the message ────────
+
+#[test]
+fn url_path_op_cycles_forward_and_saturates_at_the_last_option() {
+    let mut a = expert_in_workspace();
+    let health_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(health_id));
+    tab_until(&mut a, Region::Editor(EditorField::UrlPathOp));
+
+    // Health starts at UrlPathOp::Equal (index 0) — confirmed by the mock
+    // fixture directly, not assumed.
+    let payload_op = |a: &App| {
+        a.snapshot
+            .as_ref()
+            .unwrap()
+            .rule_draft(health_id)
+            .map(|d| d.payload.url_path_op)
+            .unwrap_or_else(|| {
+                a.snapshot
+                    .as_ref()
+                    .unwrap()
+                    .find_rule(health_id)
+                    .unwrap()
+                    .1
+                    .payload
+                    .url_path_op
+            })
+    };
+    assert_eq!(payload_op(&a), Some(apimokka_model::UrlPathOp::Equal));
+
+    for _ in 0..10 {
+        a.update(Message::ArrowDown);
+    }
+    assert_eq!(
+        payload_op(&a),
+        Some(*apimokka_model::UrlPathOp::all().last().unwrap()),
+        "ArrowDown cycles forward through all() and saturates at the end — \
+         never wraps, the same rule every other region's arrows follow"
+    );
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(0)),
+        "a pick_list region is always one item — the cursor never moves, only the value does"
+    );
+}
+
+#[test]
+fn body_op_cycle_dispatches_the_same_message_the_dropdown_would() {
+    // Asserts the message, not the widget — task 030 §8's own framing,
+    // since there is no popup to inspect.
+    let mut a = expert_in_workspace();
+    select_rule_with_conditions(&mut a);
+    let region = Region::Editor(EditorField::BodyOp(0));
+    let msg = region.cycle_value(&a, 1);
+    assert!(
+        matches!(msg, Some(Message::BodySetOp { index: 0, op }) if op != apimokka_model::BodyOp::Equal),
+        "BodyOp::Equal (index 0) moving forward must land on a different \
+         operator via the exact message BodySetOp dispatches"
+    );
+}
+
+// ── Multi-item groups: Method (6), RespondMode (2) ─────────────────────────
+
+#[test]
+fn method_group_resumes_on_the_rules_current_method_and_moves_within_it() {
+    let mut a = expert_in_workspace();
+    let orders_id = select_rule_with_conditions(&mut a); // POST
+    tab_until(&mut a, Region::Editor(EditorField::Method));
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(2)),
+        "POST is index 2 in [Any, GET, POST, PUT, PATCH, DELETE]"
+    );
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(3)),
+        "moves within the group, PUT"
+    );
+    a.update(Message::EnterPressed);
+    let method = |a: &App| {
+        a.snapshot
+            .as_ref()
+            .unwrap()
+            .find_rule(orders_id)
+            .unwrap()
+            .1
+            .payload
+            .method
+            .clone()
+    };
+    assert_eq!(
+        method(&a),
+        "PUT",
+        "Enter activates whichever method the cursor is on"
+    );
+}
+
+#[test]
+fn respond_mode_group_resumes_on_the_rules_current_mode() {
+    let mut a = expert_in_workspace();
+    select_rule_with_conditions(&mut a); // ServeFile mode
+    tab_until(&mut a, Region::Editor(EditorField::RespondMode));
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(1)),
+        "ServeFile is index 1 — the rule's own mode, not the first item"
+    );
+}
+
+// ── Trace: Tab order, the identity cursor, and conditional regions ────────
+
+fn trace_tab(a: &mut App) {
+    a.update(Message::SwitchTab(crate::selection::WorkspaceTab::Trace));
+}
+
+#[test]
+fn trace_outcome_action_is_absent_with_no_event_selected_and_present_once_one_is() {
+    let mut a = expert_in_workspace();
+    trace_tab(&mut a);
+    assert!(!Region::order_for(&a).contains(&Region::TraceOutcomeAction));
+    assert!(!Region::order_for(&a).contains(&Region::TraceReplay));
+
+    a.update(Message::SelectTraceEvent(1)); // Matched
+    assert!(Region::order_for(&a).contains(&Region::TraceOutcomeAction));
+    assert!(Region::order_for(&a).contains(&Region::TraceReplay));
+}
+
+#[test]
+fn trace_outcome_action_message_matches_each_outcome_kind() {
+    let mut a = expert_in_workspace();
+    trace_tab(&mut a);
+
+    a.update(Message::SelectTraceEvent(1)); // Matched -> rule_sets[0].rules[2]
+    let expected_rule = a.snapshot.as_ref().unwrap().rule_sets[0].rules[2].id;
+    assert!(matches!(
+        Region::TraceOutcomeAction.activation_message(&a, &Cursor::Index(0)),
+        Some(Message::JumpToRule(id)) if id == expected_rule
+    ));
+
+    a.update(Message::SelectTraceEvent(2)); // Fallback
+    assert!(matches!(
+        Region::TraceOutcomeAction.activation_message(&a, &Cursor::Index(0)),
+        Some(Message::JumpToFile(path)) if path == "responses/health.json"
+    ));
+
+    a.update(Message::SelectTraceEvent(3)); // Miss
+    assert!(matches!(
+        Region::TraceOutcomeAction.activation_message(&a, &Cursor::Index(0)),
+        Some(Message::AddRuleForPath(path)) if path == "/api/unknown"
+    ));
+
+    a.update(Message::SelectTraceEvent(4)); // Error
+    assert!(
+        !Region::order_for(&a).contains(&Region::TraceOutcomeAction),
+        "Error has no outcome action at all — not merely a no-op one"
+    );
+}
+
+#[test]
+fn conditional_regions_do_not_survive_a_change_that_removes_them() {
+    // Task 030 §11's risk: a stale cursor into a vanished conditional
+    // region. `valid_focused_region` already guards this generically
+    // (task 027) — confirmed here rather than assumed, per the handoff's
+    // own instruction.
+    let mut a = expert_in_workspace();
+    trace_tab(&mut a);
+    a.update(Message::SelectTraceEvent(1)); // Matched: has an outcome action
+    tab_until(&mut a, Region::TraceOutcomeAction);
+    assert_eq!(a.focused_region, Some(Region::TraceOutcomeAction));
+
+    a.update(Message::SelectTraceEvent(4)); // Error: no outcome action
+    assert_eq!(
+        a.valid_focused_region(),
+        None,
+        "the region the cursor pointed at no longer exists"
+    );
+}
+
+#[test]
+fn trace_events_identity_cursor_survives_an_event_arriving_while_focused() {
+    // This mockup has no live event-arrival simulation to drive through a
+    // public `Message` (`app.trace` is seeded once and only ever shrinks,
+    // via `TraceClear`) — exercised directly against the defensive path,
+    // the same honesty already given for the sidebar's "no snapshot" edge
+    // case two tasks ago.
+    let mut a = expert_in_workspace();
+    trace_tab(&mut a);
+    tab_until(&mut a, Region::TraceEvents);
+    a.update(Message::ArrowDown);
+    let cursor_before = a.region_cursor.clone();
+    assert!(
+        matches!(cursor_before, Some(Cursor::TraceEvent(_))),
+        "test setup sanity"
+    );
+
+    let new_event = apimokka_model::MatchTraceEvent {
+        event_id: 999,
+        time: "12:05:00.000".into(),
+        duration_ms: 1,
+        request: apimokka_model::trace::RequestSummary {
+            method: "GET".into(),
+            url_path: "/new".into(),
+            headers: vec![],
+            body_preview: None,
+        },
+        outcome: apimokka_model::TraceOutcome::Miss {
+            status: "404 Not Found".into(),
+        },
+        dropped_count: 0,
+    };
+    a.trace.insert(0, new_event);
+    a.update(Message::Noop); // any message re-runs the generic reclamp
+
+    assert_eq!(
+        a.region_cursor, cursor_before,
+        "an event arriving elsewhere in the list must not disturb a cursor \
+         already on a different, still-present event"
+    );
+}
+
+#[test]
+fn trace_events_identity_cursor_self_heals_if_its_own_event_is_cleared() {
+    let mut a = expert_in_workspace();
+    trace_tab(&mut a);
+    tab_until(&mut a, Region::TraceEvents);
+    assert!(a.region_cursor.is_some(), "test setup sanity");
+    a.update(Message::TraceClear);
+    assert_eq!(
+        a.region_cursor, None,
+        "edge case 2: an emptied list leaves no cursor, not a stale one"
+    );
+    a.update(Message::EnterPressed);
+    assert_eq!(
+        a.selected_trace, None,
+        "Enter on an empty region is a no-op"
+    );
+}
+
+// ── `focus_id` ───────────────────────────────────────────────────────────
+
+#[test]
+fn focus_id_is_some_only_for_the_editors_actual_text_inputs() {
+    assert!(Region::Editor(EditorField::UrlPath).focus_id().is_some());
+    assert!(
+        Region::Editor(EditorField::HeaderName(0))
+            .focus_id()
+            .is_some()
+    );
+    assert!(
+        Region::Editor(EditorField::RespondBody)
+            .focus_id()
+            .is_some()
+    );
+    assert!(
+        Region::Editor(EditorField::UrlPathOp).focus_id().is_none(),
+        "a pick_list, not a text_input"
+    );
+    assert!(
+        Region::Editor(EditorField::Method).focus_id().is_none(),
+        "a button group"
+    );
+    assert!(Region::Editor(EditorField::AddHeader).focus_id().is_none());
+    assert!(Region::TraceFilter.focus_id().is_some());
+    assert!(Region::TracePause.focus_id().is_none());
+    assert!(Region::Sidebar.focus_id().is_none());
 }

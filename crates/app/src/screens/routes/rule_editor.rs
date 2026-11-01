@@ -8,6 +8,7 @@
 use super::trace_activity::trace_activity_section;
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Cursor, EditorField, Region, editor_text_field_id};
 use crate::theme::{self, pad, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
@@ -16,6 +17,47 @@ use iced::widget::{
     Space, button, column, container, pick_list, row, scrollable, text, text_input,
 };
 use iced::{Alignment, Color, Element, Length, Padding};
+
+/// `cursor_style`'s border is drawn at the wrapping container's own bounds;
+/// without a gap an opaque sibling paints over it — the fix task 028 §6
+/// found, reused here for the editor's one-item regions and each item of
+/// its two multi-item groups (`Method`, `RespondMode`).
+fn cursor_wrap<'a>(
+    app: &App,
+    field: EditorField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::Editor(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// Same as `cursor_wrap`, for one item of a multi-item group (`Method`,
+/// `RespondMode`) at position `index` within it.
+fn cursor_wrap_group<'a>(
+    app: &App,
+    field: EditorField,
+    index: usize,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::Editor(field))
+        && app.region_cursor == Some(Cursor::Index(index));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
 
 pub(super) fn rule_editor<'a>(
     app: &'a App,
@@ -101,25 +143,48 @@ pub(super) fn rule_editor<'a>(
         row![
             text(rule.summary()).size(size::BODY).width(Length::Fill),
             // Test rule — primary; disabled with a reason when WHEN is empty.
-            widgets::action_with_reason(
-                &app.theme(),
-                t(Key::TestRuleTitle),
-                test_ready,
-                t(Key::DisabledNeedUrlPath),
+            cursor_wrap(
+                app,
+                EditorField::TestRule,
+                widgets::action_with_reason(
+                    &app.theme(),
+                    t(Key::TestRuleTitle),
+                    test_ready,
+                    t(Key::DisabledNeedUrlPath),
+                ),
             ),
-            button(text(t(Key::BtnDuplicate)).size(size::LABEL))
-                .on_press(Message::DuplicateRule(rule_id))
-                .padding(Padding::from(pad::BUTTON))
-                .style(iced::widget::button::text),
-            button(text("▲").size(size::LABEL))
-                .on_press(Message::MoveRuleUp(rule_id))
-                .padding(Padding::from(pad::BUTTON))
-                .style(iced::widget::button::text),
-            button(text("▼").size(size::LABEL))
-                .on_press(Message::MoveRuleDown(rule_id))
-                .padding(Padding::from(pad::BUTTON))
-                .style(iced::widget::button::text),
-            widgets::danger_btn(t(Key::BtnDelete), Message::DeleteRule(rule_id)),
+            cursor_wrap(
+                app,
+                EditorField::Duplicate,
+                button(text(t(Key::BtnDuplicate)).size(size::LABEL))
+                    .on_press(Message::DuplicateRule(rule_id))
+                    .padding(Padding::from(pad::BUTTON))
+                    .style(iced::widget::button::text)
+                    .into(),
+            ),
+            cursor_wrap(
+                app,
+                EditorField::MoveUp,
+                button(text("▲").size(size::LABEL))
+                    .on_press(Message::MoveRuleUp(rule_id))
+                    .padding(Padding::from(pad::BUTTON))
+                    .style(iced::widget::button::text)
+                    .into(),
+            ),
+            cursor_wrap(
+                app,
+                EditorField::MoveDown,
+                button(text("▼").size(size::LABEL))
+                    .on_press(Message::MoveRuleDown(rule_id))
+                    .padding(Padding::from(pad::BUTTON))
+                    .style(iced::widget::button::text)
+                    .into(),
+            ),
+            cursor_wrap(
+                app,
+                EditorField::Delete,
+                widgets::danger_btn(t(Key::BtnDelete), Message::DeleteRule(rule_id)),
+            ),
         ]
         .spacing(space::S2)
         .align_y(Alignment::Center),
@@ -149,7 +214,9 @@ pub(super) fn rule_editor<'a>(
                 // Expanded: show both advanced cards then a "Fewer" toggle.
                 cards.push(headers_card(app, p));
                 cards.push(body_card(app, p));
-                cards.push(
+                cards.push(cursor_wrap(
+                    app,
+                    EditorField::MoreWhenToggle,
                     button(
                         row![
                             text("▾")
@@ -166,7 +233,7 @@ pub(super) fn rule_editor<'a>(
                     .padding(Padding::from([space::S2, space::S3]))
                     .style(iced::widget::button::text)
                     .into(),
-                );
+                ));
             } else {
                 // Collapsed: show the "More" toggle + active-condition badge.
                 let badge: Element<Message> = if active_hidden > 0 {
@@ -189,21 +256,26 @@ pub(super) fn rule_editor<'a>(
 
                 cards.push(
                     row![
-                        button(
-                            row![
-                                text("▸")
-                                    .size(size::LABEL)
-                                    .color(theme::muted(&app.theme())),
-                                text(t(Key::LayoutMoreWhen))
-                                    .size(size::LABEL)
-                                    .color(theme::muted(&app.theme())),
-                            ]
-                            .spacing(space::S2)
-                            .align_y(Alignment::Center),
-                        )
-                        .on_press(Message::ToggleRuleWhenMore)
-                        .padding(Padding::from([space::S2, space::S3]))
-                        .style(iced::widget::button::text),
+                        cursor_wrap(
+                            app,
+                            EditorField::MoreWhenToggle,
+                            button(
+                                row![
+                                    text("▸")
+                                        .size(size::LABEL)
+                                        .color(theme::muted(&app.theme())),
+                                    text(t(Key::LayoutMoreWhen))
+                                        .size(size::LABEL)
+                                        .color(theme::muted(&app.theme())),
+                                ]
+                                .spacing(space::S2)
+                                .align_y(Alignment::Center),
+                            )
+                            .on_press(Message::ToggleRuleWhenMore)
+                            .padding(Padding::from([space::S2, space::S3]))
+                            .style(iced::widget::button::text)
+                            .into(),
+                        ),
                         badge,
                     ]
                     .spacing(space::S3)
@@ -246,6 +318,7 @@ pub(super) fn rule_editor<'a>(
                     .map(|w| w.to_string())
                     .unwrap_or_default();
                 let inp = text_input("", &current)
+                    .id(editor_text_field_id(EditorField::PerRuleField).unwrap())
                     .on_input(Message::RuleWeightChanged)
                     .style(theme::text_input_style)
                     .size(size::BODY)
@@ -259,6 +332,7 @@ pub(super) fn rule_editor<'a>(
                     .map(|pr| pr.to_string())
                     .unwrap_or_default();
                 let inp = text_input("", &current)
+                    .id(editor_text_field_id(EditorField::PerRuleField).unwrap())
                     .on_input(Message::RulePriorityChanged)
                     .style(theme::text_input_style)
                     .size(size::BODY)
@@ -398,15 +472,21 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
         column![
             row![
                 text_input(app.t(Key::UrlPathField), &p.url_path)
+                    .id(editor_text_field_id(EditorField::UrlPath).unwrap())
                     .on_input(Message::RuleSetUrlPath)
                     .style(theme::text_input_style)
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fill),
-                pick_list(ops, p.url_path_op, Message::RuleSetUrlPathOp)
-                    .text_size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fixed(140.0)),
+                cursor_wrap(
+                    app,
+                    EditorField::UrlPathOp,
+                    pick_list(ops, p.url_path_op, Message::RuleSetUrlPathOp)
+                        .text_size(size::CAPTION)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fixed(140.0))
+                        .into(),
+                ),
             ]
             .spacing(space::S2)
             .align_y(Alignment::Center),
@@ -424,7 +504,8 @@ fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
     let methods = ["Any", "GET", "POST", "PUT", "PATCH", "DELETE"];
     let btns: Vec<Element<Message>> = methods
         .iter()
-        .map(|m| {
+        .enumerate()
+        .map(|(i, m)| {
             let active = if *m == "Any" {
                 method.is_empty()
             } else {
@@ -440,15 +521,15 @@ fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
             } else {
                 *m
             };
-            button(text(label).size(size::LABEL))
+            let btn = button(text(label).size(size::LABEL))
                 .on_press(msg)
                 .padding(Padding::from([space::S2, space::S3 + 2.0]))
                 .style(if active {
                     theme::seg_active
                 } else {
                     theme::seg_inactive
-                })
-                .into()
+                });
+            cursor_wrap_group(app, EditorField::Method, i, btn.into())
         })
         .collect();
 
@@ -467,20 +548,27 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
             let show_val = !h.op.value_irrelevant();
             row![
                 text_input(app.t(Key::HeaderColumnName), &h.name)
+                    .id(editor_text_field_id(EditorField::HeaderName(i)).unwrap())
                     .on_input(move |v| Message::HeaderSetName { index: i, value: v })
                     .style(theme::text_input_style)
                     .size(size::CAPTION)
                     .padding(Padding::from([space::S2, space::S2]))
                     .width(Length::Fixed(110.0)),
-                pick_list(HeaderOp::all().to_vec(), Some(h.op), move |op| {
-                    Message::HeaderSetOp { index: i, op }
-                })
-                .text_size(size::CAPTION)
-                .padding(Padding::from([space::S2, space::S2]))
-                .width(Length::Fixed(110.0)),
+                cursor_wrap(
+                    app,
+                    EditorField::HeaderOp(i),
+                    pick_list(HeaderOp::all().to_vec(), Some(h.op), move |op| {
+                        Message::HeaderSetOp { index: i, op }
+                    })
+                    .text_size(size::CAPTION)
+                    .padding(Padding::from([space::S2, space::S2]))
+                    .width(Length::Fixed(110.0))
+                    .into(),
+                ),
                 {
                     let val_el: Element<Message> = if show_val {
                         text_input(app.t(Key::HeaderColumnValue), &h.value)
+                            .id(editor_text_field_id(EditorField::HeaderValue(i)).unwrap())
                             .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
                             .style(theme::text_input_style)
                             .size(size::CAPTION)
@@ -492,7 +580,11 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
                     };
                     val_el
                 },
-                widgets::icon_btn("✕", Message::HeaderRemove(i)),
+                cursor_wrap(
+                    app,
+                    EditorField::HeaderRemove(i),
+                    widgets::icon_btn("✕", Message::HeaderRemove(i)),
+                ),
             ]
             .spacing(space::S1)
             .align_y(Alignment::Center)
@@ -500,12 +592,14 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
         })
         .collect();
 
-    rows.push(
+    rows.push(cursor_wrap(
+        app,
+        EditorField::AddHeader,
         button(text(format!("+ {}", app.t(Key::BtnAddHeader))).size(size::LABEL))
             .on_press(Message::HeaderAdd)
             .padding(Padding::from([space::S2, space::S3]))
             .into(),
-    );
+    ));
 
     card_with_hint(
         app,
@@ -534,23 +628,35 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
             column![
                 row![
                     text_input("user.id", &b.path)
+                        .id(editor_text_field_id(EditorField::BodyPath(i)).unwrap())
                         .on_input(move |v| Message::BodySetPath { index: i, value: v })
                         .style(theme::text_input_style)
                         .size(size::CAPTION)
                         .padding(Padding::from([space::S2, space::S2]))
                         .width(Length::Fill),
-                    button(text("…").size(size::LABEL))
-                        .on_press(Message::PathAssistantOpen(i))
-                        .padding(Padding::from([space::S2, space::S2])),
-                    pick_list(BodyOp::all().to_vec(), Some(b.op), move |op| {
-                        Message::BodySetOp { index: i, op }
-                    })
-                    .text_size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S2]))
-                    .width(Length::Fixed(120.0)),
+                    cursor_wrap(
+                        app,
+                        EditorField::BodyPathAssistant(i),
+                        button(text("…").size(size::LABEL))
+                            .on_press(Message::PathAssistantOpen(i))
+                            .padding(Padding::from([space::S2, space::S2]))
+                            .into(),
+                    ),
+                    cursor_wrap(
+                        app,
+                        EditorField::BodyOp(i),
+                        pick_list(BodyOp::all().to_vec(), Some(b.op), move |op| {
+                            Message::BodySetOp { index: i, op }
+                        })
+                        .text_size(size::CAPTION)
+                        .padding(Padding::from([space::S2, space::S2]))
+                        .width(Length::Fixed(120.0))
+                        .into(),
+                    ),
                     {
                         let bval: Element<Message> = if show_val {
                             text_input(app.t(Key::BodyValuePlaceholder), &b.value)
+                                .id(editor_text_field_id(EditorField::BodyValue(i)).unwrap())
                                 .on_input(move |v| Message::BodySetValue { index: i, value: v })
                                 .style(theme::text_input_style)
                                 .size(size::CAPTION)
@@ -562,7 +668,11 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
                         };
                         bval
                     },
-                    widgets::icon_btn("✕", Message::BodyRemove(i)),
+                    cursor_wrap(
+                        app,
+                        EditorField::BodyRemove(i),
+                        widgets::icon_btn("✕", Message::BodyRemove(i)),
+                    ),
                 ]
                 .spacing(space::S1)
                 .align_y(Alignment::Center),
@@ -582,12 +692,14 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
                 .into(),
         );
     }
-    rows.push(
+    rows.push(cursor_wrap(
+        app,
+        EditorField::AddBody,
         button(text(format!("+ {}", app.t(Key::BtnAddBodyCondition))).size(size::LABEL))
             .on_press(Message::BodyAdd)
             .padding(Padding::from([space::S2, space::S3]))
             .into(),
-    );
+    ));
 
     card_with_hint(
         app,
@@ -604,22 +716,34 @@ fn respond_card<'a>(
 ) -> Element<'a, Message> {
     let is_inline = p.respond.mode == RespondMode::InlineText;
     let mode_btns: Element<Message> = row![
-        mode_tab(
-            app.t(Key::RespondModeInline),
-            is_inline,
-            RespondMode::InlineText
+        cursor_wrap_group(
+            app,
+            EditorField::RespondMode,
+            0,
+            mode_tab(
+                app.t(Key::RespondModeInline),
+                is_inline,
+                RespondMode::InlineText
+            ),
         ),
-        mode_tab(
-            app.t(Key::RespondModeFile),
-            !is_inline,
-            RespondMode::ServeFile
+        cursor_wrap_group(
+            app,
+            EditorField::RespondMode,
+            1,
+            mode_tab(
+                app.t(Key::RespondModeFile),
+                !is_inline,
+                RespondMode::ServeFile
+            ),
         ),
     ]
     .spacing(space::S1)
     .into();
 
+    let respond_body_id = editor_text_field_id(EditorField::RespondBody).unwrap();
     let body_el: Element<Message> = if is_inline {
         text_input(app.t(Key::RespondBodyPlaceholder), &p.respond.text)
+            .id(respond_body_id)
             .on_input(Message::RespondSetText)
             .style(theme::text_input_style)
             .size(size::BODY)
@@ -628,6 +752,7 @@ fn respond_card<'a>(
             .into()
     } else {
         text_input("path/to/response.json", &p.respond.file_path)
+            .id(respond_body_id)
             .on_input(Message::RespondSetFilePath)
             .style(theme::text_input_style)
             .size(size::BODY)
@@ -649,6 +774,7 @@ fn respond_card<'a>(
                 widgets::field(
                     app.t(Key::RespondStatusLabel),
                     text_input("200 OK", &p.respond.status)
+                        .id(editor_text_field_id(EditorField::RespondStatus).unwrap())
                         .on_input(Message::RespondSetStatus)
                         .style(theme::text_input_style)
                         .size(size::CAPTION)
@@ -661,6 +787,7 @@ fn respond_card<'a>(
                     app.t(Key::RespondDelayLabel),
                     row![
                         text_input("0", &delay_str)
+                            .id(editor_text_field_id(EditorField::RespondDelay).unwrap())
                             .on_input(Message::RespondSetDelay)
                             .style(theme::text_input_style)
                             .size(size::CAPTION)

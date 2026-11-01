@@ -764,7 +764,7 @@ impl App {
                     // special case. A dialog on top of the screen must not
                     // let an arrow key reach through to it — see
                     // `blocks_region_navigation`.
-                    self.move_region_cursor(-1);
+                    self.move_region_cursor_or_cycle(-1);
                 }
             }
             Message::ArrowDown => {
@@ -777,7 +777,7 @@ impl App {
                     self.command_palette.selected =
                         move_selection(self.command_palette.selected, filtered_len, 1);
                 } else if !self.blocks_region_navigation() {
-                    self.move_region_cursor(1);
+                    self.move_region_cursor_or_cycle(1);
                 }
             }
             Message::ArrowRight => {
@@ -849,7 +849,7 @@ impl App {
                     self.update(Message::TestRuleRun);
                 } else if let Some(region) = self.valid_focused_region()
                     && let Some(cursor) = self.region_cursor.clone()
-                    && let Some(message) = region.activation_message(&cursor)
+                    && let Some(message) = region.activation_message(self, &cursor)
                 {
                     // Task 027: activates whichever region currently holds
                     // the cursor — the mode picker's card or the tab bar's
@@ -1730,8 +1730,8 @@ impl App {
         // Task 028 §3.1, generalised in task 029 §5: entering a region
         // without a text field must release any text field that still holds
         // native keyboard focus — not only `DashboardSearch` leaving, but
-        // *any* transition landing on a region `contains_text_field` says
-        // has none. D-18 is why this had to generalise: a rule-editor field
+        // *any* transition landing on a region `Region::focus_id` says has
+        // none. D-18 is why this had to generalise: a rule-editor field
         // can hold native focus (reachable today only by clicking it, since
         // the rule editor is not itself a region) while `focused_region`
         // moves elsewhere via `Tab`/`Shift+Tab`/an arrow-driven entry, and
@@ -1757,8 +1757,8 @@ impl App {
         // or any arrow that lands on a different region) clears it, which is
         // the earliest point this mechanism can observe.
         match focus_release_decision(before_region, after_region) {
-            Some(FocusRelease::Focus) => {
-                return iced::widget::operation::focus(screens::dashboard::SEARCH_INPUT_ID);
+            Some(FocusRelease::Focus(id)) => {
+                return iced::widget::operation::focus(id);
             }
             Some(FocusRelease::Unfocus) => {
                 return iced::advanced::widget::operate(
@@ -3459,6 +3459,24 @@ impl App {
         };
     }
 
+    /// `ArrowUp`/`ArrowDown`'s entry point: a `pick_list` region (task 030
+    /// §3) cycles its value in place instead of moving the cursor — the
+    /// cursor stays put (the region is always one item) while the
+    /// dispatched message changes the underlying data, the only behaviour
+    /// iced 0.14 gives a `pick_list` with no keyboard-openable popup. Every
+    /// other region moves the cursor as before.
+    fn move_region_cursor_or_cycle(&mut self, delta: isize) {
+        if let Some(region) = self.valid_focused_region()
+            && region.is_value_cycler()
+        {
+            if let Some(msg) = region.cycle_value(self, delta) {
+                self.update(msg);
+            }
+            return;
+        }
+        self.move_region_cursor(delta);
+    }
+
     /// `ArrowUp`/`ArrowDown` outside the command palette: moves the cursor
     /// within the currently focused region, saturating at both ends (never
     /// wrapping — matches task 014's mode-picker behaviour exactly, which
@@ -4108,11 +4126,13 @@ impl App {
 }
 
 /// What `update_and_dispatch` should do about native text-field focus after a
-/// region transition (task 028 §3.1, generalised task 029 §5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// region transition (task 028 §3.1, generalised task 029 §5, generalised
+/// again task 030 §5 to carry *which* id — the editor has many text-field
+/// regions, not one fixed one).
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum FocusRelease {
-    /// Entered a region with a text field: focus it.
-    Focus,
+    /// Entered a region with a text field: focus the given `Id` string.
+    Focus(String),
     /// Entered a region without one: release whatever still holds native
     /// focus, if anything (a no-op if nothing does).
     Unfocus,
@@ -4134,8 +4154,10 @@ fn focus_release_decision(
         return None;
     }
     match after {
-        Some(region) if region.contains_text_field() => Some(FocusRelease::Focus),
-        Some(_) => Some(FocusRelease::Unfocus),
+        Some(region) => match region.focus_id() {
+            Some(id) => Some(FocusRelease::Focus(id)),
+            None => Some(FocusRelease::Unfocus),
+        },
         None => None,
     }
 }

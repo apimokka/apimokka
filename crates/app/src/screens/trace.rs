@@ -12,11 +12,17 @@ use iced::{Alignment, Element, Length, Padding};
 
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Cursor, Region, filtered_trace_events};
 use crate::theme::{self, size, space};
 use crate::widgets;
 
+/// Task 030 §4/§5: the `Id` `App::update_and_dispatch` focuses when
+/// `TraceFilter` becomes the focused region, and unfocuses when it stops
+/// being one (via `Region::focus_id`).
+pub const FILTER_INPUT_ID: &str = "mk023-trace-filter";
+
 pub fn view(app: &App) -> Element<'_, Message> {
-    let events = filtered_events(app);
+    let events = filtered_trace_events(app);
     let event_list = event_stream(app, &events);
     let detail = match_detail(app);
     row![event_list, detail].height(Length::Fill).into()
@@ -24,21 +30,18 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/// Events that pass the live filter (case-insensitive substring on path /
-/// method / outcome label). Empty filter = all events.
-fn filtered_events(app: &App) -> Vec<&MatchTraceEvent> {
-    let q = app.trace_filter.to_lowercase();
-    app.trace
-        .iter()
-        .filter(|ev| {
-            if q.is_empty() {
-                return true;
-            }
-            ev.request.url_path.to_lowercase().contains(&q)
-                || ev.request.method.to_lowercase().contains(&q)
-                || ev.outcome.label().contains(q.as_str())
+/// `cursor_style`'s border is drawn at the wrapping container's own bounds;
+/// without a gap an opaque sibling (a button's own background, a selected
+/// card's fill) paints over it — the fix task 028 §6 found, reused here.
+fn cursor_wrap<'a>(has_cursor: bool, el: Element<'a, Message>) -> Element<'a, Message> {
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
         })
-        .collect()
+        .into()
 }
 
 // ── Event stream ──────────────────────────────────────────────────────────────
@@ -47,25 +50,34 @@ fn event_stream<'a>(app: &'a App, events: &[&'a MatchTraceEvent]) -> Element<'a,
     let filter_bar = container(
         row![
             text_input(app.t(Key::TraceFilterPath), &app.trace_filter)
+                .id(FILTER_INPUT_ID)
                 .on_input(Message::TraceFilterChanged)
                 .style(theme::text_input_style)
                 .size(size::BODY)
                 .padding(Padding::from([space::S2, space::S3]))
                 .width(Length::Fill),
             Space::new().width(space::S2),
-            button(
-                text(if app.trace_paused {
-                    app.t(Key::TraceResume)
-                } else {
-                    app.t(Key::TracePause)
-                })
-                .size(size::BODY)
-            )
-            .on_press(Message::TracePauseToggle)
-            .padding(Padding::from([space::S2, space::S3])),
-            button(text(app.t(Key::TraceClear)).size(size::BODY))
-                .on_press(Message::TraceClear)
-                .padding(Padding::from([space::S2, space::S3])),
+            cursor_wrap(
+                app.focused_region == Some(Region::TracePause),
+                button(
+                    text(if app.trace_paused {
+                        app.t(Key::TraceResume)
+                    } else {
+                        app.t(Key::TracePause)
+                    })
+                    .size(size::BODY)
+                )
+                .on_press(Message::TracePauseToggle)
+                .padding(Padding::from([space::S2, space::S3]))
+                .into(),
+            ),
+            cursor_wrap(
+                app.focused_region == Some(Region::TraceClear),
+                button(text(app.t(Key::TraceClear)).size(size::BODY))
+                    .on_press(Message::TraceClear)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .into(),
+            ),
         ]
         .spacing(space::S2)
         .align_y(Alignment::Center),
@@ -81,13 +93,15 @@ fn event_stream<'a>(app: &'a App, events: &[&'a MatchTraceEvent]) -> Element<'a,
             .map(|ev| {
                 let sel = app.selected_trace == Some(ev.event_id);
                 let eid = ev.event_id;
+                let has_cursor = app.focused_region == Some(Region::TraceEvents)
+                    && app.region_cursor == Some(Cursor::TraceEvent(eid));
                 let style: fn(&iced::Theme) -> iced::widget::container::Style = if sel {
                     theme::card_selected_style
                 } else {
                     theme::card_style
                 };
 
-                button(
+                let row_el = button(
                     container(
                         row![
                             text(ev.outcome.glyph()).size(size::BODY),
@@ -122,8 +136,9 @@ fn event_stream<'a>(app: &'a App, events: &[&'a MatchTraceEvent]) -> Element<'a,
                 .on_press(Message::SelectTraceEvent(eid))
                 .padding(0)
                 .style(theme::naked)
-                .width(Length::Fill)
-                .into()
+                .width(Length::Fill);
+
+                cursor_wrap(has_cursor, row_el.into())
             })
             .collect()
     };
@@ -230,9 +245,12 @@ fn match_detail(app: &App) -> Element<'_, Message> {
 
     // ── Actions ──────────────────────────────────────────────────────────
     col = col.push(widgets::divider());
-    col = col.push(widgets::secondary_btn(
-        app.t(Key::BtnReplayAsTestInput),
-        Message::ReplayAsTestInput(eid),
+    col = col.push(cursor_wrap(
+        app.focused_region == Some(Region::TraceReplay),
+        widgets::secondary_btn(
+            app.t(Key::BtnReplayAsTestInput),
+            Message::ReplayAsTestInput(eid),
+        ),
     ));
 
     container(scrollable(col).height(Length::Fill))
@@ -275,11 +293,13 @@ fn outcome_matched<'a>(
                 .align_y(Alignment::Center),
             );
             let rule_id = rule.id;
-            col = col.push(
+            col = col.push(cursor_wrap(
+                app.focused_region == Some(Region::TraceOutcomeAction),
                 button(text(app.t(Key::DetailJumpToRule)).size(size::BODY))
                     .on_press(Message::JumpToRule(rule_id))
-                    .padding(Padding::from([space::S2, space::S3])),
-            );
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .into(),
+            ));
         }
     }
     col
@@ -305,11 +325,13 @@ fn outcome_fallback<'a>(
     );
 
     let path_owned = file_path.to_string();
-    col = col.push(
+    col = col.push(cursor_wrap(
+        app.focused_region == Some(Region::TraceOutcomeAction),
         button(text(app.t(Key::DetailJumpToFile)).size(size::BODY))
             .on_press(Message::JumpToFile(path_owned))
-            .padding(Padding::from([space::S2, space::S3])),
-    );
+            .padding(Padding::from([space::S2, space::S3]))
+            .into(),
+    ));
     col
 }
 
@@ -329,11 +351,13 @@ fn outcome_miss<'a>(
     );
     // CTA: create a rule pre-populated with this URL path.
     let path_for_rule = url_path.to_string();
-    col = col.push(
+    col = col.push(cursor_wrap(
+        app.focused_region == Some(Region::TraceOutcomeAction),
         button(text(app.t(Key::DetailMissCreateCta)).size(size::BODY))
             .on_press(Message::AddRuleForPath(path_for_rule))
-            .padding(Padding::from([space::S2, space::S3])),
-    );
+            .padding(Padding::from([space::S2, space::S3]))
+            .into(),
+    ));
     col
 }
 

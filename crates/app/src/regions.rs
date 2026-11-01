@@ -1,3 +1,10 @@
+//! Boundary decision: single-responsibility — the region/cursor keyboard
+//! model's one definition (`Region`, `Cursor`, and every screen's row/field
+//! tables), across every slice that has extended it (027–030). Kept as one
+//! file rather than one per slice because the model is one coherent thing a
+//! reader needs to see together — splitting it by slice would scatter
+//! `Region`'s own `match` arms across files instead.
+//!
 //! MK-023 slice 2 (task 027) and slice 3 (task 028) — the region/cursor
 //! keyboard model.
 //!
@@ -32,7 +39,9 @@ use crate::message::Message;
 use crate::selection::WorkspaceTab;
 use apimokka_i18n::Key;
 use apimokka_model::mock::RecentWorkspace;
-use apimokka_model::{NodeId, RuleSetId};
+use apimokka_model::{
+    BodyOp, HeaderOp, MatchTraceEvent, NodeId, RuleSetId, TraceOutcome, UrlPathOp,
+};
 
 /// A screen-level keyboard region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +65,89 @@ pub enum Region {
     /// while the Routes tab is showing (`Region::order_for`); Trace and
     /// Settings are slice 5's.
     Sidebar,
+    /// One rule-editor field or group (task 030, MK-023 slice 5) — a lone
+    /// `text_input`/button/`pick_list` is its own one-item region; the
+    /// method buttons and the respond-mode tabs are multi-item groups. Each
+    /// `EditorField` is its own `Region`, not a sub-cursor within one shared
+    /// "editor" region — task 030 §2 rejected the zone-then-arrow scheme
+    /// precisely so Tab reaches every field directly, the way every other
+    /// form a user has met already works. Declared only while a rule is
+    /// selected and shown in the centre panel.
+    Editor(EditorField),
+    /// Trace's live filter — a one-item text-field region.
+    TraceFilter,
+    /// Trace's Pause/Resume button — a one-item region (the label toggles;
+    /// the region does not).
+    TracePause,
+    /// Trace's Clear button.
+    TraceClear,
+    /// Trace's event list — identity-cursored by `event_id`, since the list
+    /// grows while the server runs (task 030 §4).
+    TraceEvents,
+    /// The match-detail panel's outcome-specific action (Jump to rule / Jump
+    /// to file / Create a rule for this path) — present only when the
+    /// selected event's outcome actually provides one (task 030 §4: "exist
+    /// only when rendered", derived in `order_for`, never assumed).
+    TraceOutcomeAction,
+    /// "Replay as Test Input" — present only when an event is selected.
+    TraceReplay,
+}
+
+/// One field or group in the rule editor's reading order (task 030 §2).
+/// Variants carrying a `usize` are scoped to one header/body condition row
+/// by its position in `RulePayload::headers`/`body` — rows have no other
+/// stable identity in this mockup's data model (unlike the sidebar's rule
+/// sets and rules, which already have real ids).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditorField {
+    TestRule,
+    Duplicate,
+    MoveUp,
+    MoveDown,
+    Delete,
+    UrlPath,
+    /// A `pick_list` region (task 030 §3): arrows cycle the value in place
+    /// and dispatch the same message the dropdown's own selection would,
+    /// since iced 0.14 gives `pick_list` no way to open or focus from the
+    /// keyboard at all.
+    UrlPathOp,
+    /// The 6 method buttons — a multi-item group.
+    Method,
+    /// Guided mode's "More matching criteria" / "Fewer" toggle. Absent in
+    /// Expert mode (headers/body show directly there) and absent whenever
+    /// Guided mode's toggle has nothing to disclose differently — it is
+    /// always exactly one of the two labels when shown at all.
+    MoreWhenToggle,
+    HeaderName(usize),
+    /// A `pick_list` region, same reasoning as `UrlPathOp`.
+    HeaderOp(usize),
+    /// Present only when the row's operator does not make the value
+    /// irrelevant (`HeaderOp::value_irrelevant`) — mirrors the view's own
+    /// `show_val` condition exactly.
+    HeaderValue(usize),
+    HeaderRemove(usize),
+    AddHeader,
+    BodyPath(usize),
+    BodyPathAssistant(usize),
+    /// A `pick_list` region, same reasoning as `UrlPathOp`.
+    BodyOp(usize),
+    /// Present only when the row's operator is not `Exists`/`Absent` —
+    /// mirrors the view's own `show_val` condition exactly.
+    BodyValue(usize),
+    BodyRemove(usize),
+    AddBody,
+    /// The 2 respond-mode tabs (Inline text / Serve file) — a multi-item
+    /// group.
+    RespondMode,
+    /// The respond body field — inline text or a file path depending on
+    /// `RespondMode`; always exactly one is rendered, so this is one region
+    /// regardless of which message typing into it dispatches.
+    RespondBody,
+    RespondStatus,
+    RespondDelay,
+    /// The per-rule weight/priority field, present only when the workspace's
+    /// strategy needs one and (in Guided mode) the "more" disclosure is open.
+    PerRuleField,
 }
 
 /// One row of the sidebar's flattened visible sequence (task 029 §3). Rows
@@ -91,6 +183,9 @@ pub enum Cursor {
     /// position because the accordion and the two section toggles can all
     /// change which rows are visible out from under the cursor (task 029 §3).
     Sidebar(SidebarRow),
+    /// An event's own id, for `Region::TraceEvents` — stored instead of a
+    /// position because the list grows while the server runs (task 030 §4).
+    TraceEvent(u64),
 }
 
 /// The tab bar's items, in Tab order. The one source `shell::tab_bar::view`
@@ -176,62 +271,311 @@ pub fn sidebar_rows(app: &App) -> Vec<SidebarRow> {
     rows
 }
 
+/// The rule editor's own text-input/respond-field id strings, generated the
+/// same way for the view (`.id(...)`) and for `Region::focus_id`'s
+/// per-region focus dispatch (task 030 §5, generalising task 029's single
+/// fixed id into one id *per* text-field region). `None` for a field with
+/// no native text focus of its own.
+pub fn editor_text_field_id(field: EditorField) -> Option<String> {
+    match field {
+        EditorField::UrlPath => Some("editor-url-path".into()),
+        EditorField::HeaderName(i) => Some(format!("editor-header-name-{i}")),
+        EditorField::HeaderValue(i) => Some(format!("editor-header-value-{i}")),
+        EditorField::BodyPath(i) => Some(format!("editor-body-path-{i}")),
+        EditorField::BodyValue(i) => Some(format!("editor-body-value-{i}")),
+        EditorField::RespondBody => Some("editor-respond-body".into()),
+        EditorField::RespondStatus => Some("editor-respond-status".into()),
+        EditorField::RespondDelay => Some("editor-respond-delay".into()),
+        EditorField::PerRuleField => Some("editor-per-rule-field".into()),
+        _ => None,
+    }
+}
+
+/// The currently selected rule's id and the payload it is actually editing
+/// (a pending draft if one exists, else the rule's own payload) — the exact
+/// lookup `screens::routes::centre_panel` performs before calling
+/// `rule_editor()`, repeated here so the region model and the view can never
+/// disagree about which payload is on screen.
+fn editor_context(app: &App) -> Option<(NodeId, &apimokka_model::RulePayload)> {
+    let rule_id = app.selection.rule?;
+    let snap = app.snapshot.as_ref()?;
+    let (_, rule) = snap.find_rule(rule_id)?;
+    let payload = snap
+        .rule_draft(rule_id)
+        .map(|draft| &draft.payload)
+        .unwrap_or(&rule.payload);
+    Some((rule_id, payload))
+}
+
+/// The rule editor's fields, flattened into reading order (task 030 §2) —
+/// the one source `screens::routes::rule_editor` renders from and
+/// `Region::Editor`'s methods read. Mirrors `rule_editor()`'s own
+/// visibility conditions exactly: Guided mode's headers/body disclosure,
+/// each row's operator-dependent value field, and the per-rule field's
+/// strategy/disclosure gate.
+pub fn editor_fields(app: &App) -> Vec<EditorField> {
+    let mut fields = Vec::new();
+    let Some((_, p)) = editor_context(app) else {
+        return fields;
+    };
+
+    fields.extend([
+        EditorField::TestRule,
+        EditorField::Duplicate,
+        EditorField::MoveUp,
+        EditorField::MoveDown,
+        EditorField::Delete,
+        EditorField::UrlPath,
+        EditorField::UrlPathOp,
+        EditorField::Method,
+    ]);
+
+    let show_when_more = !app.shows_scaffolding() || app.rule_when_more;
+    if show_when_more {
+        for i in 0..p.headers.len() {
+            fields.push(EditorField::HeaderName(i));
+            fields.push(EditorField::HeaderOp(i));
+            if !p.headers[i].op.value_irrelevant() {
+                fields.push(EditorField::HeaderValue(i));
+            }
+            fields.push(EditorField::HeaderRemove(i));
+        }
+        fields.push(EditorField::AddHeader);
+        for i in 0..p.body.len() {
+            fields.push(EditorField::BodyPath(i));
+            fields.push(EditorField::BodyPathAssistant(i));
+            fields.push(EditorField::BodyOp(i));
+            if p.body[i].op != BodyOp::Exists && p.body[i].op != BodyOp::Absent {
+                fields.push(EditorField::BodyValue(i));
+            }
+            fields.push(EditorField::BodyRemove(i));
+        }
+        fields.push(EditorField::AddBody);
+    }
+    if app.shows_scaffolding() {
+        fields.push(EditorField::MoreWhenToggle);
+    }
+
+    fields.push(EditorField::RespondMode);
+    fields.push(EditorField::RespondBody);
+    fields.push(EditorField::RespondStatus);
+    fields.push(EditorField::RespondDelay);
+
+    let active_strategy = app
+        .snapshot
+        .as_ref()
+        .map(|s| s.root_settings.strategy)
+        .unwrap_or(apimokka_model::settings::Strategy::FirstMatch);
+    if active_strategy.needs_per_rule_field() && show_when_more {
+        fields.push(EditorField::PerRuleField);
+    }
+
+    fields
+}
+
+/// Events passing the live trace filter, newest first — the one source
+/// `screens::trace::view` and `Region::TraceEvents` both read. Matches
+/// `trace.rs`'s former private `filtered_events` exactly: case-insensitive
+/// substring on path, method, or outcome label; empty filter matches all.
+pub fn filtered_trace_events(app: &App) -> Vec<&MatchTraceEvent> {
+    let q = app.trace_filter.to_lowercase();
+    app.trace
+        .iter()
+        .filter(|ev| {
+            q.is_empty()
+                || ev.request.url_path.to_lowercase().contains(&q)
+                || ev.request.method.to_lowercase().contains(&q)
+                || ev.outcome.label().contains(q.as_str())
+        })
+        .collect()
+}
+
+fn current_trace_event(app: &App) -> Option<&MatchTraceEvent> {
+    let eid = app.selected_trace?;
+    app.trace.iter().find(|e| e.event_id == eid)
+}
+
+/// The match-detail panel's outcome-specific action, if the selected
+/// event's outcome provides one — mirrors `trace.rs`'s `outcome_matched`/
+/// `outcome_fallback`/`outcome_miss` exactly, including `outcome_matched`'s
+/// guard that the matched rule still exists. `Error` has none.
+fn trace_outcome_action_message(app: &App) -> Option<Message> {
+    let ev = current_trace_event(app)?;
+    match &ev.outcome {
+        TraceOutcome::Matched {
+            rule_set_index,
+            rule_index,
+        } => {
+            let snap = app.snapshot.as_ref()?;
+            let rs = snap.rule_sets.get(*rule_set_index)?;
+            let rule = rs.rules.get(*rule_index)?;
+            Some(Message::JumpToRule(rule.id))
+        }
+        TraceOutcome::Fallback { file_path, .. } => Some(Message::JumpToFile(file_path.clone())),
+        TraceOutcome::Miss { .. } => Some(Message::AddRuleForPath(ev.request.url_path.clone())),
+        TraceOutcome::Error { .. } => None,
+    }
+}
+
 impl Region {
     /// The regions navigable on the app's current screen, in `Tab` order.
     /// Mirrors `App::view`'s own precedence exactly (the mode picker
     /// short-circuits `view()` regardless of `self.view`, so it must
     /// short-circuit here too): at most one of the `view`-level branches
-    /// below is ever non-empty.
-    pub fn order_for(app: &App) -> &'static [Region] {
+    /// below is ever non-empty. Owned (`Vec`, not `&'static [Region]`) since
+    /// task 030: the editor's fields and the trace screen's conditional
+    /// regions depend on live state, not just which screen is showing.
+    pub fn order_for(app: &App) -> Vec<Region> {
         if app.audience_mode.is_none() {
-            &[Region::ModePicker]
-        } else {
-            match app.view {
-                // Task 029: the sidebar only renders on the Routes tab
-                // (`screens::routes::view` is only reached there) — mirrors
-                // that precedence exactly, the same reasoning this function's
-                // mode-picker short-circuit already uses one level up.
-                AppView::Workspace if app.tab == WorkspaceTab::Routes => {
-                    &[Region::TabBar, Region::Sidebar]
+            return vec![Region::ModePicker];
+        }
+        match app.view {
+            AppView::Workspace => {
+                let mut order = vec![Region::TabBar];
+                match app.tab {
+                    // Task 029: the sidebar only renders on the Routes tab
+                    // (`screens::routes::view` is only reached there).
+                    WorkspaceTab::Routes => {
+                        order.push(Region::Sidebar);
+                        order.extend(editor_fields(app).into_iter().map(Region::Editor));
+                    }
+                    WorkspaceTab::Trace => {
+                        order.push(Region::TraceFilter);
+                        order.push(Region::TracePause);
+                        order.push(Region::TraceClear);
+                        // Always declared, even when the filtered list is
+                        // empty — `len` is 0 there, the same "empty region,
+                        // no cursor" shape slices 3/4 already established,
+                        // not a reason to omit the region itself.
+                        order.push(Region::TraceEvents);
+                        // Task 030 §4: these two exist only when rendered —
+                        // derived here, never assumed, so a stale cursor can
+                        // never point at a vanished match-detail action.
+                        if trace_outcome_action_message(app).is_some() {
+                            order.push(Region::TraceOutcomeAction);
+                        }
+                        if current_trace_event(app).is_some() {
+                            order.push(Region::TraceReplay);
+                        }
+                    }
+                    WorkspaceTab::Settings => {}
                 }
-                AppView::Workspace => &[Region::TabBar],
-                AppView::Welcome => &[Region::WelcomeActions],
-                AppView::Dashboard => &[
-                    Region::DashboardCreate,
-                    Region::DashboardSearch,
-                    Region::DashboardWorkspaces,
-                ],
-                AppView::Wizard => &[],
+                order
             }
+            AppView::Welcome => vec![Region::WelcomeActions],
+            AppView::Dashboard => vec![
+                Region::DashboardCreate,
+                Region::DashboardSearch,
+                Region::DashboardWorkspaces,
+            ],
+            AppView::Wizard => vec![],
         }
     }
 
     /// Whether this region's cursor is an identity (`Cursor::WorkspaceName`/
-    /// `Cursor::Sidebar`) rather than a plain `Cursor::Index` — task 027's
-    /// "identity where the list can change" rule.
+    /// `Cursor::Sidebar`/`Cursor::TraceEvent`) rather than a plain
+    /// `Cursor::Index` — task 027's "identity where the list can change"
+    /// rule.
     pub fn uses_identity_cursor(self) -> bool {
-        matches!(self, Region::DashboardWorkspaces | Region::Sidebar)
+        matches!(
+            self,
+            Region::DashboardWorkspaces | Region::Sidebar | Region::TraceEvents
+        )
     }
 
-    /// Whether this region contains a native, focusable `text_input` — task
-    /// 029 §5: entering a region without one must release any text field
-    /// that still holds native keyboard focus (D-18's blast radius), derived
-    /// from this property rather than naming regions one by one so a future
-    /// region inherits the same guarantee automatically.
-    pub fn contains_text_field(self) -> bool {
-        matches!(self, Region::DashboardSearch)
+    /// The `Id` string `update_and_dispatch` focuses when this region is
+    /// entered, for every text-field region — `Region::DashboardSearch`'s
+    /// and `Region::TraceFilter`'s fixed constants, or one of the editor's
+    /// many generated per-row ids. `None` for every other region. One
+    /// lookup point generalises task 028's single fixed id (good for only
+    /// one region) to every text-field region this and later slices add.
+    pub fn focus_id(self) -> Option<String> {
+        match self {
+            Region::DashboardSearch => Some(crate::screens::dashboard::SEARCH_INPUT_ID.into()),
+            Region::TraceFilter => Some(crate::screens::trace::FILTER_INPUT_ID.into()),
+            Region::Editor(field) => editor_text_field_id(field),
+            _ => None,
+        }
     }
 
-    /// Number of items in this region right now. Fixed for every region
-    /// except the two identity-cursored ones, whose length depends on live
-    /// state (the search filter; the accordion and section toggles).
+    /// Whether this region's arrows change a value in place rather than
+    /// moving the cursor — task 030 §3: the only behaviour a `pick_list`
+    /// can expose to the keyboard in iced 0.14, which implements no
+    /// `Focusable` and exposes no way to open its popup except a pointer
+    /// click.
+    pub fn is_value_cycler(self) -> bool {
+        matches!(
+            self,
+            Region::Editor(EditorField::UrlPathOp)
+                | Region::Editor(EditorField::HeaderOp(_))
+                | Region::Editor(EditorField::BodyOp(_))
+        )
+    }
+
+    /// The message an arrow key dispatches for a `pick_list` region
+    /// (`is_value_cycler`), moving `delta` positions through the option
+    /// list and saturating at both ends — never wrapping, the same rule
+    /// every other region's arrows already follow. `None` for every other
+    /// region, or if the rule/row the picker belongs to no longer exists.
+    pub fn cycle_value(self, app: &App, delta: isize) -> Option<Message> {
+        fn step<T: Copy + PartialEq>(options: &[T], current: Option<T>, delta: isize) -> T {
+            let pos = current
+                .and_then(|c| options.iter().position(|&o| o == c))
+                .map(|i| i as isize)
+                .unwrap_or(if delta > 0 { -1 } else { 0 });
+            let next = (pos + delta).clamp(0, options.len() as isize - 1);
+            options[next as usize]
+        }
+
+        let (_, p) = editor_context(app)?;
+        match self {
+            Region::Editor(EditorField::UrlPathOp) => {
+                let options = UrlPathOp::all();
+                Some(Message::RuleSetUrlPathOp(step(
+                    &options,
+                    p.url_path_op,
+                    delta,
+                )))
+            }
+            Region::Editor(EditorField::HeaderOp(i)) => {
+                let h = p.headers.get(i)?;
+                let options = HeaderOp::all();
+                Some(Message::HeaderSetOp {
+                    index: i,
+                    op: step(&options, Some(h.op), delta),
+                })
+            }
+            Region::Editor(EditorField::BodyOp(i)) => {
+                let b = p.body.get(i)?;
+                let options = BodyOp::all();
+                Some(Message::BodySetOp {
+                    index: i,
+                    op: step(&options, Some(b.op), delta),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// Number of items in this region right now. Fixed for every one-item
+    /// region; the two multi-item groups (`Method`: 6, `RespondMode`: 2)
+    /// are fixed too, just not 1; the identity-cursored regions depend on
+    /// live state (the search filter; the accordion and section toggles;
+    /// the trace list).
     pub fn len(self, app: &App) -> usize {
         match self {
             Region::ModePicker => crate::screens::mode_picker::OPTIONS.len(),
             Region::TabBar => TAB_BAR_ORDER.len(),
             Region::WelcomeActions => WELCOME_ACTIONS.len(),
             Region::DashboardCreate | Region::DashboardSearch => 1,
-            Region::DashboardWorkspaces | Region::Sidebar => self.identity_list(app).len(),
+            Region::DashboardWorkspaces | Region::Sidebar | Region::TraceEvents => {
+                self.identity_list(app).len()
+            }
+            Region::Editor(EditorField::Method) => 6,
+            Region::Editor(EditorField::RespondMode) => 2,
+            Region::Editor(_) => 1,
+            Region::TraceFilter | Region::TracePause | Region::TraceClear => 1,
+            Region::TraceOutcomeAction | Region::TraceReplay => 1,
         }
     }
 
@@ -242,7 +586,10 @@ impl Region {
     /// workspace" while choosing one to open. `Sidebar` resumes whatever the
     /// centre panel currently shows, in the same rule > file > script > rule
     /// set priority `screens::routes::centre_panel` itself uses (so the two
-    /// can never disagree about what "currently showing" means).
+    /// can never disagree about what "currently showing" means). The two
+    /// multi-item editor groups resume on the value the rule's payload
+    /// already has; every one-item region has nothing to resume (always the
+    /// single item it is).
     pub fn active_index(self, app: &App) -> Option<usize> {
         match self {
             // Nothing is chosen until `Enter`; the mode picker never has a
@@ -263,6 +610,31 @@ impl Region {
                 };
                 target.and_then(|t| sidebar_rows(app).iter().position(|r| *r == t))
             }
+            Region::Editor(EditorField::Method) => {
+                let (_, p) = editor_context(app)?;
+                let methods = ["Any", "GET", "POST", "PUT", "PATCH", "DELETE"];
+                methods.iter().position(|&m| {
+                    if m == "Any" {
+                        p.method.is_empty()
+                    } else {
+                        p.method == m
+                    }
+                })
+            }
+            Region::Editor(EditorField::RespondMode) => {
+                let (_, p) = editor_context(app)?;
+                Some(
+                    if p.respond.mode == apimokka_model::respond::RespondMode::InlineText {
+                        0
+                    } else {
+                        1
+                    },
+                )
+            }
+            Region::Editor(_) => None,
+            Region::TraceFilter | Region::TracePause | Region::TraceClear => None,
+            Region::TraceEvents => None,
+            Region::TraceOutcomeAction | Region::TraceReplay => None,
         }
     }
 
@@ -270,8 +642,9 @@ impl Region {
     /// source `identity_at`, `App::move_region_cursor`'s identity branch and
     /// `App::reclamp_identity_cursor` all read, so a region's cursor and its
     /// rendered list can never disagree about what currently exists (the D-9
-    /// lesson, generalised from task 028's single case to task 029's second
-    /// one). Empty for every index-cursored region.
+    /// lesson, generalised from task 028's single case through task 029's
+    /// second one to task 030's third). Empty for every index-cursored
+    /// region.
     pub fn identity_list(self, app: &App) -> Vec<Cursor> {
         match self {
             Region::DashboardWorkspaces => dashboard_filtered_workspaces(app)
@@ -279,6 +652,10 @@ impl Region {
                 .map(|ws| Cursor::WorkspaceName(ws.name))
                 .collect(),
             Region::Sidebar => sidebar_rows(app).into_iter().map(Cursor::Sidebar).collect(),
+            Region::TraceEvents => filtered_trace_events(app)
+                .into_iter()
+                .map(|ev| Cursor::TraceEvent(ev.event_id))
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -297,8 +674,8 @@ impl Region {
     /// collapsed header — task 029 §4) dispatches for the item at `cursor`,
     /// or `None` if `cursor` names an out-of-range index, a
     /// filtered-away/collapsed-away identity, or a region whose own
-    /// interaction is typing or expansion, not activation.
-    pub fn activation_message(self, cursor: &Cursor) -> Option<Message> {
+    /// interaction is typing, cycling, or expansion, not activation.
+    pub fn activation_message(self, app: &App, cursor: &Cursor) -> Option<Message> {
         match (self, cursor) {
             (Region::ModePicker, Cursor::Index(i)) => crate::screens::mode_picker::OPTIONS
                 .get(*i)
@@ -335,6 +712,58 @@ impl Region {
                 SidebarRow::MiddlewareScript(path) => Some(Message::SelectScript(path.clone())),
                 SidebarRow::AddScript => None,
             },
+            (Region::Editor(field), Cursor::Index(i)) => {
+                let (rule_id, p) = editor_context(app)?;
+                match field {
+                    EditorField::TestRule => {
+                        let has_when = !p.url_path.is_empty()
+                            || !p.method.is_empty()
+                            || !p.headers.is_empty()
+                            || !p.body.is_empty();
+                        has_when.then_some(Message::TestRuleOpen)
+                    }
+                    EditorField::Duplicate => Some(Message::DuplicateRule(rule_id)),
+                    EditorField::MoveUp => Some(Message::MoveRuleUp(rule_id)),
+                    EditorField::MoveDown => Some(Message::MoveRuleDown(rule_id)),
+                    EditorField::Delete => Some(Message::DeleteRule(rule_id)),
+                    EditorField::UrlPath | EditorField::UrlPathOp => None,
+                    EditorField::Method => {
+                        let methods = ["", "GET", "POST", "PUT", "PATCH", "DELETE"];
+                        methods
+                            .get(*i)
+                            .map(|m| Message::RuleSetMethod(m.to_string()))
+                    }
+                    EditorField::MoreWhenToggle => Some(Message::ToggleRuleWhenMore),
+                    EditorField::HeaderName(_)
+                    | EditorField::HeaderOp(_)
+                    | EditorField::HeaderValue(_) => None,
+                    EditorField::HeaderRemove(i) => Some(Message::HeaderRemove(i)),
+                    EditorField::AddHeader => Some(Message::HeaderAdd),
+                    EditorField::BodyPath(_)
+                    | EditorField::BodyOp(_)
+                    | EditorField::BodyValue(_) => None,
+                    EditorField::BodyPathAssistant(i) => Some(Message::PathAssistantOpen(i)),
+                    EditorField::BodyRemove(i) => Some(Message::BodyRemove(i)),
+                    EditorField::AddBody => Some(Message::BodyAdd),
+                    EditorField::RespondMode => {
+                        use apimokka_model::respond::RespondMode;
+                        let modes = [RespondMode::InlineText, RespondMode::ServeFile];
+                        modes.get(*i).map(|&m| Message::RespondSetMode(m))
+                    }
+                    EditorField::RespondBody
+                    | EditorField::RespondStatus
+                    | EditorField::RespondDelay
+                    | EditorField::PerRuleField => None,
+                }
+            }
+            (Region::TraceFilter, _) => None,
+            (Region::TracePause, _) => Some(Message::TracePauseToggle),
+            (Region::TraceClear, _) => Some(Message::TraceClear),
+            (Region::TraceEvents, Cursor::TraceEvent(id)) => Some(Message::SelectTraceEvent(*id)),
+            (Region::TraceOutcomeAction, _) => trace_outcome_action_message(app),
+            (Region::TraceReplay, _) => {
+                current_trace_event(app).map(|ev| Message::ReplayAsTestInput(ev.event_id))
+            }
             _ => None,
         }
     }

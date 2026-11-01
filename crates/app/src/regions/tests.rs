@@ -42,12 +42,30 @@ fn order_for_is_the_tab_bar_and_sidebar_on_the_routes_tab() {
 }
 
 #[test]
-fn order_for_is_only_the_tab_bar_on_trace_and_settings() {
+fn order_for_is_the_tab_bar_and_trace_regions_on_trace_with_no_event_selected() {
+    use crate::selection::WorkspaceTab;
+
+    // Task 030: TraceOutcomeAction/TraceReplay are omitted until an event is
+    // selected (§4: "exist only when rendered").
+    let mut a = expert_in_workspace();
+    a.update(Message::SwitchTab(WorkspaceTab::Trace));
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::TabBar,
+            Region::TraceFilter,
+            Region::TracePause,
+            Region::TraceClear,
+            Region::TraceEvents,
+        ]
+    );
+}
+
+#[test]
+fn order_for_is_only_the_tab_bar_on_settings() {
     use crate::selection::WorkspaceTab;
 
     let mut a = expert_in_workspace();
-    a.update(Message::SwitchTab(WorkspaceTab::Trace));
-    assert_eq!(Region::order_for(&a), &[Region::TabBar]);
     a.update(Message::SwitchTab(WorkspaceTab::Settings));
     assert_eq!(Region::order_for(&a), &[Region::TabBar]);
 }
@@ -119,47 +137,50 @@ fn welcome_actions_has_two_items_matching_its_table() {
 
 #[test]
 fn mode_picker_activation_message_matches_its_options_table() {
+    let a = fresh();
     for (i, &(_, _, mode)) in crate::screens::mode_picker::OPTIONS.iter().enumerate() {
         assert!(matches!(
-            Region::ModePicker.activation_message(&Cursor::Index(i)),
+            Region::ModePicker.activation_message(&a, &Cursor::Index(i)),
             Some(Message::ChooseAudienceMode(m)) if m == mode
         ));
     }
     assert!(
         Region::ModePicker
-            .activation_message(&Cursor::Index(99))
+            .activation_message(&a, &Cursor::Index(99))
             .is_none()
     );
 }
 
 #[test]
 fn tab_bar_activation_message_matches_its_order_table() {
+    let a = expert_in_workspace();
     for (i, &(tab, _)) in TAB_BAR_ORDER.iter().enumerate() {
         assert!(matches!(
-            Region::TabBar.activation_message(&Cursor::Index(i)),
+            Region::TabBar.activation_message(&a, &Cursor::Index(i)),
             Some(Message::SwitchTab(t)) if t == tab
         ));
     }
     assert!(
         Region::TabBar
-            .activation_message(&Cursor::Index(99))
+            .activation_message(&a, &Cursor::Index(99))
             .is_none()
     );
 }
 
 #[test]
 fn welcome_actions_activation_message_matches_its_table() {
+    let a = fresh();
     assert!(matches!(
-        Region::WelcomeActions.activation_message(&Cursor::Index(0)),
+        Region::WelcomeActions.activation_message(&a, &Cursor::Index(0)),
         Some(Message::GoDashboard)
     ));
     assert!(matches!(
-        Region::WelcomeActions.activation_message(&Cursor::Index(1)),
+        Region::WelcomeActions.activation_message(&a, &Cursor::Index(1)),
         Some(Message::GoWizard)
     ));
     assert!(
         Region::WelcomeActions
-            .activation_message(&Cursor::Index(99))
+            .activation_message(&a, &Cursor::Index(99))
             .is_none()
     );
 }
@@ -171,7 +192,7 @@ fn dashboard_create_is_one_item_that_opens_the_wizard() {
     let a = fresh();
     assert_eq!(Region::DashboardCreate.len(&a), 1);
     assert!(matches!(
-        Region::DashboardCreate.activation_message(&Cursor::Index(0)),
+        Region::DashboardCreate.activation_message(&a, &Cursor::Index(0)),
         Some(Message::GoWizard)
     ));
 }
@@ -182,7 +203,7 @@ fn dashboard_search_is_one_item_whose_enter_is_a_noop() {
     assert_eq!(Region::DashboardSearch.len(&a), 1);
     assert!(
         Region::DashboardSearch
-            .activation_message(&Cursor::Index(0))
+            .activation_message(&a, &Cursor::Index(0))
             .is_none(),
         "task 028 §2: typing is the interaction, not Enter"
     );
@@ -242,7 +263,7 @@ fn dashboard_workspaces_activation_message_opens_the_named_workspace() {
     let a = fresh();
     let name = dashboard_filtered_workspaces(&a)[0].name.clone();
     assert!(matches!(
-        Region::DashboardWorkspaces.activation_message(&Cursor::WorkspaceName(name.clone())),
+        Region::DashboardWorkspaces.activation_message(&a, &Cursor::WorkspaceName(name.clone())),
         Some(Message::OpenWorkspace(n)) if n == name
     ));
     // `activation_message` trusts the `Cursor` it is handed — it has no `App`
