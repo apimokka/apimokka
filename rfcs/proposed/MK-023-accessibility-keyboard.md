@@ -546,8 +546,21 @@ keyboard paths, so a pointer click on a text field gives it native focus while t
 region model believes focus is elsewhere. To be resolved by slice 6 at the latest —
 a click landing in a region's item should enter that region.
 
-Slices 4–6 remain: the sidebar tree; the segmented regions and the trace list; the
-palette moves and deleting the left rail (**D-16**).
+**Slice 4 complete 2026-11-01** (`4ba6552`). The routes sidebar is one region,
+flattened into display order from a single `sidebar_rows` function the renderer
+and the cursor both read. It carried **three expansion behaviours** — the rule-set
+accordion, and two independent section toggles — without a fourth idiom, and added
+the keyboard-only rule-set collapse the data model had no message for, leaving
+pointer behaviour untouched. `ArrowLeft`/`ArrowRight` joined the key budget; a
+second press of `ArrowLeft` collapses the parent it moved to, as file trees do.
+
+It also **generalised the focus release**: entering any region without a text
+field clears native focus from one, derived from the region rather than named,
+which bounds D-18's window to a single keystroke. **That keystroke is not a
+defect** — it goes to whatever actually holds focus, which is what focus means.
+
+Slices 5–6 remain: the segmented regions and the trace list; the palette moves
+and deleting the left rail (**D-16**).
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from
