@@ -1,11 +1,52 @@
 //! MK-026 — S-02 Wizard.
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Region, WizardField, wizard_field_id};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
 use iced::widget::{Space, button, checkbox, column, container, row, scrollable, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
+
+/// `cursor_style`'s border is drawn at the wrapping container's own bounds;
+/// without a gap an opaque sibling paints over it — the fix task 028 §6
+/// found, reused here for the Wizard's one-item regions (task 031).
+fn cursor_wrap<'a>(
+    app: &App,
+    field: WizardField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::Wizard(field))
+        && app.region_cursor == Some(crate::regions::Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// Same as `cursor_wrap`, for one item of the `Starter` group at position
+/// `index` within it.
+fn cursor_wrap_group<'a>(
+    app: &App,
+    field: WizardField,
+    index: usize,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::Wizard(field))
+        && app.region_cursor == Some(crate::regions::Cursor::Index(index));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let w = &app.wizard;
@@ -15,23 +56,33 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let required = column![
         widgets::field(
             t(Key::WizardFieldName),
-            text_input("payments-mock", &w.name)
-                .on_input(Message::WizardSetName)
-                .style(theme::text_input_style)
-                .size(size::BODY)
-                .padding(Padding::from([space::S2, space::S3]))
-                .width(Length::Fill)
-                .into()
+            cursor_wrap(
+                app,
+                WizardField::Name,
+                text_input("payments-mock", &w.name)
+                    .id(wizard_field_id(WizardField::Name).unwrap())
+                    .on_input(Message::WizardSetName)
+                    .style(theme::text_input_style)
+                    .size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fill)
+                    .into()
+            )
         ),
         widgets::field(
             t(Key::WizardFieldFolder),
-            text_input("~/projects", &w.folder)
-                .on_input(Message::WizardSetFolder)
-                .style(theme::text_input_style)
-                .size(size::BODY)
-                .padding(Padding::from([space::S2, space::S3]))
-                .width(Length::Fill)
-                .into()
+            cursor_wrap(
+                app,
+                WizardField::Folder,
+                text_input("~/projects", &w.folder)
+                    .id(wizard_field_id(WizardField::Folder).unwrap())
+                    .on_input(Message::WizardSetFolder)
+                    .style(theme::text_input_style)
+                    .size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fill)
+                    .into()
+            )
         ),
     ]
     .spacing(space::S3);
@@ -39,6 +90,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     // Server section
     let server = collapsible(
         app,
+        WizardField::ServerToggle,
         t(Key::WizardSectionServer),
         t(Key::WizardSectionServerHint),
         0,
@@ -46,31 +98,46 @@ pub fn view(app: &App) -> Element<'_, Message> {
             row![
                 widgets::field(
                     t(Key::WizardFieldHost),
-                    text_input("127.0.0.1", &w.host)
-                        .on_input(Message::WizardSetHost)
-                        .style(theme::text_input_style)
-                        .size(size::BODY)
-                        .padding(Padding::from([space::S2, space::S3]))
-                        .width(Length::Fill)
-                        .into()
+                    cursor_wrap(
+                        app,
+                        WizardField::Host,
+                        text_input("127.0.0.1", &w.host)
+                            .id(wizard_field_id(WizardField::Host).unwrap())
+                            .on_input(Message::WizardSetHost)
+                            .style(theme::text_input_style)
+                            .size(size::BODY)
+                            .padding(Padding::from([space::S2, space::S3]))
+                            .width(Length::Fill)
+                            .into()
+                    )
                 ),
                 widgets::field(
                     t(Key::WizardFieldPort),
-                    text_input("8080", &w.port)
-                        .on_input(Message::WizardSetPort)
-                        .style(theme::text_input_style)
-                        .size(size::BODY)
-                        .padding(Padding::from([space::S2, space::S3]))
-                        .width(Length::Fixed(100.0))
-                        .into()
+                    cursor_wrap(
+                        app,
+                        WizardField::Port,
+                        text_input("8080", &w.port)
+                            .id(wizard_field_id(WizardField::Port).unwrap())
+                            .on_input(Message::WizardSetPort)
+                            .style(theme::text_input_style)
+                            .size(size::BODY)
+                            .padding(Padding::from([space::S2, space::S3]))
+                            .width(Length::Fixed(100.0))
+                            .into()
+                    )
                 ),
             ]
             .spacing(space::S3)
             .align_y(Alignment::End),
-            checkbox(w.tls)
-                .label(t(Key::WizardFieldTls))
-                .on_toggle(Message::WizardSetTls)
-                .size(size::BODY),
+            cursor_wrap(
+                app,
+                WizardField::Tls,
+                checkbox(w.tls)
+                    .label(t(Key::WizardFieldTls))
+                    .on_toggle(Message::WizardSetTls)
+                    .size(size::BODY)
+                    .into()
+            ),
         ]
         .spacing(space::S3)
         .into(),
@@ -79,31 +146,50 @@ pub fn view(app: &App) -> Element<'_, Message> {
     // Starter section
     let starter = collapsible(
         app,
+        WizardField::StarterToggle,
         t(Key::WizardSectionStarter),
         t(Key::WizardSectionStarterHint),
         1,
         column![
-            iced::widget::radio(
-                t(Key::WizardStarterMinimal),
-                crate::app::WizardStarter::Minimal,
-                Some(w.starter),
-                Message::WizardSetStarter,
-            )
-            .size(size::BODY),
-            iced::widget::radio(
-                t(Key::WizardStarterShopApi),
-                crate::app::WizardStarter::ShopApi,
-                Some(w.starter),
-                Message::WizardSetStarter,
-            )
-            .size(size::BODY),
-            iced::widget::radio(
-                t(Key::WizardStarterEmpty),
-                crate::app::WizardStarter::Empty,
-                Some(w.starter),
-                Message::WizardSetStarter,
-            )
-            .size(size::BODY),
+            cursor_wrap_group(
+                app,
+                WizardField::Starter,
+                0,
+                iced::widget::radio(
+                    t(Key::WizardStarterMinimal),
+                    crate::app::WizardStarter::Minimal,
+                    Some(w.starter),
+                    Message::WizardSetStarter,
+                )
+                .size(size::BODY)
+                .into(),
+            ),
+            cursor_wrap_group(
+                app,
+                WizardField::Starter,
+                1,
+                iced::widget::radio(
+                    t(Key::WizardStarterShopApi),
+                    crate::app::WizardStarter::ShopApi,
+                    Some(w.starter),
+                    Message::WizardSetStarter,
+                )
+                .size(size::BODY)
+                .into(),
+            ),
+            cursor_wrap_group(
+                app,
+                WizardField::Starter,
+                2,
+                iced::widget::radio(
+                    t(Key::WizardStarterEmpty),
+                    crate::app::WizardStarter::Empty,
+                    Some(w.starter),
+                    Message::WizardSetStarter,
+                )
+                .size(size::BODY)
+                .into(),
+            ),
         ]
         .spacing(space::S3)
         .into(),
@@ -112,22 +198,33 @@ pub fn view(app: &App) -> Element<'_, Message> {
     // Trace section
     let trace = collapsible(
         app,
+        WizardField::TraceToggle,
         t(Key::WizardSectionTrace),
         t(Key::WizardSectionTraceHint),
         2,
         column![
-            checkbox(true)
-                .label(t(Key::WizardTraceEnable))
-                .size(size::BODY),
+            cursor_wrap(
+                app,
+                WizardField::TraceEnable,
+                checkbox(true)
+                    .label(t(Key::WizardTraceEnable))
+                    .size(size::BODY)
+                    .into(),
+            ),
             widgets::field(
                 t(Key::WizardQueueSize),
-                text_input("1024", &w.queue_size)
-                    .on_input(Message::WizardSetQueueSize)
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fixed(120.0))
-                    .into()
+                cursor_wrap(
+                    app,
+                    WizardField::QueueSize,
+                    text_input("1024", &w.queue_size)
+                        .id(wizard_field_id(WizardField::QueueSize).unwrap())
+                        .on_input(Message::WizardSetQueueSize)
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fixed(120.0))
+                        .into()
+                )
             ),
         ]
         .spacing(space::S3)
@@ -153,9 +250,17 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
     let action_bar = container(
         row![
-            widgets::ghost_btn(t(Key::BtnCancel), Message::WizardCancel),
+            cursor_wrap(
+                app,
+                WizardField::Cancel,
+                widgets::ghost_btn(t(Key::BtnCancel), Message::WizardCancel),
+            ),
             Space::new().width(Length::Fill),
-            widgets::primary_btn(t(Key::BtnCreate), Message::WizardCreate),
+            cursor_wrap(
+                app,
+                WizardField::Create,
+                widgets::primary_btn(t(Key::BtnCreate), Message::WizardCreate),
+            ),
         ]
         .align_y(Alignment::Center),
     )
@@ -175,6 +280,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
 fn collapsible<'a>(
     app: &'a App,
+    toggle_field: WizardField,
     heading: &'a str,
     hint: &'a str,
     index: usize,
@@ -192,24 +298,29 @@ fn collapsible<'a>(
     // button-wrapping-content shape) and a filled width fix both at once;
     // `theme::muted` on the hint was always correct for a plain background,
     // it only read as wrong because the fill was default-primary underneath it.
-    let section_head = button(
-        row![
-            text(chevron).size(size::BODY),
-            column![
-                text(heading).size(size::SECTION),
-                text(hint)
-                    .size(size::CAPTION)
-                    .color(theme::muted(&app.theme())),
+    let section_head = cursor_wrap(
+        app,
+        toggle_field,
+        button(
+            row![
+                text(chevron).size(size::BODY),
+                column![
+                    text(heading).size(size::SECTION),
+                    text(hint)
+                        .size(size::CAPTION)
+                        .color(theme::muted(&app.theme())),
+                ]
+                .spacing(2.0),
             ]
-            .spacing(2.0),
-        ]
-        .spacing(space::S2)
-        .align_y(Alignment::Center),
-    )
-    .on_press(Message::WizardToggleSection(index))
-    .padding(Padding::from([space::S2, 0.0]))
-    .style(theme::naked)
-    .width(Length::Fill);
+            .spacing(space::S2)
+            .align_y(Alignment::Center),
+        )
+        .on_press(Message::WizardToggleSection(index))
+        .padding(Padding::from([space::S2, 0.0]))
+        .style(theme::naked)
+        .width(Length::Fill)
+        .into(),
+    );
 
     if open {
         column![

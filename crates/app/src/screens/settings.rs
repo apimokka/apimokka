@@ -1,11 +1,52 @@
 //! MK-030 — S-13 Settings.
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Region, SettingsField, settings_field_id};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::{Key, Locale};
 use iced::widget::{Space, button, checkbox, column, container, pick_list, row, text, text_input};
 use iced::{Alignment, Element, Length, Padding};
+
+/// `cursor_style`'s border is drawn at the wrapping container's own bounds;
+/// without a gap an opaque sibling paints over it — the fix task 028 §6
+/// found, reused here for Settings' one-item regions (task 031).
+fn cursor_wrap<'a>(
+    app: &App,
+    field: SettingsField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::Settings(field))
+        && app.region_cursor == Some(crate::regions::Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// Same as `cursor_wrap`, for one item of a multi-item group (`Theme`,
+/// `AudienceMode`) at position `index` within it.
+fn cursor_wrap_group<'a>(
+    app: &App,
+    field: SettingsField,
+    index: usize,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::Settings(field))
+        && app.region_cursor == Some(crate::regions::Cursor::Index(index));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let snap = match &app.snapshot {
@@ -20,22 +61,21 @@ pub fn view(app: &App) -> Element<'_, Message> {
         use crate::app::ThemeChoice;
         // MK-050: four-option theme picker (Light / Dark / HC Light / HC Dark).
         let mut row_el = row![].spacing(space::S1);
-        for choice in ThemeChoice::all() {
+        for (i, choice) in ThemeChoice::all().into_iter().enumerate() {
             let selected = app.theme_choice == choice;
-            row_el = row_el.push(
-                button(text(app.t(choice.label_key())).size(size::LABEL))
-                    .on_press_maybe(if selected {
-                        None
-                    } else {
-                        Some(Message::SetTheme(choice))
-                    })
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .style(if selected {
-                        theme::seg_active
-                    } else {
-                        theme::seg_inactive
-                    }),
-            );
+            let btn = button(text(app.t(choice.label_key())).size(size::LABEL))
+                .on_press_maybe(if selected {
+                    None
+                } else {
+                    Some(Message::SetTheme(choice))
+                })
+                .padding(Padding::from([space::S2, space::S3]))
+                .style(if selected {
+                    theme::seg_active
+                } else {
+                    theme::seg_inactive
+                });
+            row_el = row_el.push(cursor_wrap_group(app, SettingsField::Theme, i, btn.into()));
         }
         row_el.wrap().into()
     };
@@ -45,22 +85,34 @@ pub fn view(app: &App) -> Element<'_, Message> {
         let guided = matches!(app.audience_mode, Some(AudienceMode::Guided));
         let expert = matches!(app.audience_mode, Some(AudienceMode::Expert));
         row![
-            button(text(app.t(Key::ModeGuidedTitle)).size(size::BODY))
-                .on_press(Message::ChooseAudienceMode(AudienceMode::Guided))
-                .padding(Padding::from([space::S2, space::S4]))
-                .style(if guided {
-                    theme::seg_active
-                } else {
-                    theme::seg_inactive
-                }),
-            button(text(app.t(Key::ModeExpertTitle)).size(size::BODY))
-                .on_press(Message::ChooseAudienceMode(AudienceMode::Expert))
-                .padding(Padding::from([space::S2, space::S4]))
-                .style(if expert {
-                    theme::seg_active
-                } else {
-                    theme::seg_inactive
-                }),
+            cursor_wrap_group(
+                app,
+                SettingsField::AudienceMode,
+                0,
+                button(text(app.t(Key::ModeGuidedTitle)).size(size::BODY))
+                    .on_press(Message::ChooseAudienceMode(AudienceMode::Guided))
+                    .padding(Padding::from([space::S2, space::S4]))
+                    .style(if guided {
+                        theme::seg_active
+                    } else {
+                        theme::seg_inactive
+                    })
+                    .into(),
+            ),
+            cursor_wrap_group(
+                app,
+                SettingsField::AudienceMode,
+                1,
+                button(text(app.t(Key::ModeExpertTitle)).size(size::BODY))
+                    .on_press(Message::ChooseAudienceMode(AudienceMode::Expert))
+                    .padding(Padding::from([space::S2, space::S4]))
+                    .style(if expert {
+                        theme::seg_active
+                    } else {
+                        theme::seg_inactive
+                    })
+                    .into(),
+            ),
         ]
         .spacing(space::S1)
         .into()
@@ -88,15 +140,19 @@ pub fn view(app: &App) -> Element<'_, Message> {
             widgets::field(app.t(Key::SettingsAudienceMode), guidance_btns),
             widgets::field(
                 app.t(Key::SettingsLocale),
-                pick_list(
-                    Locale::all().to_vec(),
-                    Some(app.locale),
-                    Message::ChangeLocale
+                cursor_wrap(
+                    app,
+                    SettingsField::Locale,
+                    pick_list(
+                        Locale::all().to_vec(),
+                        Some(app.locale),
+                        Message::ChangeLocale
+                    )
+                    .text_size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fixed(100.0))
+                    .into()
                 )
-                .text_size(size::BODY)
-                .padding(Padding::from([space::S2, space::S3]))
-                .width(Length::Fixed(100.0))
-                .into()
             ),
             row![
                 text(app.t(Key::SettingsKeyboardSection))
@@ -121,6 +177,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 widgets::field(
                     app.t(Key::SettingsHost),
                     text_input("127.0.0.1", &drafts.listener_ip)
+                        .id(settings_field_id(SettingsField::Host).unwrap())
                         .on_input(Message::SettingsSetHost)
                         .style(theme::text_input_style)
                         .size(size::BODY)
@@ -132,6 +189,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 widgets::field(
                     app.t(Key::SettingsPort),
                     text_input("8080", &drafts.listener_port)
+                        .id(settings_field_id(SettingsField::Port).unwrap())
                         .on_input(Message::SettingsSetPort)
                         .style(theme::text_input_style)
                         .size(size::BODY)
@@ -141,10 +199,15 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 ),
             ]
             .align_y(Alignment::End),
-            checkbox(s.tls_enabled)
-                .label(app.t(Key::SettingsTls))
-                .on_toggle(Message::SettingsSetTls)
-                .size(size::BODY),
+            cursor_wrap(
+                app,
+                SettingsField::Tls,
+                checkbox(s.tls_enabled)
+                    .label(app.t(Key::SettingsTls))
+                    .on_toggle(Message::SettingsSetTls)
+                    .size(size::BODY)
+                    .into()
+            ),
         ]
         .spacing(space::S3)
         .into(),
@@ -157,21 +220,26 @@ pub fn view(app: &App) -> Element<'_, Message> {
         } else {
             ("▸", app.t(Key::LayoutMoreSettings))
         };
-        let toggle_btn = button(
-            row![
-                text(chevron)
-                    .size(size::LABEL)
-                    .color(theme::muted(&app.theme())),
-                text(label)
-                    .size(size::LABEL)
-                    .color(theme::muted(&app.theme())),
-            ]
-            .spacing(space::S2)
-            .align_y(Alignment::Center),
-        )
-        .on_press(Message::ToggleSettingsAdvancedMore)
-        .padding(Padding::from([space::S2, space::S3]))
-        .style(iced::widget::button::text);
+        let toggle_btn: Element<Message> = cursor_wrap(
+            app,
+            SettingsField::AdvancedToggle,
+            button(
+                row![
+                    text(chevron)
+                        .size(size::LABEL)
+                        .color(theme::muted(&app.theme())),
+                    text(label)
+                        .size(size::LABEL)
+                        .color(theme::muted(&app.theme())),
+                ]
+                .spacing(space::S2)
+                .align_y(Alignment::Center),
+            )
+            .on_press(Message::ToggleSettingsAdvancedMore)
+            .padding(Padding::from([space::S2, space::S3]))
+            .style(iced::widget::button::text)
+            .into(),
+        );
 
         if app.settings_advanced_more {
             page = push_logs_trace_sections(app, s, page);
@@ -228,18 +296,25 @@ fn push_logs_trace_sections<'a>(
         .as_ref()
         .and_then(|session| session.prototype.trace.as_ref());
 
+    use crate::regions::SettingsField;
+
     page = page.push(section(
         app,
         Key::SettingsSectionLogs,
         Key::SettingsImpactReload,
         widgets::field(
             app.t(Key::SettingsLogFile),
-            text_input("", &s.log_file)
-                .style(theme::text_input_style)
-                .size(size::BODY)
-                .padding(Padding::from([space::S2, space::S3]))
-                .width(Length::Fill)
-                .into(),
+            cursor_wrap(
+                app,
+                SettingsField::LogFile,
+                text_input("", &s.log_file)
+                    .id(crate::regions::settings_field_id(SettingsField::LogFile).unwrap())
+                    .style(theme::text_input_style)
+                    .size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fill)
+                    .into(),
+            ),
         ),
     ));
     page = page.push(section(
@@ -247,24 +322,34 @@ fn push_logs_trace_sections<'a>(
         Key::SettingsSectionTrace,
         Key::SettingsImpactReload,
         column![
-            checkbox(trace.map(|trace| trace.enabled).unwrap_or(false))
-                .label(app.t(Key::SettingsTraceEnable))
-                .on_toggle(crate::message::Message::SettingsSetTraceEnabled)
-                .size(size::BODY),
+            cursor_wrap(
+                app,
+                SettingsField::TraceEnable,
+                checkbox(trace.map(|trace| trace.enabled).unwrap_or(false))
+                    .label(app.t(Key::SettingsTraceEnable))
+                    .on_toggle(crate::message::Message::SettingsSetTraceEnabled)
+                    .size(size::BODY)
+                    .into(),
+            ),
             widgets::field(
                 app.t(Key::SettingsTraceQueueSize),
-                text_input(
-                    "1024",
-                    &trace
-                        .map(|trace| trace.queue_size)
-                        .unwrap_or_default()
-                        .to_string()
+                cursor_wrap(
+                    app,
+                    SettingsField::QueueSize,
+                    text_input(
+                        "1024",
+                        &trace
+                            .map(|trace| trace.queue_size)
+                            .unwrap_or_default()
+                            .to_string()
+                    )
+                    .id(crate::regions::settings_field_id(SettingsField::QueueSize).unwrap())
+                    .style(theme::text_input_style)
+                    .size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fixed(120.0))
+                    .into()
                 )
-                .style(theme::text_input_style)
-                .size(size::BODY)
-                .padding(Padding::from([space::S2, space::S3]))
-                .width(Length::Fixed(120.0))
-                .into()
             ),
             Space::new().height(0.0),
         ]

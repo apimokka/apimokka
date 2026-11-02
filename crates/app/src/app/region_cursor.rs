@@ -1412,4 +1412,366 @@ fn focus_id_is_some_only_for_the_editors_actual_text_inputs() {
     assert!(Region::TraceFilter.focus_id().is_some());
     assert!(Region::TracePause.focus_id().is_none());
     assert!(Region::Sidebar.focus_id().is_none());
+    // Task 031: the two disabled fields still get an id — a disabled
+    // `text_input` is still click-focusable in iced (confirmed against its
+    // own `update`: the mouse-press branch never checks `on_input.is_none()`),
+    // so omitting the id would make keyboard focus-movement *less*
+    // consistent with the pointer than giving it one.
+    assert!(
+        Region::Settings(SettingsField::LogFile)
+            .focus_id()
+            .is_some()
+    );
+    assert!(
+        Region::Settings(SettingsField::QueueSize)
+            .focus_id()
+            .is_some()
+    );
+    assert!(Region::Settings(SettingsField::Tls).focus_id().is_none());
+    assert!(Region::Settings(SettingsField::Theme).focus_id().is_none());
+    assert!(Region::Wizard(WizardField::Name).focus_id().is_some());
+    assert!(Region::Wizard(WizardField::QueueSize).focus_id().is_some());
+    assert!(
+        Region::Wizard(WizardField::TraceEnable)
+            .focus_id()
+            .is_none()
+    );
+    assert!(Region::Wizard(WizardField::Starter).focus_id().is_none());
+}
+
+// ── Task 031 (MK-023 slice 6): Settings and the Wizard ─────────────────────
+
+use crate::regions::{SettingsField, WizardField};
+
+fn settings_tab(a: &mut App) {
+    a.update(Message::SwitchTab(WorkspaceTab::Settings));
+}
+
+fn guided_in_workspace() -> App {
+    let mut a = App::new().0;
+    a.update(Message::ChooseAudienceMode(AudienceMode::Guided));
+    a.update(Message::OpenWorkspace("test".into()));
+    assert_eq!(a.view, AppView::Workspace, "test setup sanity");
+    a
+}
+
+fn wizard_from_welcome() -> App {
+    let mut a = App::new().0;
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    a.update(Message::GoWizard);
+    assert_eq!(a.view, AppView::Wizard, "test setup sanity");
+    a
+}
+
+// ── Tab order matches reading order ────────────────────────────────────────
+
+#[test]
+fn tab_walks_settings_in_reading_order_in_expert_mode() {
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    let expected = [
+        Region::Settings(SettingsField::Theme),
+        Region::Settings(SettingsField::AudienceMode),
+        Region::Settings(SettingsField::Locale),
+        Region::Settings(SettingsField::Host),
+        Region::Settings(SettingsField::Port),
+        Region::Settings(SettingsField::Tls),
+        Region::Settings(SettingsField::LogFile),
+        Region::Settings(SettingsField::TraceEnable),
+        Region::Settings(SettingsField::QueueSize),
+    ];
+    a.update(Message::TabPressed); // TabBar
+    for region in expected {
+        a.update(Message::TabPressed);
+        assert_eq!(a.focused_region, Some(region));
+    }
+}
+
+#[test]
+fn tab_walks_the_wizard_in_reading_order_once_every_section_is_open() {
+    let mut a = wizard_from_welcome();
+    a.update(Message::WizardToggleSection(0));
+    a.update(Message::WizardToggleSection(1));
+    a.update(Message::WizardToggleSection(2));
+    let expected = [
+        Region::Wizard(WizardField::Name),
+        Region::Wizard(WizardField::Folder),
+        Region::Wizard(WizardField::ServerToggle),
+        Region::Wizard(WizardField::Host),
+        Region::Wizard(WizardField::Port),
+        Region::Wizard(WizardField::Tls),
+        Region::Wizard(WizardField::StarterToggle),
+        Region::Wizard(WizardField::Starter),
+        Region::Wizard(WizardField::TraceToggle),
+        Region::Wizard(WizardField::TraceEnable),
+        Region::Wizard(WizardField::QueueSize),
+        Region::Wizard(WizardField::Cancel),
+        Region::Wizard(WizardField::Create),
+    ];
+    for region in expected {
+        a.update(Message::TabPressed);
+        assert_eq!(a.focused_region, Some(region));
+    }
+}
+
+// ── Conditional regions: Settings' advanced disclosure ─────────────────────
+
+#[test]
+fn settings_advanced_fields_are_gated_by_guided_modes_disclosure() {
+    let mut a = guided_in_workspace();
+    settings_tab(&mut a);
+    assert!(
+        Region::order_for(&a).contains(&Region::Settings(SettingsField::AdvancedToggle)),
+        "the toggle itself is always present in Guided mode"
+    );
+    assert!(
+        !Region::order_for(&a).contains(&Region::Settings(SettingsField::LogFile)),
+        "collapsed: the advanced fields are not declared at all"
+    );
+
+    a.update(Message::ToggleSettingsAdvancedMore);
+    // Task 031 §2: the toggle renders *after* the advanced fields once
+    // expanded, mirroring `screens::settings::view`'s own push order exactly
+    // — not merely "all four present", which order_for alone wouldn't catch.
+    let order = Region::order_for(&a);
+    assert_eq!(
+        &order[order.len() - 4..],
+        &[
+            Region::Settings(SettingsField::LogFile),
+            Region::Settings(SettingsField::TraceEnable),
+            Region::Settings(SettingsField::QueueSize),
+            Region::Settings(SettingsField::AdvancedToggle),
+        ]
+    );
+}
+
+#[test]
+fn settings_advanced_toggle_closing_does_not_strand_the_cursor_on_a_vanished_field() {
+    // Task 030's stale-cursor guard (`valid_focused_region`), confirmed
+    // against this slice's own conditional region rather than assumed.
+    let mut a = guided_in_workspace();
+    settings_tab(&mut a);
+    a.update(Message::ToggleSettingsAdvancedMore);
+    tab_until(&mut a, Region::Settings(SettingsField::LogFile));
+    assert_eq!(
+        a.focused_region,
+        Some(Region::Settings(SettingsField::LogFile))
+    );
+
+    a.update(Message::ToggleSettingsAdvancedMore); // collapse
+    assert_eq!(
+        a.valid_focused_region(),
+        None,
+        "task 027's existing mechanism generalises to this case with no change"
+    );
+}
+
+// ── Conditional regions: the Wizard's section disclosures ─────────────────
+
+#[test]
+fn wizard_section_bodies_are_gated_by_their_own_open_state() {
+    let mut a = wizard_from_welcome();
+    assert!(!Region::order_for(&a).contains(&Region::Wizard(WizardField::Host)));
+    assert!(!Region::order_for(&a).contains(&Region::Wizard(WizardField::Starter)));
+    assert!(!Region::order_for(&a).contains(&Region::Wizard(WizardField::TraceEnable)));
+
+    a.update(Message::WizardToggleSection(0));
+    assert!(Region::order_for(&a).contains(&Region::Wizard(WizardField::Host)));
+    assert!(
+        !Region::order_for(&a).contains(&Region::Wizard(WizardField::Starter)),
+        "each section's body is gated independently"
+    );
+}
+
+#[test]
+fn wizard_section_closing_does_not_strand_the_cursor_on_a_vanished_field() {
+    let mut a = wizard_from_welcome();
+    a.update(Message::WizardToggleSection(0));
+    tab_until(&mut a, Region::Wizard(WizardField::Host));
+    assert_eq!(a.focused_region, Some(Region::Wizard(WizardField::Host)));
+
+    a.update(Message::WizardToggleSection(0)); // collapse
+    assert_eq!(a.valid_focused_region(), None);
+}
+
+// ── Multi-item groups resume on the current value ───────────────────────
+
+#[test]
+fn settings_theme_group_resumes_on_the_current_theme_and_moves_within_it() {
+    use crate::app::ThemeChoice;
+
+    let mut a = expert_in_workspace();
+    a.update(Message::SetTheme(ThemeChoice::HighContrastLight));
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::Theme));
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(2)),
+        "HighContrastLight is ThemeChoice::all()'s 3rd entry, not the first"
+    );
+    a.update(Message::ArrowDown);
+    assert_eq!(a.region_cursor, Some(Cursor::Index(3)));
+}
+
+#[test]
+fn settings_audience_mode_group_resumes_on_the_current_mode() {
+    // expert_in_workspace() is already in Expert mode — AudienceMode::all()'s
+    // 2nd entry, not the first, which is the point being tested.
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::AudienceMode));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(1)));
+}
+
+#[test]
+fn wizard_starter_group_resumes_on_the_current_starter_choice() {
+    let mut a = wizard_from_welcome();
+    a.update(Message::WizardSetStarter(
+        crate::app::WizardStarter::ShopApi,
+    ));
+    a.update(Message::WizardToggleSection(1));
+    tab_until(&mut a, Region::Wizard(WizardField::Starter));
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(1)),
+        "ShopApi is WIZARD_STARTER_ORDER's 2nd entry, not the first"
+    );
+}
+
+// ── §3: the locale pick_list cycles the value, asserting the message ──────
+
+#[test]
+fn settings_locale_cycles_forward_and_back_and_saturates_at_both_ends() {
+    let mut a = expert_in_workspace();
+    assert_eq!(a.locale, apimokka_i18n::Locale::En, "test setup sanity");
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::Locale));
+
+    a.update(Message::ArrowDown);
+    assert_eq!(a.locale, apimokka_i18n::Locale::Ja);
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.locale,
+        apimokka_i18n::Locale::Ja,
+        "2 options — saturates at the last, never wraps"
+    );
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(0)),
+        "a pick_list region is always one item — the cursor never moves"
+    );
+
+    a.update(Message::ArrowUp);
+    assert_eq!(a.locale, apimokka_i18n::Locale::En);
+    a.update(Message::ArrowUp);
+    assert_eq!(
+        a.locale,
+        apimokka_i18n::Locale::En,
+        "saturates at the first"
+    );
+}
+
+#[test]
+fn settings_locale_cycle_dispatches_change_locale() {
+    let a = expert_in_workspace();
+    let msg = Region::Settings(SettingsField::Locale).cycle_value(&a, 1);
+    assert!(matches!(
+        msg,
+        Some(Message::ChangeLocale(apimokka_i18n::Locale::Ja))
+    ));
+}
+
+// ── Disabled fields: reachable, inert on Enter (task 031 §8/§4.2) ─────────
+
+#[test]
+fn settings_log_file_and_queue_size_are_reachable_but_enter_is_a_noop() {
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::LogFile));
+    let before = a.snapshot.as_ref().unwrap().root_settings.log_file.clone();
+    a.update(Message::EnterPressed);
+    assert_eq!(a.snapshot.as_ref().unwrap().root_settings.log_file, before);
+
+    a.update(Message::TabPressed); // TraceEnable
+    a.update(Message::TabPressed); // QueueSize
+    assert_eq!(
+        a.focused_region,
+        Some(Region::Settings(SettingsField::QueueSize))
+    );
+    let before_q = a
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .prototype
+        .trace
+        .as_ref()
+        .map(|t| t.queue_size);
+    a.update(Message::EnterPressed);
+    assert_eq!(
+        a.snapshot
+            .as_ref()
+            .unwrap()
+            .prototype
+            .trace
+            .as_ref()
+            .map(|t| t.queue_size),
+        before_q,
+        "no on_input is wired for this field at all — Enter must agree \
+         with what a click already does: nothing"
+    );
+}
+
+#[test]
+fn settings_trace_enable_is_live_unlike_the_wizards_own_trace_checkbox() {
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::TraceEnable));
+    let before = a
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .prototype
+        .trace
+        .as_ref()
+        .map(|t| t.enabled);
+    a.update(Message::EnterPressed);
+    assert_ne!(
+        a.snapshot
+            .as_ref()
+            .unwrap()
+            .prototype
+            .trace
+            .as_ref()
+            .map(|t| t.enabled),
+        before,
+        "unlike Settings' own LogFile/QueueSize, this checkbox has a real \
+         on_toggle wired"
+    );
+}
+
+#[test]
+fn wizard_trace_checkbox_is_reachable_but_enter_is_a_noop() {
+    let mut a = wizard_from_welcome();
+    a.update(Message::WizardToggleSection(2));
+    tab_until(&mut a, Region::Wizard(WizardField::TraceEnable));
+    a.update(Message::EnterPressed);
+    // No on_toggle is wired in `screens::wizard.rs` at all — nothing to
+    // assert changed; reaching here without panicking, with the cursor
+    // still on the same region, is the whole test.
+    assert_eq!(
+        a.focused_region,
+        Some(Region::Wizard(WizardField::TraceEnable))
+    );
+}
+
+// ── Scenario 2's wizard half, keyboard-completable end to end ─────────────
+
+#[test]
+fn enter_on_wizard_create_creates_the_workspace_from_a_fresh_welcome_launch() {
+    let mut a = wizard_from_welcome();
+    a.update(Message::WizardSetName("payments-mock".into()));
+    tab_until(&mut a, Region::Wizard(WizardField::Create));
+    a.update(Message::EnterPressed);
+    assert_eq!(a.view, AppView::Workspace);
+    assert_eq!(a.snapshot.as_ref().unwrap().identity.name, "payments-mock");
 }

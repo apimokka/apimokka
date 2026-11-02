@@ -62,12 +62,29 @@ fn order_for_is_the_tab_bar_and_trace_regions_on_trace_with_no_event_selected() 
 }
 
 #[test]
-fn order_for_is_only_the_tab_bar_on_settings() {
+fn order_for_in_expert_mode_includes_settings_logs_and_trace_fields_directly() {
+    // Task 031 (MK-023 slice 6): Expert mode shows the Logs/Trace sections
+    // unconditionally — no `AdvancedToggle` region at all, unlike Guided.
+    use crate::regions::SettingsField;
     use crate::selection::WorkspaceTab;
 
     let mut a = expert_in_workspace();
     a.update(Message::SwitchTab(WorkspaceTab::Settings));
-    assert_eq!(Region::order_for(&a), &[Region::TabBar]);
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::TabBar,
+            Region::Settings(SettingsField::Theme),
+            Region::Settings(SettingsField::AudienceMode),
+            Region::Settings(SettingsField::Locale),
+            Region::Settings(SettingsField::Host),
+            Region::Settings(SettingsField::Port),
+            Region::Settings(SettingsField::Tls),
+            Region::Settings(SettingsField::LogFile),
+            Region::Settings(SettingsField::TraceEnable),
+            Region::Settings(SettingsField::QueueSize),
+        ]
+    );
 }
 
 #[test]
@@ -91,12 +108,29 @@ fn order_for_is_one_region_on_welcome_and_three_in_order_on_dashboard() {
 }
 
 #[test]
-fn order_for_is_empty_on_the_wizard() {
+fn order_for_on_the_wizard_is_required_fields_then_each_sections_toggle() {
+    // Task 031 §1/§2: the wizard was never assigned to a slice before this
+    // one (`order_for` returned `vec![]`). Fresh wizard state starts every
+    // section collapsed (`section_open: [false; 3]`), so none of their
+    // bodies are regions yet — only their own toggles are.
+    use crate::regions::WizardField;
+
     let mut a = fresh();
     a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
     a.update(Message::GoWizard);
     assert_eq!(a.view, AppView::Wizard, "test setup sanity");
-    assert_eq!(Region::order_for(&a), &[] as &[Region]);
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::Wizard(WizardField::Name),
+            Region::Wizard(WizardField::Folder),
+            Region::Wizard(WizardField::ServerToggle),
+            Region::Wizard(WizardField::StarterToggle),
+            Region::Wizard(WizardField::TraceToggle),
+            Region::Wizard(WizardField::Cancel),
+            Region::Wizard(WizardField::Create),
+        ]
+    );
 }
 
 #[test]

@@ -91,6 +91,18 @@ pub enum Region {
     TraceOutcomeAction,
     /// "Replay as Test Input" — present only when an event is selected.
     TraceReplay,
+    /// One Settings control or group (task 031, MK-023 slice 6) — the same
+    /// one-item/multi-item-group shapes slices 2–5 already established,
+    /// plus the locale `pick_list`'s value-cycler shape from slice 5 §3.
+    /// Theme and audience mode were originally designed to move to the
+    /// command palette instead (withdrawn — task 031 §3: that would leave
+    /// visible controls a keyboard user still could not reach, which is a
+    /// worse inconsistency than the one it avoided).
+    Settings(SettingsField),
+    /// One Wizard control or group (task 031, MK-023 slice 6) — the wizard
+    /// was never assigned to a slice at all (task 031 §1); this is the
+    /// first slice to make it navigable.
+    Wizard(WizardField),
 }
 
 /// One field or group in the rule editor's reading order (task 030 §2).
@@ -150,6 +162,100 @@ pub enum EditorField {
     PerRuleField,
 }
 
+/// One field or group in Settings' reading order (task 031 §2). Mirrors
+/// `screens::settings::view`'s own branching for the Logs/Trace sections
+/// (Guided mode's advanced disclosure vs. Expert mode's always-shown
+/// sections) exactly — the same "derive, don't duplicate" discipline
+/// `editor_fields` already applies to the rule editor's conditional rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsField {
+    /// The 4 theme buttons — a multi-item group.
+    Theme,
+    /// Guided / Expert — a multi-item group.
+    AudienceMode,
+    /// A `pick_list` region, same reasoning as the rule editor's `UrlPathOp`
+    /// (task 030 §3) — D-19 applies here too, and is not this slice's to
+    /// fix (task 031 §4).
+    Locale,
+    Host,
+    Port,
+    /// Enable TLS — a checkbox; `Enter` toggles it.
+    Tls,
+    /// The Guided-mode "More/Fewer settings" disclosure — absent in Expert
+    /// mode, where the Logs/Trace sections below are always shown directly.
+    AdvancedToggle,
+    /// A disabled `text_input` (task 031 §8, §4.2's known risk): no
+    /// `on_input` is wired in `screens::settings.rs`, so typing does
+    /// nothing — the same inert-on-keyboard shape already established for
+    /// `SidebarRow::AddFallbackFile` (task 029): kept reachable rather than
+    /// skipped, because clicking it *also* still gives it native focus
+    /// (verified against `iced_widget::text_input`'s own `update`: the
+    /// mouse-press handler sets `state.is_focused` unconditionally, never
+    /// checking `self.on_input.is_none()` — only the key-handling branches
+    /// check that, which is what makes typing a no-op). Skipping the Tab
+    /// stop would make keyboard navigation *less* consistent with the
+    /// pointer than including it, not more.
+    LogFile,
+    /// Enable trace — a checkbox; `Enter` toggles it. Unlike the Wizard's
+    /// own trace checkbox (`WizardField::TraceEnable`), this one has a real
+    /// `on_toggle` wired, so it is live, not another disabled case.
+    TraceEnable,
+    /// A disabled `text_input`, same reasoning as `LogFile` — found at
+    /// source, not assumed from the handoff's table, which named this
+    /// alongside `Host`/`Port` as if it were an ordinary editable field.
+    /// `screens::settings.rs`'s Trace section wires no `on_input` for it at
+    /// all (unlike the Wizard's own queue-size field, which does).
+    QueueSize,
+}
+
+/// One field or group in the Wizard's reading order (task 031 §2). Mirrors
+/// `screens::wizard::view`'s own section order and `app.wizard.section_open`
+/// disclosure exactly — required (name, folder), then Server/Starter/Trace,
+/// each its own toggle region plus its body's fields only while open, then
+/// the action bar. The wizard was never assigned to a slice before this one
+/// (task 031 §1): `Region::order_for`'s `AppView::Wizard` arm was `vec![]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WizardField {
+    Name,
+    Folder,
+    /// The Server section's own collapsible header button.
+    ServerToggle,
+    /// Present only while the Server section is open.
+    Host,
+    /// Present only while the Server section is open.
+    Port,
+    /// Present only while the Server section is open — a checkbox; `Enter`
+    /// toggles it.
+    Tls,
+    /// The Starter section's own collapsible header button.
+    StarterToggle,
+    /// The 3 starter radios — a multi-item group, present only while the
+    /// Starter section is open.
+    Starter,
+    /// The Trace section's own collapsible header button.
+    TraceToggle,
+    /// A disabled checkbox (task 031 §8, §4.2's known risk): rendered
+    /// `checkbox(true)` with no `.on_toggle` at all in
+    /// `screens::wizard.rs` — always on, un-settable from either input
+    /// device. The parallel case `SettingsField::LogFile`'s own doc comment
+    /// points to: kept reachable rather than skipped, `Enter` a no-op, for
+    /// the same consistency reasoning. Present only while the Trace section
+    /// is open.
+    TraceEnable,
+    /// Present only while the Trace section is open. Unlike Settings' own
+    /// queue-size field, this one has a real `on_input` wired
+    /// (`Message::WizardSetQueueSize`) — live, not another disabled case.
+    QueueSize,
+    Cancel,
+    /// Not named in task 031 §2's table, which lists only the form fields —
+    /// included because scenario 2 ("create a workspace from the wizard")
+    /// is literally "activate this button", and the same table's
+    /// `Host`/`Port`/… being reachable while `Create` stayed a pointer-only
+    /// action would be exactly the inconsistency task 031 §3 reversed
+    /// theme/audience mode over.
+    Create,
+}
+
 /// One row of the sidebar's flattened visible sequence (task 029 §3). Rows
 /// are identified by whatever already identifies them in the data model —
 /// a `RuleSetId`, a `NodeId`, a file path, a script path — plus their kind,
@@ -207,6 +313,15 @@ pub type WelcomeAction = (Key, fn() -> Message);
 pub const WELCOME_ACTIONS: &[WelcomeAction] = &[
     (Key::WelcomeOpenWorkspace, || Message::GoDashboard),
     (Key::WelcomeCreateWorkspace, || Message::GoWizard),
+];
+
+/// The Wizard's 3 starter radios, in visual (and Tab) order (task 031 §2) —
+/// the one source `screens::wizard::view`'s own radio list and
+/// `Region::Wizard(WizardField::Starter)`'s cursor logic both read.
+pub const WIZARD_STARTER_ORDER: &[crate::app::WizardStarter] = &[
+    crate::app::WizardStarter::Minimal,
+    crate::app::WizardStarter::ShopApi,
+    crate::app::WizardStarter::Empty,
 ];
 
 /// The workspaces visible in Dashboard's filtered list right now — the one
@@ -287,6 +402,36 @@ pub fn editor_text_field_id(field: EditorField) -> Option<String> {
         EditorField::RespondStatus => Some("editor-respond-status".into()),
         EditorField::RespondDelay => Some("editor-respond-delay".into()),
         EditorField::PerRuleField => Some("editor-per-rule-field".into()),
+        _ => None,
+    }
+}
+
+/// Settings' own text-input id strings, same reasoning as
+/// `editor_text_field_id` — one lookup `Region::focus_id` and
+/// `screens::settings::view`'s `.id(...)` calls both read. `None` for every
+/// field with no native text focus of its own, including the two disabled
+/// fields (`LogFile`, `QueueSize`) — the id still lets `focus()` move
+/// native focus there, which is only consistent with a disabled field still
+/// being click-focusable (see `SettingsField::LogFile`'s own doc comment).
+pub fn settings_field_id(field: SettingsField) -> Option<String> {
+    match field {
+        SettingsField::Host => Some("mk023-settings-host".into()),
+        SettingsField::Port => Some("mk023-settings-port".into()),
+        SettingsField::LogFile => Some("mk023-settings-log-file".into()),
+        SettingsField::QueueSize => Some("mk023-settings-queue-size".into()),
+        _ => None,
+    }
+}
+
+/// The Wizard's own text-input id strings, same reasoning as
+/// `settings_field_id`.
+pub fn wizard_field_id(field: WizardField) -> Option<String> {
+    match field {
+        WizardField::Name => Some("mk023-wizard-name".into()),
+        WizardField::Folder => Some("mk023-wizard-folder".into()),
+        WizardField::Host => Some("mk023-wizard-host".into()),
+        WizardField::Port => Some("mk023-wizard-port".into()),
+        WizardField::QueueSize => Some("mk023-wizard-queue-size".into()),
         _ => None,
     }
 }
@@ -458,7 +603,32 @@ impl Region {
                             order.push(Region::TraceReplay);
                         }
                     }
-                    WorkspaceTab::Settings => {}
+                    // Task 031 (MK-023 slice 6): mirrors
+                    // `screens::settings::view`'s own three-way branching
+                    // exactly (Guided collapsed / Guided expanded / Expert)
+                    // — the toggle renders *after* the advanced fields once
+                    // expanded, not before, since that is their actual
+                    // order on screen.
+                    WorkspaceTab::Settings => {
+                        order.push(Region::Settings(SettingsField::Theme));
+                        order.push(Region::Settings(SettingsField::AudienceMode));
+                        order.push(Region::Settings(SettingsField::Locale));
+                        order.push(Region::Settings(SettingsField::Host));
+                        order.push(Region::Settings(SettingsField::Port));
+                        order.push(Region::Settings(SettingsField::Tls));
+                        if app.shows_scaffolding() {
+                            if app.settings_advanced_more {
+                                order.push(Region::Settings(SettingsField::LogFile));
+                                order.push(Region::Settings(SettingsField::TraceEnable));
+                                order.push(Region::Settings(SettingsField::QueueSize));
+                            }
+                            order.push(Region::Settings(SettingsField::AdvancedToggle));
+                        } else {
+                            order.push(Region::Settings(SettingsField::LogFile));
+                            order.push(Region::Settings(SettingsField::TraceEnable));
+                            order.push(Region::Settings(SettingsField::QueueSize));
+                        }
+                    }
                 }
                 order
             }
@@ -468,7 +638,35 @@ impl Region {
                 Region::DashboardSearch,
                 Region::DashboardWorkspaces,
             ],
-            AppView::Wizard => vec![],
+            // Task 031 §1: never assigned to a slice at all until now.
+            // Mirrors `screens::wizard::view`'s own order exactly: required
+            // fields, then each of the 3 collapsible sections (its own
+            // toggle, then its body's fields only while open), then the
+            // action bar.
+            AppView::Wizard => {
+                let mut order = vec![
+                    Region::Wizard(WizardField::Name),
+                    Region::Wizard(WizardField::Folder),
+                    Region::Wizard(WizardField::ServerToggle),
+                ];
+                if app.wizard.section_open[0] {
+                    order.push(Region::Wizard(WizardField::Host));
+                    order.push(Region::Wizard(WizardField::Port));
+                    order.push(Region::Wizard(WizardField::Tls));
+                }
+                order.push(Region::Wizard(WizardField::StarterToggle));
+                if app.wizard.section_open[1] {
+                    order.push(Region::Wizard(WizardField::Starter));
+                }
+                order.push(Region::Wizard(WizardField::TraceToggle));
+                if app.wizard.section_open[2] {
+                    order.push(Region::Wizard(WizardField::TraceEnable));
+                    order.push(Region::Wizard(WizardField::QueueSize));
+                }
+                order.push(Region::Wizard(WizardField::Cancel));
+                order.push(Region::Wizard(WizardField::Create));
+                order
+            }
         }
     }
 
@@ -494,6 +692,8 @@ impl Region {
             Region::DashboardSearch => Some(crate::screens::dashboard::SEARCH_INPUT_ID.into()),
             Region::TraceFilter => Some(crate::screens::trace::FILTER_INPUT_ID.into()),
             Region::Editor(field) => editor_text_field_id(field),
+            Region::Settings(field) => settings_field_id(field),
+            Region::Wizard(field) => wizard_field_id(field),
             _ => None,
         }
     }
@@ -509,6 +709,7 @@ impl Region {
             Region::Editor(EditorField::UrlPathOp)
                 | Region::Editor(EditorField::HeaderOp(_))
                 | Region::Editor(EditorField::BodyOp(_))
+                | Region::Settings(SettingsField::Locale)
         )
     }
 
@@ -527,9 +728,9 @@ impl Region {
             options[next as usize]
         }
 
-        let (_, p) = editor_context(app)?;
         match self {
             Region::Editor(EditorField::UrlPathOp) => {
+                let (_, p) = editor_context(app)?;
                 let options = UrlPathOp::all();
                 Some(Message::RuleSetUrlPathOp(step(
                     &options,
@@ -538,6 +739,7 @@ impl Region {
                 )))
             }
             Region::Editor(EditorField::HeaderOp(i)) => {
+                let (_, p) = editor_context(app)?;
                 let h = p.headers.get(i)?;
                 let options = HeaderOp::all();
                 Some(Message::HeaderSetOp {
@@ -546,12 +748,25 @@ impl Region {
                 })
             }
             Region::Editor(EditorField::BodyOp(i)) => {
+                let (_, p) = editor_context(app)?;
                 let b = p.body.get(i)?;
                 let options = BodyOp::all();
                 Some(Message::BodySetOp {
                     index: i,
                     op: step(&options, Some(b.op), delta),
                 })
+            }
+            // Task 031 §3/§4: same `pick_list` compromise as the editor's
+            // three cyclers, D-19 and all — not fixed here, per the
+            // handoff's own instruction that one remedy in slice 7 should
+            // cover all four at once.
+            Region::Settings(SettingsField::Locale) => {
+                let options = apimokka_i18n::Locale::all();
+                Some(Message::ChangeLocale(step(
+                    options,
+                    Some(app.locale),
+                    delta,
+                )))
             }
             _ => None,
         }
@@ -576,6 +791,13 @@ impl Region {
             Region::Editor(_) => 1,
             Region::TraceFilter | Region::TracePause | Region::TraceClear => 1,
             Region::TraceOutcomeAction | Region::TraceReplay => 1,
+            Region::Settings(SettingsField::Theme) => crate::app::ThemeChoice::all().len(),
+            Region::Settings(SettingsField::AudienceMode) => {
+                apimokka_model::AudienceMode::all().len()
+            }
+            Region::Settings(_) => 1,
+            Region::Wizard(WizardField::Starter) => WIZARD_STARTER_ORDER.len(),
+            Region::Wizard(_) => 1,
         }
     }
 
@@ -635,6 +857,19 @@ impl Region {
             Region::TraceFilter | Region::TracePause | Region::TraceClear => None,
             Region::TraceEvents => None,
             Region::TraceOutcomeAction | Region::TraceReplay => None,
+            Region::Settings(SettingsField::Theme) => crate::app::ThemeChoice::all()
+                .iter()
+                .position(|&c| c == app.theme_choice),
+            Region::Settings(SettingsField::AudienceMode) => app.audience_mode.and_then(|m| {
+                apimokka_model::AudienceMode::all()
+                    .iter()
+                    .position(|&x| x == m)
+            }),
+            Region::Settings(_) => None,
+            Region::Wizard(WizardField::Starter) => WIZARD_STARTER_ORDER
+                .iter()
+                .position(|&s| s == app.wizard.starter),
+            Region::Wizard(_) => None,
         }
     }
 
@@ -764,6 +999,73 @@ impl Region {
             (Region::TraceReplay, _) => {
                 current_trace_event(app).map(|ev| Message::ReplayAsTestInput(ev.event_id))
             }
+            (Region::Settings(SettingsField::Theme), Cursor::Index(i)) => {
+                crate::app::ThemeChoice::all()
+                    .get(*i)
+                    .map(|&c| Message::SetTheme(c))
+            }
+            (Region::Settings(SettingsField::AudienceMode), Cursor::Index(i)) => {
+                apimokka_model::AudienceMode::all()
+                    .get(*i)
+                    .map(|&m| Message::ChooseAudienceMode(m))
+            }
+            // Cycling, typing, or disabled — not activation (task 031 §8:
+            // `LogFile` and `QueueSize` have no `on_input` wired at all;
+            // `Enter` must agree with the click that already does nothing).
+            (
+                Region::Settings(
+                    SettingsField::Locale
+                    | SettingsField::Host
+                    | SettingsField::Port
+                    | SettingsField::LogFile
+                    | SettingsField::QueueSize,
+                ),
+                _,
+            ) => None,
+            (Region::Settings(SettingsField::Tls), _) => {
+                let snap = app.snapshot.as_ref()?;
+                Some(Message::SettingsSetTls(!snap.root_settings.tls_enabled))
+            }
+            (Region::Settings(SettingsField::AdvancedToggle), _) => {
+                Some(Message::ToggleSettingsAdvancedMore)
+            }
+            (Region::Settings(SettingsField::TraceEnable), _) => {
+                let enabled = app
+                    .snapshot
+                    .as_ref()?
+                    .prototype
+                    .trace
+                    .as_ref()
+                    .map(|t| t.enabled)
+                    .unwrap_or(false);
+                Some(Message::SettingsSetTraceEnabled(!enabled))
+            }
+            (Region::Wizard(WizardField::ServerToggle), _) => Some(Message::WizardToggleSection(0)),
+            (Region::Wizard(WizardField::StarterToggle), _) => {
+                Some(Message::WizardToggleSection(1))
+            }
+            (Region::Wizard(WizardField::TraceToggle), _) => Some(Message::WizardToggleSection(2)),
+            (Region::Wizard(WizardField::Starter), Cursor::Index(i)) => WIZARD_STARTER_ORDER
+                .get(*i)
+                .map(|&s| Message::WizardSetStarter(s)),
+            (Region::Wizard(WizardField::Tls), _) => Some(Message::WizardSetTls(!app.wizard.tls)),
+            (Region::Wizard(WizardField::Cancel), _) => Some(Message::WizardCancel),
+            (Region::Wizard(WizardField::Create), _) => Some(Message::WizardCreate),
+            // Typing or disabled — not activation. `TraceEnable` here is
+            // the Wizard's hardcoded-`true`, no-`on_toggle` checkbox (task
+            // 031 §8), the parallel case `SettingsField::LogFile`'s doc
+            // comment points to.
+            (
+                Region::Wizard(
+                    WizardField::Name
+                    | WizardField::Folder
+                    | WizardField::Host
+                    | WizardField::Port
+                    | WizardField::TraceEnable
+                    | WizardField::QueueSize,
+                ),
+                _,
+            ) => None,
             _ => None,
         }
     }
