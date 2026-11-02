@@ -579,9 +579,49 @@ differ in interaction and agree in outcome, and the difference is the toolkit's.
 implementation: the mechanism was specified and the *affordance* was not, so the
 control still renders a ▾ chevron and `Enter` is inert on it. Slice 6 fixes both.
 
-**Slice 6 is the last**, and carries four items: moving theme and audience mode to
-the palette, deleting the left rail (**D-16**), **D-18**, and **D-19**. On its
-acceptance this RFC moves to `done/` with its mechanism executed.
+### Correction, 2026-11-03 — the slice list missed two screens, and one of its decisions was wrong
+
+**Two screens were never assigned to any slice, and the acceptance criterion
+cannot be met without them.** Verified at source: `Region::order_for` has
+`AppView::Wizard => vec![]` and `WorkspaceTab::Settings => {}`.
+
+- **Scenario 2** — *"create a workspace from the wizard and add a rule"* — the
+  wizard's 8 controls are unreachable.
+- **Scenario 6** — *"change theme and locale, and switch audience mode"* —
+  Settings' 11 controls are unreachable.
+
+**This is an error in this design, not in any slice's delivery.** The six slices
+were drawn from the audit's list of *surfaces* and never mapped back against the
+six *scenarios* to check coverage; the audit itself has rows naming the wizard's
+and Settings' controls, and the slice list dropped both.
+
+**And "move theme and audience mode to the palette" was the wrong call.** The
+reasoning was that five segmented controls repeating one idiom is a signal, and
+that these two should *"leave the keyboard model by leaving the screen"*. They do
+not leave the screen — the buttons stay in Settings for pointer users — so the
+effect would be visible controls a keyboard user cannot reach, on a screen whose
+other controls they can. That is a worse inconsistency than the one it avoided,
+and *"Less is more"* argues for fewer controls, which this never delivered.
+
+**Corrected:** theme and audience mode become regions like every other segmented
+group — mechanical now that slice 5 built the machinery — and palette commands
+are added **as well**, not instead.
+
+### The remaining slices
+
+**Slice 6 — Settings and the Wizard.** Completes scenario coverage. Mechanical
+against the established pattern: one-item regions for lone controls, multi-item
+for the theme and audience groups, and the locale `pick_list` as a value cycler.
+
+**Slice 7 — the correctness and polish items**, kept separate because this is
+where the remaining design judgement lives rather than pattern application:
+**D-16** (delete the left rail), **D-18** (a click should enter its region —
+`mouse_area(...).on_press(…)` makes it expressible), **D-19** (`Enter` cycles,
+and the handle stops promising a popup — `pick_list::handle(Handle::Static(…))`
+makes it expressible), and the palette commands for theme, audience mode and
+locale, which finally retires the orphaned `Key::PaletteCmdLocale`.
+
+On slice 7's acceptance this RFC moves to `done/` with its mechanism executed.
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from

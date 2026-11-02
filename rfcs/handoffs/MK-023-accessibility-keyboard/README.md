@@ -13,8 +13,9 @@ slices. One handoff per slice, added as each is issued.
 | 2 | [`027-m12-slice2-regions-and-cursor.md`](./027-m12-slice2-regions-and-cursor.md) | The region and cursor model. **Complete** — `926a4fc`, tab bar keyboard-operable, `mode_picker_selected` removed. |
 | 3 | [`028-m12-slice3-welcome-and-dashboard.md`](./028-m12-slice3-welcome-and-dashboard.md) | Welcome and Dashboard. **Complete** — `cc56256`, closed D-12's headline symptom; a keyboard-only user reaches a workspace with no pointer event. Surfaced D-18. |
 | 4 | [`029-m12-slice4-sidebar-tree.md`](./029-m12-slice4-sidebar-tree.md) | The routes sidebar tree. **Complete** — `4ba6552`, three expansion behaviours in one region, plus the keyboard-only rule-set collapse. |
-| 5 | [`030-m12-slice5-editor-and-trace.md`](./030-m12-slice5-editor-and-trace.md) | The rule editor and trace screen. **The largest remaining**; scope corrected upward from the design's "segmented regions" after counting 24 controls in the editor alone. |
-| 6 | not yet issued | palette moves (theme, audience mode), deleting the left rail (D-16), and D-18 |
+| 5 | [`030-m12-slice5-editor-and-trace.md`](./030-m12-slice5-editor-and-trace.md) | The rule editor and trace screen. **Complete** — `556102b`, scenario 3 keyboard-completable. Exposed D-19. |
+| 6 | [`031-m12-slice6-settings-and-wizard.md`](./031-m12-slice6-settings-and-wizard.md) | Settings and the Wizard. **Added 2026-11-03** after finding both screens were never assigned a slice, leaving scenarios 2 and 6 uncompletable. |
+| 7 | not yet issued | D-16, D-18, D-19 and the palette commands — where the remaining design judgement lives |
 
 Slice numbering follows the design section's list; the file-name number is the
 dev-team task number, which review requests cite.
