@@ -559,8 +559,29 @@ field clears native focus from one, derived from the region rather than named,
 which bounds D-18's window to a single keystroke. **That keystroke is not a
 defect** — it goes to whatever actually holds focus, which is what focus means.
 
-Slices 5–6 remain: the segmented regions and the trace list; the palette moves
-and deleting the left rail (**D-16**).
+**Slice 5 complete 2026-11-03** (`556102b`). The rule editor and the trace screen
+joined the model — 24 editor controls plus the trace screen's filter, actions,
+event list and conditional match-detail actions. **Scenario 3 is keyboard-
+completable end to end**, captured with zero pointer events. Its scope was
+corrected upward from this design's wording: "the segmented regions" omitted the
+editor's 11 text fields and 3 dropdowns, without which conditions cannot be
+edited at all.
+
+Two things it settled that this design had left open. **Form navigation**: a lone
+control is a one-item region — a plain Tab stop, as every form behaves — while a
+segmented group is a multi-item region with arrows; the two-level zone scheme was
+rejected for giving Tab two meanings. **`pick_list`**: it has no `Focusable` impl
+and no keyboard-openable popup, so it became a one-item region whose arrows cycle
+the value in place, dispatching the dropdown's own message. Pointer and keyboard
+differ in interaction and agree in outcome, and the difference is the toolkit's.
+
+**It also exposed D-19**, which is a gap in this design rather than in the
+implementation: the mechanism was specified and the *affordance* was not, so the
+control still renders a ▾ chevron and `Enter` is inert on it. Slice 6 fixes both.
+
+**Slice 6 is the last**, and carries four items: moving theme and audience mode to
+the palette, deleting the left rail (**D-16**), **D-18**, and **D-19**. On its
+acceptance this RFC moves to `done/` with its mechanism executed.
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from
