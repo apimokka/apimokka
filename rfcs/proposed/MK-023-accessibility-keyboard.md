@@ -621,6 +621,24 @@ and the handle stops promising a popup — `pick_list::handle(Handle::Static(…
 makes it expressible), and the palette commands for theme, audience mode and
 locale, which finally retires the orphaned `Key::PaletteCmdLocale`.
 
+**Slice 6 complete 2026-11-03** (`1258ce9`). Settings and the Wizard joined the
+model, and **all six primary scenarios are now keyboard-completable**. Theme and
+audience mode are regions, per the correction above. Two items beyond the
+handoff's own table were correctly included by the implementer: the wizard's
+Create and Cancel actions — scenario 2 is literally *"activate Create"* — and
+Settings' queue-size field, found at source to be disabled where the handoff had
+listed it as ordinary.
+
+**It surfaced D-20**, which spans this slice and slice 5 and which the architect
+missed when reviewing the latter: **six scrollables have no scroll-into-view**,
+so the cursor can leave the viewport silently. The trace event list is the
+sharpest case, being a growing list. Both slices' edge-case tables substituted
+other rows for the design's *scroll visibility*, and the slice 5 handoff's own
+wording invited that substitution.
+
+**Slice 7 is the last** and carries five items: **D-16**, **D-18**, **D-19**,
+**D-20**, and the palette commands for theme, audience mode and locale.
+
 On slice 7's acceptance this RFC moves to `done/` with its mechanism executed.
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
