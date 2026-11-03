@@ -15,7 +15,8 @@ slices. One handoff per slice, added as each is issued.
 | 4 | [`029-m12-slice4-sidebar-tree.md`](./029-m12-slice4-sidebar-tree.md) | The routes sidebar tree. **Complete** — `4ba6552`, three expansion behaviours in one region, plus the keyboard-only rule-set collapse. |
 | 5 | [`030-m12-slice5-editor-and-trace.md`](./030-m12-slice5-editor-and-trace.md) | The rule editor and trace screen. **Complete** — `556102b`, scenario 3 keyboard-completable. Exposed D-19. |
 | 6 | [`031-m12-slice6-settings-and-wizard.md`](./031-m12-slice6-settings-and-wizard.md) | Settings and the Wizard. **Complete** — `1258ce9`; all six scenarios keyboard-completable. Surfaced D-20. |
-| 7 | [`032-m12-slice7-final.md`](./032-m12-slice7-final.md) | **The last.** D-16, D-18, D-19, D-20, the palette commands, and M12's own acceptance evidence: all six scenarios keyboard-only. |
+| 7 | [`032-m12-slice7-final.md`](./032-m12-slice7-final.md) | D-16, D-18, D-19, D-20 and the palette commands. **Complete** — `0af9e09`; five of six scenarios captured, and **scenario 5 found broken**. |
+| 8 | [`033-m12-slice8-remaining-panes.md`](./033-m12-slice8-remaining-panes.md) | **The last.** The three uncovered panes, the scroll-dispatch refactor, and **the census** that lets MK-023 claim keyboard operability on evidence rather than accumulation. |
 
 Slice numbering follows the design section's list; the file-name number is the
 dev-team task number, which review requests cite.
