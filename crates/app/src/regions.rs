@@ -604,6 +604,37 @@ pub const WIZARD_STARTER_ORDER: &[crate::app::WizardStarter] = &[
     crate::app::WizardStarter::Empty,
 ];
 
+/// The 5 configurable HTTP methods, in display order (task 035, D-26) —
+/// the one source `screens::test_rule::view`'s own method group,
+/// `screens::routes::rule_editor`'s own method group, and this module's
+/// `len`/`active_index`/`activation_message` for both `EditorField::Method`
+/// and `TestRuleField::Method` all read. Four call sites spelled the same
+/// list, or a variant of it, separately before this slice: two plain
+/// copies (Test Rule's view and region), and two 6-entry variants of the
+/// rule editor's own group (an "Any"-display-prefixed one for the view and
+/// `active_index`, and an `""`-value-prefixed one for `activation_message`'s
+/// dispatch) — derived below from this one list, not written again.
+pub const HTTP_METHODS: [&str; 5] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+
+/// [`HTTP_METHODS`] with one extra leading option prepended — the rule
+/// editor's own 6-item `Method` group, which (unlike Test Rule's) has an
+/// "unconstrained" position at index 0. `leading` is `"Any"` for the
+/// group's own *display* labels (the view's buttons, and `active_index`'s
+/// own matching against them) and `""` for its *dispatch value* (what
+/// `Message::RuleSetMethod` actually carries for that position) — two
+/// different representations of the same position, not two different
+/// lists.
+pub fn editor_method_group(leading: &'static str) -> [&'static str; 6] {
+    [
+        leading,
+        HTTP_METHODS[0],
+        HTTP_METHODS[1],
+        HTTP_METHODS[2],
+        HTTP_METHODS[3],
+        HTTP_METHODS[4],
+    ]
+}
+
 /// The workspaces visible in Dashboard's filtered list right now — the one
 /// source both `screens::dashboard::view` and `Region::DashboardWorkspaces`'s
 /// cursor logic read, so the rendered list and the keyboard cursor's idea of
@@ -1480,7 +1511,7 @@ impl Region {
             Region::DashboardWorkspaces | Region::Sidebar | Region::TraceEvents => {
                 self.identity_list(app).len()
             }
-            Region::Editor(EditorField::Method) => 6,
+            Region::Editor(EditorField::Method) => editor_method_group("").len(),
             Region::Editor(EditorField::RespondMode) => 2,
             Region::Editor(_) => 1,
             Region::TraceFilter | Region::TracePause | Region::TraceClear => 1,
@@ -1497,7 +1528,7 @@ impl Region {
             Region::Drawer(_) => 1,
             // Cancel, Proceed.
             Region::ConfirmDialog => 2,
-            Region::TestRule(TestRuleField::Method) => 5,
+            Region::TestRule(TestRuleField::Method) => HTTP_METHODS.len(),
             Region::TestRule(_) => 1,
             Region::WorkspaceMenu(WorkspaceMenuField::Recent) => {
                 apimokka_model::mock::recent_workspaces().len()
@@ -1544,7 +1575,7 @@ impl Region {
             }
             Region::Editor(EditorField::Method) => {
                 let (_, p) = editor_context(app)?;
-                let methods = ["Any", "GET", "POST", "PUT", "PATCH", "DELETE"];
+                let methods = editor_method_group("Any");
                 methods.iter().position(|&m| {
                     if m == "Any" {
                         p.method.is_empty()
@@ -1591,12 +1622,9 @@ impl Region {
             // `ReplayAsTestInput` force `Run`'s own entry directly, the
             // same reason `ConfirmDialog` returns `None` here despite
             // always starting on a specific item.
-            Region::TestRule(TestRuleField::Method) => {
-                let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
-                methods
-                    .iter()
-                    .position(|&m| app.test_rule.method.to_uppercase() == m)
-            }
+            Region::TestRule(TestRuleField::Method) => HTTP_METHODS
+                .iter()
+                .position(|&m| app.test_rule.method.to_uppercase() == m),
             Region::TestRule(_) => None,
             Region::WorkspaceMenu(WorkspaceMenuField::Recent) => {
                 let cur = app.snapshot.as_ref()?.identity.name.as_str();
@@ -1707,12 +1735,9 @@ impl Region {
                     // dispatch via `cycle_value` — so the natural key for an
                     // apparently-openable control is not dead.
                     EditorField::UrlPathOp => self.cycle_value(app, 1),
-                    EditorField::Method => {
-                        let methods = ["", "GET", "POST", "PUT", "PATCH", "DELETE"];
-                        methods
-                            .get(*i)
-                            .map(|m| Message::RuleSetMethod(m.to_string()))
-                    }
+                    EditorField::Method => editor_method_group("")
+                        .get(*i)
+                        .map(|m| Message::RuleSetMethod(m.to_string())),
                     EditorField::MoreWhenToggle => Some(Message::ToggleRuleWhenMore),
                     EditorField::HeaderName(_) | EditorField::HeaderValue(_) => None,
                     // D-19: same reasoning as `UrlPathOp` above.
@@ -1872,12 +1897,9 @@ impl Region {
             // the one deliberate exception to "a text-field region has no
             // activation" — see `TestRuleField`'s own doc comment.
             (Region::TestRule(TestRuleField::Dismiss), _) => Some(Message::TestRuleClose),
-            (Region::TestRule(TestRuleField::Method), Cursor::Index(i)) => {
-                let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
-                methods
-                    .get(*i)
-                    .map(|m| Message::TestRuleSetMethod(m.to_string()))
-            }
+            (Region::TestRule(TestRuleField::Method), Cursor::Index(i)) => HTTP_METHODS
+                .get(*i)
+                .map(|m| Message::TestRuleSetMethod(m.to_string())),
             (Region::TestRule(TestRuleField::Method), _) => None,
             (
                 Region::TestRule(

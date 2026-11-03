@@ -530,7 +530,7 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
 }
 
 fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
-    let methods = ["Any", "GET", "POST", "PUT", "PATCH", "DELETE"];
+    let methods = crate::regions::editor_method_group("Any");
     let btns: Vec<Element<Message>> = methods
         .iter()
         .enumerate()

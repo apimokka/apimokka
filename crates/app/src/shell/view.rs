@@ -58,10 +58,14 @@ pub fn view(app: &App) -> Element<'_, Message> {
     // which this app actually considers "on top" — precisely how the
     // drawer ended up visible over the path assistant, or could end up
     // hiding a confirm dialog raised over it, before this fix.
+    // `Overlay::ModePicker` has no arm here deliberately (task 035, review
+    // note): `App::view` returns `screens::mode_picker::view` before
+    // `shell::view::view` is ever called at all (`self.audience_mode.is_none()`
+    // short-circuits first), so this function can never observe it — an
+    // arm for it would be dead code, not a safety net.
     match app.topmost_overlay() {
-        Some(Overlay::ModePicker) => snora::design::render(
-            layout.dialog(Dialog::new(screens::mode_picker::view(app))),
-            &tokens,
+        Some(Overlay::ModePicker) => unreachable!(
+            "App::view returns the mode picker before shell::view::view is ever called"
         ),
         Some(Overlay::ConfirmDialog) => snora::design::render(
             layout
@@ -104,6 +108,34 @@ pub fn view(app: &App) -> Element<'_, Message> {
         }
         None => snora::design::render(layout, &tokens),
     }
+}
+
+/// Wraps a non-workspace screen's bare `Element` with the confirm dialog,
+/// if one is raised — task 035 (D-22's view dimension). `ConfirmRequest`
+/// fires from Dashboard's and the Wizard's own row/button activations too
+/// (switching workspace, creating one), not only from inside a workspace,
+/// but `App::view` previously routed only `AppView::Workspace` through
+/// any overlay-rendering code at all — an undrawable confirmation was a
+/// correctness defect for pointer users on its own, before it was ever a
+/// keyboard one. A thin host — `AppLayout` with no header, no tab bar,
+/// nothing Welcome/Dashboard/Wizard did not already have — rather than
+/// growing a dialog layer on each of the three screens separately, which
+/// is why this lives here beside `shell::view::view`'s own overlay
+/// composition rather than in `App::view` itself.
+pub fn with_confirm_dialog_if_raised<'a>(
+    app: &'a App,
+    screen: Element<'a, Message>,
+) -> Element<'a, Message> {
+    if app.confirm_dialog.is_none() {
+        return screen;
+    }
+    let tokens = app.theme_choice.tokens();
+    snora::design::render(
+        AppLayout::new(screen)
+            .dialog(Dialog::new(screens::confirm_dialog::view(app)))
+            .on_close_modals(Message::ConfirmCancel),
+        &tokens,
+    )
 }
 
 /// Which of the three mutually-exclusive banners is currently showing —

@@ -1357,3 +1357,99 @@ fn topmost_overlay_ranks_the_workspace_menu_above_the_drawer() {
 //   (`on_close_menus`) catches any click outside the menu, and the menu's
 //   own region override blocks `Tab` from reaching anything else while it
 //   is open — structurally, not just "untested".
+
+// ── Task 035 (MK-023 slice 10): overlays the view actually draws (D-22's
+// view dimension) ─────────────────────────────────────────────────────────
+
+#[test]
+fn workspace_only_overlay_flags_are_not_reported_outside_the_workspace() {
+    // Direct state construction, not a reachable sequence for every flag
+    // at once — the point is that `topmost_overlay()`'s own gate holds
+    // regardless of *why* a flag is stale, the same "derive, don't trust
+    // stored state" standard `valid_focused_region` already holds one
+    // level down. §2(a)'s own reachable sequence is covered separately,
+    // driven by messages, below.
+    let mut a = fresh();
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    assert_eq!(a.view, AppView::Welcome, "test setup sanity");
+
+    a.test_rule.open = true;
+    assert_eq!(Region::order_for(&a), &[Region::WelcomeActions]);
+    a.test_rule.open = false;
+
+    a.path_assistant.open = true;
+    assert_eq!(Region::order_for(&a), &[Region::WelcomeActions]);
+    a.path_assistant.open = false;
+
+    a.workspace_menu_open = true;
+    assert_eq!(Region::order_for(&a), &[Region::WelcomeActions]);
+    a.workspace_menu_open = false;
+
+    a.drawer = Some(crate::selection::DrawerMode::SaveDiff);
+    assert_eq!(Region::order_for(&a), &[Region::WelcomeActions]);
+}
+
+#[test]
+fn order_for_is_unaffected_by_a_stale_overlay_flag_on_dashboard_and_the_wizard() {
+    let mut a = fresh();
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    a.update(Message::GoDashboard);
+    assert_eq!(a.view, AppView::Dashboard, "test setup sanity");
+    a.workspace_menu_open = true;
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::DashboardCreate,
+            Region::DashboardSearch,
+            Region::DashboardWorkspaces,
+        ]
+    );
+
+    let mut b = fresh();
+    b.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    b.update(Message::GoWizard);
+    assert_eq!(b.view, AppView::Wizard, "test setup sanity");
+    b.drawer = Some(crate::selection::DrawerMode::Validation);
+    assert_eq!(
+        Region::order_for(&b),
+        &[
+            Region::Wizard(WizardField::Name),
+            Region::Wizard(WizardField::Folder),
+            Region::Wizard(WizardField::ServerToggle),
+            Region::Wizard(WizardField::StarterToggle),
+            Region::Wizard(WizardField::TraceToggle),
+            Region::Wizard(WizardField::Cancel),
+            Region::Wizard(WizardField::Create),
+        ]
+    );
+}
+
+#[test]
+fn confirm_dialog_is_still_reported_outside_the_workspace() {
+    // The one overlay deliberately **not** gated on `self.view` — it is
+    // legitimately raised from Welcome/Dashboard/Wizard's own row and
+    // button activations, not only from inside a workspace.
+    let mut a = fresh();
+    a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
+    assert_eq!(a.view, AppView::Welcome, "test setup sanity");
+    a.update(Message::ConfirmRequest(
+        crate::message::ConfirmAction::CreateWorkspace,
+    ));
+    assert_eq!(Region::order_for(&a), &[Region::ConfirmDialog]);
+}
+
+// Re-checked, per task 035 §5's own instruction, now that `topmost_overlay()`
+// is view-aware: both of slice 9's ruled-out pairs still hold.
+//
+// - **Test Rule vs the path assistant** argued from `order_for` directly
+//   ("each one's own region override makes `order_for` return only its own
+//   fields while it is open") — unaffected: both are still workspace-only
+//   overlays, gated the same new way, and neither's own trigger is
+//   reachable from outside `AppView::Workspace` in the first place (the
+//   rule editor itself is Workspace-only), so the view gate adds a second,
+//   independent reason the pair cannot occur rather than removing the
+//   first.
+// - **Test Rule vs the workspace menu, and the path assistant vs the
+//   workspace menu** argued from the menu's own backdrop and region
+//   override, neither of which this slice touched — still holds
+//   unchanged.

@@ -2633,3 +2633,164 @@ fn scroll_snap_target_is_none_for_the_workspace_menus_open_and_create() {
         assert_eq!(a.scroll_snap_target(true), None);
     }
 }
+
+// ── Task 035 (MK-023 slice 10): overlays the view actually draws ─────────
+
+#[test]
+fn workspace_menu_open_from_the_top_bar_does_not_trap_the_dashboard() {
+    // Task 035 §2(a), driven by messages, not by setting state directly:
+    // four keystrokes from a fresh workspace reach the Dashboard with
+    // `workspace_menu_open` left stale `true` (`Message::GoDashboard`
+    // does not clear it — only `OpenWorkspace`, a different row, does).
+    // Before this slice, `topmost_overlay()` kept reporting
+    // `WorkspaceMenu` there, trapping the keyboard on three invisible
+    // menu items with none of the Dashboard's own controls reachable.
+    let mut a = expert_in_workspace();
+    tab_until(&mut a, Region::TopBar(TopBarField::Switcher));
+    a.update(Message::EnterPressed); // opens the menu
+    assert!(a.workspace_menu_open, "test setup sanity");
+    tab_until(&mut a, Region::WorkspaceMenu(WorkspaceMenuField::Open));
+    a.update(Message::EnterPressed); // "Open another workspace" → GoDashboard
+
+    assert_eq!(a.view, AppView::Dashboard, "test setup sanity");
+    assert!(
+        a.workspace_menu_open,
+        "test setup sanity: the flag is deliberately left stale, not cleared on transition"
+    );
+    assert_eq!(
+        a.topmost_overlay(),
+        None,
+        "nothing on the Dashboard draws a workspace menu"
+    );
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::DashboardCreate,
+            Region::DashboardSearch,
+            Region::DashboardWorkspaces,
+        ]
+    );
+
+    // The Dashboard's own search field is reachable and live, driven by
+    // `Tab`, not by reading state directly.
+    tab_until(&mut a, Region::DashboardSearch);
+    a.update(Message::DashSearch("shop".into()));
+    assert_eq!(a.dash_search, "shop");
+}
+
+fn first_dashboard_workspace_name(a: &App) -> String {
+    crate::regions::dashboard_filtered_workspaces(a)[0]
+        .name
+        .clone()
+}
+
+#[test]
+fn confirm_dialog_is_drawn_and_cancellable_from_the_dashboard() {
+    // Task 035 §2(b): pre-existing, both input modes — a pointer click on
+    // a dirty Dashboard's workspace row used to raise a confirm dialog
+    // nothing drew. `App::view` now attaches it over the Dashboard too.
+    let mut a = expert_in_workspace();
+    assert!(
+        a.requires_workspace_confirmation(),
+        "test setup sanity: the mock starts dirty"
+    );
+    a.update(Message::GoDashboard);
+    assert_eq!(a.view, AppView::Dashboard, "test setup sanity");
+
+    let name = first_dashboard_workspace_name(&a);
+    a.update(Message::OpenWorkspace(name));
+    assert!(a.confirm_dialog.is_some(), "test setup sanity: raised");
+    assert_eq!(a.topmost_overlay(), Some(Overlay::ConfirmDialog));
+    assert_eq!(
+        a.view,
+        AppView::Dashboard,
+        "the screen underneath is the one the user was on"
+    );
+
+    a.update(Message::EnterPressed); // Cancel is the entry position
+    assert!(a.confirm_dialog.is_none());
+    assert_eq!(
+        a.view,
+        AppView::Dashboard,
+        "cancelling stays on the Dashboard"
+    );
+}
+
+#[test]
+fn confirm_dialog_on_the_dashboard_also_cancels_on_escape() {
+    let mut a = expert_in_workspace();
+    a.update(Message::GoDashboard);
+    let name = first_dashboard_workspace_name(&a);
+    a.update(Message::OpenWorkspace(name));
+    assert!(a.confirm_dialog.is_some(), "test setup sanity");
+
+    a.update(Message::EscapePressed);
+    assert!(a.confirm_dialog.is_none());
+    assert_eq!(a.view, AppView::Dashboard);
+}
+
+#[test]
+fn confirm_dialog_is_drawn_and_cancellable_from_the_wizard() {
+    // Task 035 §2(c): `WizardCreate` with unsaved edits raised
+    // `ConfirmRequest(CreateWorkspace)` while nothing drew it — Create
+    // appeared dead.
+    let mut a = expert_in_workspace();
+    assert!(
+        a.requires_workspace_confirmation(),
+        "test setup sanity: the mock starts dirty"
+    );
+    a.update(Message::GoWizard);
+    assert_eq!(a.view, AppView::Wizard, "test setup sanity");
+
+    a.update(Message::WizardCreate);
+    assert!(a.confirm_dialog.is_some(), "test setup sanity: raised");
+    assert_eq!(a.topmost_overlay(), Some(Overlay::ConfirmDialog));
+    assert_eq!(
+        a.view,
+        AppView::Wizard,
+        "the screen underneath is the Wizard"
+    );
+
+    a.update(Message::EnterPressed);
+    assert!(a.confirm_dialog.is_none());
+    assert_eq!(a.view, AppView::Wizard, "cancelling stays on the Wizard");
+}
+
+// ── D-26: one source per HTTP-method table ────────────────────────────────
+
+#[test]
+fn test_rule_method_buttons_agree_with_the_region_models_own_list() {
+    // One assertion that the view's own list (`screens::test_rule::view`
+    // now reads `regions::HTTP_METHODS` directly, the same constant named
+    // here) and the region model's `len`/activation agree, so a sixth
+    // method cannot be added to one alone (task 035 §5).
+    let a = expert_in_workspace();
+    assert_eq!(
+        Region::TestRule(TestRuleField::Method).len(&a),
+        crate::regions::HTTP_METHODS.len()
+    );
+    for (i, method) in crate::regions::HTTP_METHODS.iter().enumerate() {
+        assert!(matches!(
+            Region::TestRule(TestRuleField::Method)
+                .activation_message(&a, &Cursor::Index(i)),
+            Some(Message::TestRuleSetMethod(m)) if m == *method
+        ));
+    }
+}
+
+#[test]
+fn rule_editor_method_buttons_agree_with_the_region_models_own_list() {
+    let mut a = expert_in_workspace();
+    let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(rule_id));
+    let group = crate::regions::editor_method_group("Any");
+    assert_eq!(Region::Editor(EditorField::Method).len(&a), group.len());
+    let values = crate::regions::editor_method_group("");
+    for (i, value) in values.iter().enumerate() {
+        assert!(matches!(
+            Region::Editor(EditorField::Method)
+                .activation_message(&a, &Cursor::Index(i)),
+            Some(Message::RuleSetMethod(m)) if m == *value
+        ));
+    }
+}

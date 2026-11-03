@@ -796,7 +796,13 @@ impl App {
                     clamp_selection(self.command_palette.selected, filtered_len);
             }
             Message::ArrowUp => {
-                if self.command_palette.open {
+                // Task 035 (review's smaller notes): reads
+                // `topmost_overlay()` rather than `self.command_palette.open`
+                // directly, same reasoning as `blocks_region_navigation`'s
+                // own doc comment — a confirm dialog raised over an open
+                // palette must move within its own `Cancel`/`Proceed` pair,
+                // not the hidden palette's selection.
+                if self.topmost_overlay() == Some(Overlay::CommandPalette) {
                     let filtered_len = crate::palette_commands::filtered_indices(
                         self,
                         &self.command_palette.query,
@@ -816,7 +822,7 @@ impl App {
                 }
             }
             Message::ArrowDown => {
-                if self.command_palette.open {
+                if self.topmost_overlay() == Some(Overlay::CommandPalette) {
                     let filtered_len = crate::palette_commands::filtered_indices(
                         self,
                         &self.command_palette.query,
@@ -3745,13 +3751,22 @@ impl App {
     /// (arrow-driven filtered list, no `Region` of its own), so `Tab`/
     /// `Shift+Tab` and the arrows must still not reach through it to the
     /// screen underneath. Its own `ArrowUp`/`ArrowDown` arms check
-    /// `command_palette.open` first and only fall through to
-    /// `move_region_cursor` otherwise, but `TabPressed`/`ShiftTabPressed`
-    /// have no such arm of their own — without it here, `Tab` would move
-    /// the tab bar's cursor, unseen, behind an open palette (review
-    /// finding F1, task 027).
+    /// `topmost_overlay() == Some(Overlay::CommandPalette)` first and only
+    /// fall through to `move_region_cursor` otherwise, but
+    /// `TabPressed`/`ShiftTabPressed` have no such arm of their own —
+    /// without it here, `Tab` would move the tab bar's cursor, unseen,
+    /// behind an open palette (review finding F1, task 027).
+    ///
+    /// Task 035 (review's smaller notes): reads `topmost_overlay()` rather
+    /// than `self.command_palette.open` directly — not merely cosmetic.
+    /// The two agree except when a confirm dialog is raised over an open
+    /// palette (`ConfirmDialog` outranks `CommandPalette`); the direct
+    /// read would still block on the palette there, so an `ArrowLeft`/
+    /// `ArrowRight` could not move within the dialog's own `Cancel`/
+    /// `Proceed` pair while it visibly sits on top — the same latent gap
+    /// `topmost_overlay`'s own ranking already closed for `Tab`.
     fn blocks_region_navigation(&self) -> bool {
-        self.command_palette.open
+        self.topmost_overlay() == Some(Overlay::CommandPalette)
     }
 
     /// Every surface that can sit on top of the normal screen at once, in
@@ -3792,12 +3807,50 @@ impl App {
     /// otherwise make the *last*-opened overlay visually dominant
     /// regardless of this function's own ranking — not reachable once only
     /// one construct is ever attached per frame).
+    ///
+    /// **Task 035 (D-22, the view dimension).** Slice 9's own version
+    /// answered *which overlay state is set*, not *which overlay is
+    /// drawn* — and those differ, because `App::view` routes only
+    /// `AppView::Workspace` through `shell::view` at all. `TestRule`,
+    /// `PathAssistant`, `WorkspaceMenu` and `Drawer` are workspace-only
+    /// surfaces (`shell::view::view` is the only place any of their four
+    /// `screens::*::view`/`shell::bottom_drawer::view` calls happen), so
+    /// reporting one while `self.view` is `Welcome`/`Dashboard`/`Wizard`
+    /// named a region nothing on screen shows — MK-023's own central
+    /// sentence ("at any moment exactly one region holds the keyboard
+    /// cursor") failing, not a rough edge around it. Gated on
+    /// `self.view == AppView::Workspace` below, the identical check
+    /// `App::view`'s own match already makes to decide whether to call
+    /// `shell::view::view` at all — not a second, separately-maintained
+    /// list of "which views host these" that could drift from it: there is
+    /// exactly one `AppView` variant that does, so one equality test
+    /// against the same field covers all four at once, and the only way
+    /// this could ever need to change is a new `AppView` variant also
+    /// hosting them, at which point `App::view`'s own match needs a new
+    /// arm regardless — the same decision, visible in both places, not an
+    /// enumerable risk in either alone. `CommandPalette` is included in the
+    /// same gate for uniformity, though it is already structurally inert
+    /// off the workspace (`Message::ToggleCommandPalette`'s own handler
+    /// checks `self.view == AppView::Workspace` before flipping `open` at
+    /// all, D-4 option 2), so the gate is redundant-but-harmless for it
+    /// specifically, stated here rather than left for a reader to re-derive.
+    ///
+    /// `ConfirmDialog` is deliberately **not** gated: it is the one overlay
+    /// legitimately raised from outside the workspace (`ConfirmRequest`
+    /// fires from Dashboard/Wizard row activations too), and `App::view`
+    /// now draws it over whichever screen is showing — see
+    /// `shell::view::with_confirm_dialog_if_raised`.
     pub(crate) fn topmost_overlay(&self) -> Option<Overlay> {
         if self.audience_mode.is_none() {
-            Some(Overlay::ModePicker)
-        } else if self.confirm_dialog.is_some() {
-            Some(Overlay::ConfirmDialog)
-        } else if self.command_palette.open {
+            return Some(Overlay::ModePicker);
+        }
+        if self.confirm_dialog.is_some() {
+            return Some(Overlay::ConfirmDialog);
+        }
+        if self.view != AppView::Workspace {
+            return None;
+        }
+        if self.command_palette.open {
             Some(Overlay::CommandPalette)
         } else if self.test_rule.open {
             Some(Overlay::TestRule)
@@ -4484,10 +4537,23 @@ impl App {
         if self.audience_mode.is_none() {
             return screens::mode_picker::view(self);
         }
+        // Task 035 (D-22's view dimension): `ConfirmRequest` can fire from
+        // any of these three non-workspace screens (switching workspace,
+        // creating one), so each one's bare screen is wrapped with the
+        // confirm dialog if one is raised — `shell::view::view` already
+        // does the equivalent for `AppView::Workspace` as part of its own
+        // overlay composition, so that arm is left to it rather than
+        // wrapped a second time here.
         match self.view {
-            AppView::Welcome => screens::welcome::view(self),
-            AppView::Dashboard => screens::dashboard::view(self),
-            AppView::Wizard => screens::wizard::view(self),
+            AppView::Welcome => {
+                shell::view::with_confirm_dialog_if_raised(self, screens::welcome::view(self))
+            }
+            AppView::Dashboard => {
+                shell::view::with_confirm_dialog_if_raised(self, screens::dashboard::view(self))
+            }
+            AppView::Wizard => {
+                shell::view::with_confirm_dialog_if_raised(self, screens::wizard::view(self))
+            }
             AppView::Workspace => shell::view::view(self),
         }
     }

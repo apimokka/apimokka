@@ -108,7 +108,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         .into()
     };
 
-    let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+    let methods = crate::regions::HTTP_METHODS;
     let method_btns: Vec<Element<Message>> = methods
         .iter()
         .enumerate()
