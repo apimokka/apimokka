@@ -829,19 +829,29 @@ impl App {
             }
             Message::EnterPressed => {
                 // Task 026 (D-6, and the Enter-in-dialog defect task 024's
-                // audit found): both dialogs now get a default action, on the
-                // safe side. `Enter` in the confirm dialog cancels, never
-                // proceeds — `ConfirmProceed` can delete a rule set or
-                // discard unsaved work, and a dialog whose default action
-                // performs the destructive thing defeats the dialog (task
-                // 026 §4.2; `ConfirmProceed` stays reachable only by its own
-                // button, not by this key). Test Rule's default is `Run`,
-                // a local dry run with no side effect.
+                // audit found): both dialogs get a default action, on the
+                // safe side. Test Rule's default is `Run`, a local dry run
+                // with no side effect. The confirm dialog's own default —
+                // `Enter` cancels, never proceeds, since `ConfirmProceed`
+                // can delete a rule set or discard unsaved work — is task
+                // 033's own `Region::ConfirmDialog` now (`Cancel` is
+                // `Cursor::Index(0)`, the position `ConfirmRequest` sets it
+                // to the moment the dialog opens), reached through the
+                // generic region-activation branch below rather than a
+                // special case here; the behaviour is unchanged.
                 //
-                // Precedence follows `EscapePressed`'s existing order above
-                // (confirm_dialog first): a confirm dialog can be raised over
-                // other open state, and one keystroke must resolve to exactly
-                // one action.
+                // The palette and Test Rule branches below gate on
+                // `self.confirm_dialog.is_none()` explicitly: both have
+                // their own activation mechanism entirely outside the
+                // region system (neither is itself a `Region`), so without
+                // this a dialog raised over either — a real sequence
+                // (`ConfirmRequest` can fire while the palette or Test Rule
+                // is open) — would still run the palette's selected row or
+                // Test Rule's `Run`, not resolve the dialog, because
+                // `focused_region`'s own `ConfirmDialog` override only ever
+                // reaches the generic branch at the end of this chain. A
+                // confirm dialog can be raised over other open state, and
+                // one keystroke must resolve to exactly one action.
                 //
                 // Re-dispatches the selected row's own `Message`, exactly as
                 // clicking it would (`GoWelcome`'s `ConfirmRequest`
@@ -850,9 +860,7 @@ impl App {
                 // from the identical table and filter `view` used to render
                 // the row the user is looking at, so the two can never
                 // disagree about what "selected" points to.
-                if self.confirm_dialog.is_some() {
-                    self.update(Message::ConfirmCancel);
-                } else if self.command_palette.open {
+                if self.confirm_dialog.is_none() && self.command_palette.open {
                     if let Some(pos) = self.command_palette.selected {
                         let filtered = crate::palette_commands::filtered_indices(
                             self,
@@ -864,7 +872,7 @@ impl App {
                             self.update(selected_message);
                         }
                     }
-                } else if self.test_rule.open {
+                } else if self.confirm_dialog.is_none() && self.test_rule.open {
                     self.update(Message::TestRuleRun);
                 } else if let Some(region) = self.valid_focused_region()
                     && let Some(cursor) = self.region_cursor.clone()
@@ -1565,6 +1573,18 @@ impl App {
                     title,
                     body,
                 });
+                // Task 033: `Region::order_for` overrides to
+                // `vec![Region::ConfirmDialog]` the moment this is `Some`,
+                // but `focused_region`/`region_cursor` are only ever moved
+                // by a `Tab`/arrow message, not by opening a dialog — so a
+                // bare `Enter` right after this, with no `Tab` at all,
+                // would otherwise find `valid_focused_region()` empty (the
+                // screen's prior region is not in the dialog's own
+                // single-region order) and do *nothing*, not cancel. Set
+                // explicitly here instead, to `Cursor::Index(0)` (`Cancel`)
+                // — task 026 §4.2's safety property, preserved exactly.
+                self.focused_region = Some(crate::regions::Region::ConfirmDialog);
+                self.region_cursor = Some(crate::regions::Cursor::Index(0));
             }
             Message::ConfirmCancel => {
                 self.confirm_dialog = None;
@@ -1826,89 +1846,21 @@ impl App {
             None => {}
         }
 
-        // D-5: `scrollable` has no "scroll this child into view" operation —
-        // only an absolute/relative viewport offset (confirmed against
-        // `iced_runtime::widget::operation::scrollable`; nothing under
-        // `advanced` exposes per-row bounds either). This estimates the
-        // right offset from the selection's position in the filtered list
-        // rather than its pixel position, which is not measured anywhere:
-        // row 0 of N -> top of the viewport, the last row -> bottom, evenly
-        // spaced between. Every row is the same fixed shape (one text line
-        // plus an optional shortcut chip), so a linear map is a reasonable
-        // approximation of the real layout, not merely a guess — verified
-        // live against the actual scrollbar position, not assumed.
-        if is_arrow_key
-            && self.command_palette.open
-            && let Some(selected) = self.command_palette.selected
-        {
-            let filtered_len =
-                crate::palette_commands::filtered_indices(self, &self.command_palette.query).len();
-            let last_index = filtered_len.saturating_sub(1).max(1) as f32;
-            let y = selected as f32 / last_index;
-            tasks.push(iced::widget::operation::snap_to(
-                screens::command_palette::RESULTS_SCROLLABLE_ID,
-                iced::widget::scrollable::RelativeOffset { x: 0.0, y },
-            ));
-        }
-
-        // Task 028 §3.3: same D-5 approximation as above, applied to the
-        // Dashboard workspace list. iced 0.14 still exposes no "scroll this
-        // child into view" operation, only an absolute/relative viewport
-        // offset, so this maps the cursor's position in the *current*
-        // filtered list to a linear offset exactly as the palette's results
-        // list does. Honestly imprecise in the same way D-5 is: a list whose
-        // rows vary in height (none do here — every row is the same
-        // fixed shape) or that scrolls during typing rather than only on
-        // arrow presses would need a different mechanism; neither applies to
-        // this list.
-        if is_arrow_key
-            && self.focused_region == Some(crate::regions::Region::DashboardWorkspaces)
-            && let Some(crate::regions::Cursor::WorkspaceName(name)) = &self.region_cursor
-        {
-            let names: Vec<String> = crate::regions::dashboard_filtered_workspaces(self)
-                .into_iter()
-                .map(|ws| ws.name)
-                .collect();
-            if let Some(pos) = names.iter().position(|n| n == name) {
-                let last_index = names.len().saturating_sub(1).max(1) as f32;
-                let y = pos as f32 / last_index;
-                tasks.push(iced::widget::operation::snap_to(
-                    screens::dashboard::WORKSPACES_SCROLLABLE_ID,
-                    iced::widget::scrollable::RelativeOffset { x: 0.0, y },
-                ));
-            }
-        }
-
-        // Task 029 §4 edge case 4: the same D-5 approximation again, for the
-        // sidebar — `ArrowUp`/`ArrowDown` move within it, and `ArrowLeft`/
-        // `ArrowRight` can too (moving to a parent, into a newly expanded
-        // section, or onto a newly expanded header's first child), so this
-        // checks `is_navigation_key` rather than the narrower `is_arrow_key`
-        // the two blocks above use. Same honesty as both of them: iced 0.14
-        // still exposes no exact "scroll this child into view", only a
-        // linear position estimate.
-        if is_navigation_key
-            && self.focused_region == Some(crate::regions::Region::Sidebar)
-            && let Some(crate::regions::Cursor::Sidebar(row)) = &self.region_cursor
-        {
-            let rows = crate::regions::sidebar_rows(self);
-            if let Some(pos) = rows.iter().position(|r| r == row) {
-                let last_index = rows.len().saturating_sub(1).max(1) as f32;
-                let y = pos as f32 / last_index;
-                tasks.push(iced::widget::operation::snap_to(
-                    screens::routes::SIDEBAR_SCROLLABLE_ID,
-                    iced::widget::scrollable::RelativeOffset { x: 0.0, y },
-                ));
-            }
-        }
-
-        // Task 032 (D-20): the six scrollables the review found unwired.
-        // Factored into a pure method, unlike the three blocks above —
-        // `iced::Task` has no way to inspect *which* id or offset it
-        // carries, so the decision has to live somewhere testable, and
-        // none of those three ever were (D-20 passed two reviews
-        // unnoticed, including the one that introduced the second and
-        // third of them).
+        // Task 032 (D-20), folded into one pattern in task 033 per slice 7's
+        // review: every scroll dispatch — the palette's results list, the
+        // Dashboard workspace list, and the sidebar (all three
+        // pre-existing), plus the six `scroll_snap_target` itself already
+        // covered — now goes through `scroll_snap_target`'s one match
+        // rather than three separate inline blocks beside it. Two patterns
+        // side by side meant the next person would pick one by coin flip,
+        // and D-20 reached live exactly because the old sequential
+        // early-return shape raced against this one's own `Task` and lost
+        // silently. `scroll_snap_target` is a pure method, unlike an inline
+        // block beside `tasks.push` — `iced::Task` has no way to inspect
+        // *which* id or offset it carries, so the decision has to live
+        // somewhere testable, which none of the three ever were (D-20
+        // passed two reviews unnoticed, including the one that introduced
+        // the second and third of them).
         if let Some((id, y)) = self.scroll_snap_target(could_move_cursor) {
             tasks.push(iced::widget::operation::snap_to(
                 id,
@@ -1926,12 +1878,23 @@ impl App {
     /// Task 032 (D-20): the scrollable id and relative y offset
     /// `update_and_dispatch` should `snap_to` right now, or `None` if the
     /// focused region either does not scroll or has nothing to clamp to.
-    /// Same D-5 approximation the three pre-existing call sites in
-    /// `update_and_dispatch` use (linear position in the live list, not a
-    /// measured pixel position — iced 0.14 still exposes no "scroll this
-    /// child into view" operation for a specific child). `could_move_cursor`
-    /// is broader than those three's own `is_navigation_key` — see its own
-    /// doc comment for why `Tab`/`Shift+Tab` must be included here.
+    /// D-5 approximation throughout (linear position in the live list, not
+    /// a measured pixel position — iced 0.14 still exposes no "scroll this
+    /// child into view" operation for a specific child).
+    ///
+    /// Task 033 folds in the three pre-existing call sites
+    /// `update_and_dispatch` used to carry beside this method (palette
+    /// results, Dashboard workspaces, sidebar), per slice 7's review.
+    /// `could_move_cursor` is broader than the `is_arrow_key`/
+    /// `is_navigation_key` those three gated on individually — see its own
+    /// doc comment for why `Tab`/`Shift+Tab` must be included here. The
+    /// extra breadth is never wrong, only occasionally redundant: the
+    /// palette and the sidebar are each either unaffected by the wider key
+    /// set (`Tab` is a no-op while the palette blocks region navigation —
+    /// `Message::TabPressed`'s own early return — so it only re-snaps to
+    /// the same, already-correct offset) or self-correcting (`Tab` moves
+    /// `focused_region` off the sidebar entirely, so the sidebar's own arm
+    /// below simply stops matching).
     fn scroll_snap_target(&self, could_move_cursor: bool) -> Option<(&'static str, f32)> {
         if !could_move_cursor {
             return None;
@@ -1941,7 +1904,51 @@ impl App {
             pos as f32 / (len.saturating_sub(1).max(1) as f32)
         }
 
+        // The palette's own results list is not a `Region` — it keeps its
+        // own `selected`/`query` mechanism entirely outside
+        // `focused_region` — so it is checked here directly rather than by
+        // matching on `self.focused_region` the way every branch below
+        // does.
+        if self.command_palette.open
+            && let Some(selected) = self.command_palette.selected
+        {
+            let filtered_len =
+                crate::palette_commands::filtered_indices(self, &self.command_palette.query).len();
+            return Some((
+                screens::command_palette::RESULTS_SCROLLABLE_ID,
+                offset(selected, filtered_len),
+            ));
+        }
+
         match self.focused_region {
+            // Task 028 §3.3: the Dashboard workspace list.
+            Some(crate::regions::Region::DashboardWorkspaces) => {
+                let crate::regions::Cursor::WorkspaceName(name) = self.region_cursor.as_ref()?
+                else {
+                    return None;
+                };
+                let names: Vec<String> = crate::regions::dashboard_filtered_workspaces(self)
+                    .into_iter()
+                    .map(|ws| ws.name)
+                    .collect();
+                let pos = names.iter().position(|n| n == name)?;
+                Some((
+                    screens::dashboard::WORKSPACES_SCROLLABLE_ID,
+                    offset(pos, names.len()),
+                ))
+            }
+            // Task 029 §4 edge case 4: the sidebar.
+            Some(crate::regions::Region::Sidebar) => {
+                let crate::regions::Cursor::Sidebar(row) = self.region_cursor.as_ref()? else {
+                    return None;
+                };
+                let rows = crate::regions::sidebar_rows(self);
+                let pos = rows.iter().position(|r| r == row)?;
+                Some((
+                    screens::routes::SIDEBAR_SCROLLABLE_ID,
+                    offset(pos, rows.len()),
+                ))
+            }
             // A region belongs to exactly one of the editor's two
             // independently-scrolling columns (`regions::is_respond_field`);
             // filtering `editor_fields` by that predicate gives each
@@ -2046,6 +2053,56 @@ impl App {
                 Some((
                     screens::wizard::SCROLLABLE_ID,
                     offset(pos, wizard_regions.len()),
+                ))
+            }
+            // Task 033: the rule-set configuration pane's one scrollable.
+            // `Delete` sits in the header above it, not inside it
+            // (`rule_set_config`'s own layout), so it is excluded from the
+            // position list rather than skewing it — the same reason
+            // Wizard excludes `Cancel`/`Create` above.
+            Some(crate::regions::Region::RuleSetConfig(field))
+                if field != crate::regions::RuleSetConfigField::Delete =>
+            {
+                let config_regions: Vec<_> = crate::regions::Region::order_for(self)
+                    .into_iter()
+                    .filter(|r| {
+                        matches!(
+                            r,
+                            crate::regions::Region::RuleSetConfig(f)
+                                if *f != crate::regions::RuleSetConfigField::Delete
+                        )
+                    })
+                    .collect();
+                let pos = config_regions
+                    .iter()
+                    .position(|&r| r == crate::regions::Region::RuleSetConfig(field))?;
+                Some((
+                    screens::routes::RULE_SET_CONFIG_SCROLLABLE_ID,
+                    offset(pos, config_regions.len()),
+                ))
+            }
+            // Task 033: the bottom drawer's one scrollable. `Close` sits in
+            // `drawer_header`, above it, not inside it, excluded the same
+            // way.
+            Some(crate::regions::Region::Drawer(field))
+                if field != crate::regions::DrawerField::Close =>
+            {
+                let drawer_regions: Vec<_> = crate::regions::Region::order_for(self)
+                    .into_iter()
+                    .filter(|r| {
+                        matches!(
+                            r,
+                            crate::regions::Region::Drawer(f)
+                                if *f != crate::regions::DrawerField::Close
+                        )
+                    })
+                    .collect();
+                let pos = drawer_regions
+                    .iter()
+                    .position(|&r| r == crate::regions::Region::Drawer(field))?;
+                Some((
+                    crate::shell::bottom_drawer::SCROLLABLE_ID,
+                    offset(pos, drawer_regions.len()),
                 ))
             }
             _ => None,
@@ -3617,20 +3674,24 @@ impl App {
     // ── MK-023 slice 2 (task 027): the region/cursor keyboard model ────────
 
     /// Whether a surface with its own, higher-priority keyboard mechanism is
-    /// currently on top of the screen. Dialogs are not yet regions in this
-    /// slice (that is a later one — see MK-023's "a dialog is a region"
-    /// design note), so `Tab`/`Shift+Tab` and the arrows must not reach
-    /// through an open dialog *or the open palette* to the screen underneath
-    /// — `EnterPressed`'s own `if`/`else if` chain above already encodes the
-    /// same precedence for activation (confirm dialog, then palette, then
-    /// Test Rule), this just extends it to movement. The palette belongs
-    /// here too: its own `ArrowUp`/`ArrowDown` arms check `command_palette.open`
-    /// first and only fall through to `move_region_cursor` otherwise, but
-    /// `TabPressed`/`ShiftTabPressed` have no such arm of their own — without
-    /// it here, `Tab` would move the tab bar's cursor, unseen, behind an open
-    /// palette (review finding F1, task 027).
+    /// currently on top of the screen. The confirm dialog is **not** listed
+    /// here any more (task 033: "a dialog is a region", the design note
+    /// this doc comment used to point at as a later slice — this is it) —
+    /// `Region::order_for` overrides to `vec![Region::ConfirmDialog]` while
+    /// it is open, so the *normal* region-navigation path is exactly what
+    /// should run, not be blocked from running. The palette and Test Rule
+    /// keep their own pre-existing mechanisms (arrow-driven filtered list;
+    /// a fixed default action), so `Tab`/`Shift+Tab` and the arrows must
+    /// still not reach through either to the screen underneath —
+    /// `EnterPressed`'s own `if`/`else if` chain above encodes the same
+    /// precedence for activation. The palette belongs here too: its own
+    /// `ArrowUp`/`ArrowDown` arms check `command_palette.open` first and
+    /// only fall through to `move_region_cursor` otherwise, but
+    /// `TabPressed`/`ShiftTabPressed` have no such arm of their own —
+    /// without it here, `Tab` would move the tab bar's cursor, unseen,
+    /// behind an open palette (review finding F1, task 027).
     fn blocks_region_navigation(&self) -> bool {
-        self.confirm_dialog.is_some() || self.command_palette.open || self.test_rule.open
+        self.command_palette.open || self.test_rule.open
     }
 
     /// The region actually holding the cursor, re-derived against the

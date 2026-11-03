@@ -103,6 +103,39 @@ pub enum Region {
     /// was never assigned to a slice at all (task 031 §1); this is the
     /// first slice to make it navigable.
     Wizard(WizardField),
+    /// One fallback-file editor control (task 033, MK-023 slice 8) — one of
+    /// the "three surfaces, not one" the Routes centre panel can show by
+    /// sidebar selection (slice 7 found the first; this slice's own census
+    /// is what found the other two). Declared only while a fallback file,
+    /// not a rule, is selected (`centre_panel`'s own priority 2).
+    FallbackEditor(FallbackField),
+    /// One rule-set configuration control (task 033) — shown by the Routes
+    /// centre panel when a rule set, not a rule or file, is selected
+    /// (`centre_panel`'s own priority 4). The pane's own rule-link rows are
+    /// deliberately **not** given a region here — see
+    /// `rule_set_config_fields`'s own doc comment for why duplicating the
+    /// sidebar's identical `Message::SelectRule` dispatch was judged not
+    /// worth a second keyboard path to the same action.
+    RuleSetConfig(RuleSetConfigField),
+    /// One bottom-drawer control (task 033) — the validation panel or the
+    /// save-diff panel, whichever `app.drawer` currently shows. Overrides
+    /// every other region while open, the same shape `ConfirmDialog` below
+    /// and the palette/test-rule dialogs already use, rather than
+    /// coexisting with the screen underneath it (task 033 §2: "its
+    /// diagnostic list cannot be used" is the defect; a cursor that could
+    /// be in two places as once would be a worse one).
+    Drawer(DrawerField),
+    /// The confirm dialog's own two actions (task 033, closing the gap
+    /// task 026 left on purpose): `Cancel` (`Cursor::Index(0)`, the entry
+    /// position — `EnterPressed` with no prior key at all still cancels,
+    /// preserving task 026 §4.2's safety property exactly) and `Proceed`
+    /// (`Cursor::Index(1)`, reachable only by a deliberate `ArrowDown`
+    /// then `Enter` — never by `Enter` alone; `Tab` moves *between*
+    /// regions, and this dialog is the only one in `order_for` while it is
+    /// open, so `Tab` just re-enters it at `Cancel`). Overrides every
+    /// other region while the dialog is open, same precedence
+    /// `EnterPressed`'s own dialog-priority chain already gives it.
+    ConfirmDialog,
 }
 
 /// One field or group in the rule editor's reading order (task 030 §2).
@@ -254,6 +287,73 @@ pub enum WizardField {
     /// action would be exactly the inconsistency task 031 §3 reversed
     /// theme/audience mode over.
     Create,
+}
+
+/// One control in the fallback-file editor's reading order (task 033 §2).
+/// Mirrors `screens::routes::fallback_editor::fallback_file_editor`'s own
+/// layout: the content editor, then the footer's status field, Format,
+/// Revert and Save, in that order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FallbackField {
+    /// The `text_editor` itself — natively focusable, confirmed at source
+    /// the same way `text_input` already was for D-18: its own
+    /// `ButtonPressed` handler captures the event (positioning its native
+    /// cursor), `ButtonReleased` does not, so the same `mouse_area::
+    /// on_release` click-focus mechanism applies unchanged.
+    Content,
+    Status,
+    Format,
+    /// Present always, inert when the file is not dirty — a click does
+    /// nothing then either (`fallback_file_editor`'s own `revert_btn` has
+    /// no `.on_press` at all when `!dirty`), the same "`Enter` must agree
+    /// with what a click already does" reasoning task 031 §8 already
+    /// established for `SettingsField::LogFile`/`QueueSize`.
+    Revert,
+    /// Same reasoning as `Revert`.
+    Save,
+}
+
+/// One control in the rule-set configuration pane's reading order (task 033
+/// §2). The pane's own rule rows are deliberately excluded: they dispatch
+/// the identical `Message::SelectRule` the sidebar's own rows already do,
+/// and this design has no other instance of two regions on the same screen
+/// reaching the same action — adding one here would be a second keyboard
+/// path to a destination the sidebar already reaches, not a new capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleSetConfigField {
+    Delete,
+    /// A `pick_list` region, same `is_value_cycler` shape as the editor's
+    /// three operator pickers and Settings' locale (D-19's mechanism,
+    /// `Enter`-cycles-forward and the `⇅` handle included).
+    Strategy,
+    /// Guided mode's own disclosure — absent in Expert, where the strategy
+    /// picker always shows directly. Mirrors
+    /// `rule_set_config`'s own `app.rule_set_config_more` branching
+    /// exactly, including that the toggle renders *after* the picker once
+    /// expanded, not before (the same order task 031 §2 established for
+    /// Settings' advanced disclosure).
+    MoreToggle,
+    AddRule,
+}
+
+/// One control in the bottom drawer's reading order (task 033 §2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DrawerField {
+    Close,
+    /// Scoped by position, not by the diagnostic's own `NodeId` — checked
+    /// at source, not assumed: a single rule can carry more than one
+    /// validation issue, so two rows can share the same `target`, the same
+    /// "no stable per-row identity" situation task 030 found for header
+    /// and body condition rows, answered the same way. Indexes only the
+    /// *clickable* subset (`target.is_some()`), matching exactly which rows
+    /// `validation_content` itself wraps in a button.
+    JumpToDiagnostic(usize),
+    /// Present only in `DrawerMode::SaveDiff`, and only once
+    /// `save_diff_total` is non-zero — mirrors `save_diff_content`'s own
+    /// early-return-to-the-all-clear-state exactly.
+    Discard,
+    /// Same presence condition as `Discard`.
+    SaveAll,
 }
 
 /// One row of the sidebar's flattened visible sequence (task 029 §3). Rows
@@ -536,6 +636,128 @@ pub fn is_respond_field(field: EditorField) -> bool {
     )
 }
 
+/// The fallback file the editor is actually showing, if any — the same
+/// lookup `centre_panel` performs before calling `fallback_file_editor`,
+/// repeated here so the region model and the view can never disagree.
+/// `None` whenever a rule is also selected: `centre_panel`'s own priority 1
+/// (rule) outranks priority 2 (fallback file), and `SelectFileRoute` clears
+/// `selection.rule` but the reverse is not guaranteed, so this checks it
+/// explicitly rather than assuming the two are already mutually exclusive.
+fn fallback_editor_context(app: &App) -> Option<&apimokka_model::node::FileNodeView> {
+    if app.selection.rule.is_some() {
+        return None;
+    }
+    let path = app.selection.file_route.as_ref()?;
+    let snap = app.snapshot.as_ref()?;
+    snap.fallback_files
+        .iter()
+        .find(|f| &f.name == path || &f.path == path)
+}
+
+/// The fallback editor's fields, in reading order — empty whenever
+/// `fallback_editor_context` is `None`. `Content` first (it renders above
+/// the footer), then the footer's own left-to-right order.
+pub fn fallback_fields(app: &App) -> Vec<FallbackField> {
+    if fallback_editor_context(app).is_none() {
+        return Vec::new();
+    }
+    vec![
+        FallbackField::Content,
+        FallbackField::Status,
+        FallbackField::Format,
+        FallbackField::Revert,
+        FallbackField::Save,
+    ]
+}
+
+/// The `Id` string `settings_field_id`/`wizard_field_id`'s own pattern
+/// generalises to the fallback editor's two focusable fields.
+pub fn fallback_field_id(field: FallbackField) -> Option<String> {
+    match field {
+        FallbackField::Content => Some("mk023-fallback-content".into()),
+        FallbackField::Status => Some("mk023-fallback-status".into()),
+        _ => None,
+    }
+}
+
+/// The rule set the configuration pane is actually showing, if any —
+/// mirrors `centre_panel`'s own priority 4 exactly: only once none of
+/// priorities 1–3 (rule, fallback file, script) claim the selection.
+fn rule_set_config_context(app: &App) -> Option<&apimokka_model::snapshot::RuleSetView> {
+    if app.selection.rule.is_some()
+        || app.selection.file_route.is_some()
+        || app.selection.script.is_some()
+    {
+        return None;
+    }
+    let rs_id = app.selection.rule_set?;
+    let snap = app.snapshot.as_ref()?;
+    snap.rule_sets.iter().find(|rs| rs.id == rs_id)
+}
+
+/// The rule-set configuration pane's fields, in reading order — empty
+/// whenever `rule_set_config_context` is `None`. Mirrors
+/// `rule_set_config`'s own three-way branching for the strategy picker
+/// exactly (Guided collapsed / Guided expanded / Expert), the same shape
+/// task 031 §2 already established for Settings' advanced disclosure: the
+/// toggle renders *after* the picker once expanded, not before, and the
+/// picker is absent entirely while collapsed.
+pub fn rule_set_config_fields(app: &App) -> Vec<RuleSetConfigField> {
+    if rule_set_config_context(app).is_none() {
+        return Vec::new();
+    }
+    let mut fields = vec![RuleSetConfigField::Delete];
+    if app.shows_scaffolding() {
+        if app.rule_set_config_more {
+            fields.push(RuleSetConfigField::Strategy);
+            fields.push(RuleSetConfigField::MoreToggle);
+        } else {
+            fields.push(RuleSetConfigField::MoreToggle);
+        }
+    } else {
+        fields.push(RuleSetConfigField::Strategy);
+    }
+    fields.push(RuleSetConfigField::AddRule);
+    fields
+}
+
+/// Diagnostic rows the validation drawer actually renders as a clickable
+/// button — `target.is_some()` is `validation_content`'s own condition for
+/// wrapping a row in one, repeated here rather than assumed. Scoped by
+/// position (`DrawerField::JumpToDiagnostic`'s own doc comment has why):
+/// `target` is a `NodeId`, and a single rule can carry more than one
+/// validation issue, so two rows can share one — checked against
+/// `durable_diagnostic_rows` directly rather than assumed, the same
+/// "confirmed, not assumed" standard task 030 held header/body rows to.
+fn drawer_jump_target_count(app: &App) -> usize {
+    crate::shell::bottom_drawer::durable_diagnostic_rows(app)
+        .iter()
+        .filter(|row| row.target.is_some())
+        .count()
+}
+
+/// The bottom drawer's fields, in reading order — empty whenever
+/// `app.drawer` is `None`. `Close` first (it renders above the body in
+/// both modes), then whichever mode's own fields apply.
+pub fn drawer_fields(app: &App) -> Vec<DrawerField> {
+    let Some(mode) = app.drawer else {
+        return Vec::new();
+    };
+    let mut fields = vec![DrawerField::Close];
+    match mode {
+        crate::selection::DrawerMode::Validation => {
+            fields.extend((0..drawer_jump_target_count(app)).map(DrawerField::JumpToDiagnostic));
+        }
+        crate::selection::DrawerMode::SaveDiff => {
+            if crate::shell::bottom_drawer::save_diff_total(app) > 0 {
+                fields.push(DrawerField::Discard);
+                fields.push(DrawerField::SaveAll);
+            }
+        }
+    }
+    fields
+}
+
 /// Events passing the live trace filter, newest first — the one source
 /// `screens::trace::view` and `Region::TraceEvents` both read. Matches
 /// `trace.rs`'s former private `filtered_events` exactly: case-insensitive
@@ -592,6 +814,39 @@ impl Region {
         if app.audience_mode.is_none() {
             return vec![Region::ModePicker];
         }
+        // Task 033 (D-12 closing): the confirm dialog overrides everything
+        // else while open, same precedence `EnterPressed`'s own
+        // dialog-priority chain already gives it (confirm dialog first).
+        // `Cancel` is the entry position (`active_index` returns `None`
+        // for it), so a bare `Enter` with no prior key at all still
+        // cancels — task 026 §4.2's safety property, unchanged;
+        // `Proceed` is now reachable, but only by a deliberate `ArrowDown`
+        // first (`Tab` moves *between* regions — this is the only one in
+        // the list while the dialog is open, so it just re-enters at
+        // `Cancel`).
+        if app.confirm_dialog.is_some() {
+            return vec![Region::ConfirmDialog];
+        }
+        // Task 033 §2: the drawer's own mechanism, the same override shape
+        // — not coexisting with the screen behind it (see `Region::Drawer`'s
+        // own doc comment for why).
+        if app.drawer.is_some() {
+            return drawer_fields(app).into_iter().map(Region::Drawer).collect();
+        }
+        // Task 033 (the census): the path assistant is a `Dialog` in
+        // `shell::view` — it paints over the screen behind it — but it has
+        // no `Region` of its own and was never in
+        // `App::blocks_region_navigation`, so without this, `Tab`/arrow/
+        // `Enter` while it is open would act on whatever region the hidden
+        // background screen left focused. It is reachable today (from
+        // `EditorField::BodyPathAssistant`'s own `Enter`), so this is a
+        // real leak, not a hypothetical one. Its own field-level coverage
+        // (the JSON input, the path tree) is a census finding, reported,
+        // not built here; this is only the one-line guard against leaking
+        // through to the screen behind it.
+        if app.path_assistant.open {
+            return vec![];
+        }
         match app.view {
             AppView::Workspace => {
                 let mut order = vec![Region::TabBar];
@@ -600,7 +855,23 @@ impl Region {
                     // (`screens::routes::view` is only reached there).
                     WorkspaceTab::Routes => {
                         order.push(Region::Sidebar);
+                        // Task 033 (the census): the centre panel shows one
+                        // of four things by sidebar selection
+                        // (`centre_panel`'s own priority order) — only the
+                        // first three contribute regions, each self-guarded
+                        // to empty when its own precondition does not hold,
+                        // so these three `extend`s are mutually exclusive
+                        // in practice without needing an `if`/`else if`
+                        // chain to say so here too.
                         order.extend(editor_fields(app).into_iter().map(Region::Editor));
+                        order.extend(fallback_fields(app).into_iter().map(Region::FallbackEditor));
+                        // Priority 3 (script viewer) is read-only — nothing
+                        // to add, confirmed at source, not missed.
+                        order.extend(
+                            rule_set_config_fields(app)
+                                .into_iter()
+                                .map(Region::RuleSetConfig),
+                        );
                     }
                     WorkspaceTab::Trace => {
                         order.push(Region::TraceFilter);
@@ -712,6 +983,7 @@ impl Region {
             Region::Editor(field) => editor_text_field_id(field),
             Region::Settings(field) => settings_field_id(field),
             Region::Wizard(field) => wizard_field_id(field),
+            Region::FallbackEditor(field) => fallback_field_id(field),
             _ => None,
         }
     }
@@ -728,6 +1000,7 @@ impl Region {
                 | Region::Editor(EditorField::HeaderOp(_))
                 | Region::Editor(EditorField::BodyOp(_))
                 | Region::Settings(SettingsField::Locale)
+                | Region::RuleSetConfig(RuleSetConfigField::Strategy)
         )
     }
 
@@ -786,6 +1059,24 @@ impl Region {
                     delta,
                 )))
             }
+            // Task 033 (D-19's mechanism, the fourth cycler's sibling): same
+            // compromise, not fixed here either — one remedy already
+            // applied to all four in slice 7 covers this fifth instance
+            // with no change.
+            Region::RuleSetConfig(RuleSetConfigField::Strategy) => {
+                rule_set_config_context(app)?;
+                let strategy = app
+                    .snapshot
+                    .as_ref()
+                    .map(|s| s.root_settings.strategy)
+                    .unwrap_or(apimokka_model::settings::Strategy::FirstMatch);
+                let options = apimokka_model::settings::Strategy::all();
+                Some(Message::RuleSetSetStrategy(step(
+                    &options,
+                    Some(strategy),
+                    delta,
+                )))
+            }
             _ => None,
         }
     }
@@ -816,6 +1107,11 @@ impl Region {
             Region::Settings(_) => 1,
             Region::Wizard(WizardField::Starter) => WIZARD_STARTER_ORDER.len(),
             Region::Wizard(_) => 1,
+            Region::FallbackEditor(_) => 1,
+            Region::RuleSetConfig(_) => 1,
+            Region::Drawer(_) => 1,
+            // Cancel, Proceed.
+            Region::ConfirmDialog => 2,
         }
     }
 
@@ -888,6 +1184,13 @@ impl Region {
                 .iter()
                 .position(|&s| s == app.wizard.starter),
             Region::Wizard(_) => None,
+            Region::FallbackEditor(_) => None,
+            Region::RuleSetConfig(_) => None,
+            Region::Drawer(_) => None,
+            // Always starts on Cancel (index 0) — task 026 §4.2's safety
+            // property: a bare `Enter` with no `Tab` at all must still
+            // cancel, never proceed.
+            Region::ConfirmDialog => None,
         }
     }
 
@@ -1091,6 +1394,54 @@ impl Region {
                 ),
                 _,
             ) => None,
+            // Task 033: the fallback editor. `Content` is a `text_editor`,
+            // not activation — typing is its own interaction, same as every
+            // other text-field region.
+            (Region::FallbackEditor(FallbackField::Content), _) => None,
+            (Region::FallbackEditor(FallbackField::Status), _) => None,
+            (Region::FallbackEditor(FallbackField::Format), _) => Some(Message::FallbackFileFormat),
+            (Region::FallbackEditor(FallbackField::Revert), _) => {
+                let path = app.selection.file_route.clone()?;
+                app.is_fallback_dirty(&path)
+                    .then_some(Message::FallbackFileRevert)
+            }
+            (Region::FallbackEditor(FallbackField::Save), _) => {
+                let path = app.selection.file_route.clone()?;
+                app.is_fallback_dirty(&path)
+                    .then_some(Message::FallbackFileSave)
+            }
+            // Task 033: the rule-set configuration pane.
+            (Region::RuleSetConfig(RuleSetConfigField::Delete), _) => {
+                let rs = rule_set_config_context(app)?;
+                Some(Message::DeleteRuleSet(rs.id))
+            }
+            // D-19's mechanism (`cycle_value`'s own doc comment above).
+            (Region::RuleSetConfig(RuleSetConfigField::Strategy), _) => self.cycle_value(app, 1),
+            (Region::RuleSetConfig(RuleSetConfigField::MoreToggle), _) => {
+                Some(Message::ToggleRuleSetConfigMore)
+            }
+            (Region::RuleSetConfig(RuleSetConfigField::AddRule), _) => {
+                let rs = rule_set_config_context(app)?;
+                Some(Message::AddRule(rs.id))
+            }
+            // Task 033: the bottom drawer.
+            (Region::Drawer(DrawerField::Close), _) => Some(Message::CloseDrawer),
+            (Region::Drawer(DrawerField::JumpToDiagnostic(i)), _) => {
+                let rows = crate::shell::bottom_drawer::durable_diagnostic_rows(app);
+                rows.iter()
+                    .filter(|row| row.target.is_some())
+                    .nth(i)
+                    .and_then(|row| row.target)
+                    .map(Message::JumpToDiagnostic)
+            }
+            (Region::Drawer(DrawerField::Discard), _) => Some(Message::DiscardChanges),
+            (Region::Drawer(DrawerField::SaveAll), _) => Some(Message::SaveAll),
+            // Task 033: the confirm dialog. `Cursor::Index(0)` is `Cancel`
+            // (the entry position — task 026 §4.2's safety property);
+            // `Cursor::Index(1)` is `Proceed`, reachable only by a
+            // deliberate `ArrowDown` first.
+            (Region::ConfirmDialog, Cursor::Index(0)) => Some(Message::ConfirmCancel),
+            (Region::ConfirmDialog, Cursor::Index(1)) => Some(Message::ConfirmProceed),
             _ => None,
         }
     }

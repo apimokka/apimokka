@@ -252,6 +252,13 @@ fn tab_does_not_reach_the_tab_bar_while_the_palette_is_open() {
 
 #[test]
 fn tab_does_not_reach_the_tab_bar_while_the_confirm_dialog_is_open() {
+    // Task 033: the confirm dialog is now itself a region (`order_for`'s
+    // own override returns `vec![Region::ConfirmDialog]` while it is
+    // open), so `Tab` has exactly one region to land on and stays there —
+    // it must never reach the tab bar underneath, but it no longer leaves
+    // `focused_region` at `None` to prove that; `ConfirmRequest` already
+    // set it to `Region::ConfirmDialog` the moment the dialog opened
+    // (task 026 §4.2's safety default), and that is what this asserts.
     let mut a = expert_in_workspace();
     a.update(Message::ConfirmRequest(
         crate::message::ConfirmAction::LeaveWorkspace,
@@ -259,7 +266,8 @@ fn tab_does_not_reach_the_tab_bar_while_the_confirm_dialog_is_open() {
     assert!(a.confirm_dialog.is_some(), "test setup sanity");
     a.update(Message::TabPressed);
     assert_eq!(
-        a.focused_region, None,
+        a.focused_region,
+        Some(crate::regions::Region::ConfirmDialog),
         "Tab must not focus the tab bar underneath an open dialog"
     );
 }
@@ -1989,5 +1997,231 @@ fn scroll_snap_target_for_the_wizard_excludes_cancel_and_create() {
         a.scroll_snap_target(true),
         None,
         "Cancel/Create sit in the action bar below the scrollable, not inside it"
+    );
+}
+
+// ── Task 033 (MK-023 slice 8): the three pre-existing scroll dispatches, ──
+// folded into `scroll_snap_target` per slice 7's review — the regression
+// §6's last edge case exists for: the refactor must not silently drop one,
+// which is precisely how D-20 reached live the first time.
+
+#[test]
+fn scroll_snap_target_still_fires_for_the_palette_results_list() {
+    let mut a = expert_in_workspace();
+    a.update(Message::ToggleCommandPalette);
+    a.update(Message::ArrowDown);
+    a.update(Message::ArrowDown);
+    assert_eq!(a.command_palette.selected, Some(1), "test setup sanity");
+    let (id, y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::command_palette::RESULTS_SCROLLABLE_ID);
+    assert!(y > 0.0, "row 1 of many must not snap back to the top");
+}
+
+#[test]
+fn scroll_snap_target_still_fires_for_the_dashboard_workspace_list() {
+    let mut a = expert_at_dashboard();
+    tab_into_dashboard_workspaces(&mut a);
+    a.update(Message::ArrowDown);
+    let (id, y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::dashboard::WORKSPACES_SCROLLABLE_ID);
+    assert!(
+        y > 0.0,
+        "the second workspace must not snap back to the top"
+    );
+}
+
+#[test]
+fn scroll_snap_target_still_fires_for_the_sidebar() {
+    let mut a = expert_in_workspace();
+    tab_into_sidebar(&mut a);
+    a.update(Message::ArrowDown);
+    let (id, y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::routes::SIDEBAR_SCROLLABLE_ID);
+    assert!(y > 0.0, "the second row must not snap back to the top");
+}
+
+// ── Task 033: the fallback editor, the rule-set configuration pane, and ──
+// the bottom drawer — the three named uncovered surfaces (§2), plus their
+// own scroll targets.
+
+use crate::regions::{DrawerField, FallbackField, RuleSetConfigField};
+
+fn select_first_fallback_file(a: &mut App) -> String {
+    let path = a.snapshot.as_ref().unwrap().fallback_files[0].path.clone();
+    a.update(Message::SelectFileRoute(path.clone()));
+    path
+}
+
+fn select_first_rule_set(a: &mut App) -> apimokka_model::RuleSetId {
+    let id = a.snapshot.as_ref().unwrap().rule_sets[0].id;
+    a.update(Message::SelectRuleSet(id));
+    id
+}
+
+#[test]
+fn tab_reaches_every_fallback_editor_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    select_first_fallback_file(&mut a);
+    for field in [
+        FallbackField::Content,
+        FallbackField::Status,
+        FallbackField::Format,
+        FallbackField::Revert,
+        FallbackField::Save,
+    ] {
+        tab_until(&mut a, Region::FallbackEditor(field));
+    }
+}
+
+#[test]
+fn scroll_snap_target_is_none_for_every_fallback_editor_field() {
+    // §6's scroll edge case, N/A with a reason: `fallback_file_editor`'s
+    // own layout has no scrollable at all (header, then a `Length::Fill`
+    // content card, then the footer — confirmed against the view, not
+    // assumed), so there is nothing for any of its five fields to clamp
+    // to, unlike the rule-set configuration pane and the drawer below.
+    let mut a = expert_in_workspace();
+    select_first_fallback_file(&mut a);
+    for field in [
+        FallbackField::Content,
+        FallbackField::Status,
+        FallbackField::Format,
+        FallbackField::Revert,
+        FallbackField::Save,
+    ] {
+        tab_until(&mut a, Region::FallbackEditor(field));
+        assert_eq!(a.scroll_snap_target(true), None);
+    }
+}
+
+#[test]
+fn tab_reaches_every_rule_set_config_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    select_first_rule_set(&mut a);
+    for field in [
+        RuleSetConfigField::Delete,
+        RuleSetConfigField::Strategy,
+        RuleSetConfigField::AddRule,
+    ] {
+        tab_until(&mut a, Region::RuleSetConfig(field));
+    }
+}
+
+#[test]
+fn scroll_snap_target_for_rule_set_config_excludes_delete_but_covers_the_rest() {
+    // `Delete` sits in the header above the scrollable, not inside it —
+    // the same exclusion Wizard's own `Cancel`/`Create` get.
+    let mut a = expert_in_workspace();
+    select_first_rule_set(&mut a);
+    tab_until(&mut a, Region::RuleSetConfig(RuleSetConfigField::Delete));
+    assert_eq!(a.scroll_snap_target(true), None);
+
+    tab_until(&mut a, Region::RuleSetConfig(RuleSetConfigField::Strategy));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::routes::RULE_SET_CONFIG_SCROLLABLE_ID);
+
+    tab_until(&mut a, Region::RuleSetConfig(RuleSetConfigField::AddRule));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::routes::RULE_SET_CONFIG_SCROLLABLE_ID);
+}
+
+#[test]
+fn enter_on_rule_set_config_strategy_dispatches_the_same_message_arrow_down_would() {
+    // The fifth value cycler (D-19's mechanism) — the same contract as the
+    // other four (`enter_dispatches_the_same_message_arrow_down_would_on_all_four_cyclers`
+    // above), exercised separately because it needs a rule-*set*
+    // selection in context, which that shared loop does not have (it
+    // selects a rule, which would make `rule_set_config_context` return
+    // `None`).
+    let mut a = expert_in_workspace();
+    select_first_rule_set(&mut a);
+    let region = Region::RuleSetConfig(RuleSetConfigField::Strategy);
+    assert_eq!(
+        format!("{:?}", region.activation_message(&a, &Cursor::Index(0))),
+        format!("{:?}", region.cycle_value(&a, 1)),
+        "`Enter` must dispatch the same message `ArrowDown` would"
+    );
+}
+
+#[test]
+fn tab_reaches_every_drawer_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    a.update(Message::OpenSaveDiffDrawer);
+    for field in [
+        DrawerField::Close,
+        DrawerField::Discard,
+        DrawerField::SaveAll,
+    ] {
+        tab_until(&mut a, Region::Drawer(field));
+    }
+}
+
+#[test]
+fn scroll_snap_target_for_the_drawer_excludes_close_but_covers_the_rest() {
+    let mut a = expert_in_workspace();
+    a.update(Message::OpenSaveDiffDrawer);
+    tab_until(&mut a, Region::Drawer(DrawerField::Close));
+    assert_eq!(a.scroll_snap_target(true), None);
+
+    tab_until(&mut a, Region::Drawer(DrawerField::Discard));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::shell::bottom_drawer::SCROLLABLE_ID);
+
+    tab_until(&mut a, Region::Drawer(DrawerField::SaveAll));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::shell::bottom_drawer::SCROLLABLE_ID);
+}
+
+// ── Required evidence (§7), reducer-level: Scenario 5's revert step ───────
+
+#[test]
+fn fallback_revert_opens_the_confirm_dialog_and_proceed_needs_a_deliberate_arrow_down() {
+    // A bare `Enter` right after opening cancels (task 026 §4.2's safety
+    // default); `Proceed` — the destructive action, discarding the draft —
+    // is reachable only by a deliberate `ArrowDown` first, never by
+    // `Enter` alone.
+    let mut a = expert_in_workspace();
+    let path = select_first_fallback_file(&mut a);
+    a.fallback_drafts.insert(
+        path.clone(),
+        iced::widget::text_editor::Content::with_text("{\"x\":1}"),
+    );
+    assert!(a.is_fallback_dirty(&path), "test setup sanity");
+
+    tab_until(&mut a, Region::FallbackEditor(FallbackField::Revert));
+    a.update(Message::EnterPressed);
+    assert!(a.confirm_dialog.is_some(), "test setup sanity");
+    assert_eq!(
+        a.focused_region,
+        Some(Region::ConfirmDialog),
+        "ConfirmRequest must move the cursor onto the dialog immediately"
+    );
+
+    // A bare Enter cancels.
+    a.update(Message::EnterPressed);
+    assert!(
+        a.confirm_dialog.is_none(),
+        "a bare Enter with no deliberate ArrowDown must cancel, not revert"
+    );
+    assert!(
+        a.is_fallback_dirty(&path),
+        "cancelling must not have reverted anything"
+    );
+
+    // Redo, and this time move to Proceed deliberately before Enter.
+    tab_until(&mut a, Region::FallbackEditor(FallbackField::Revert));
+    a.update(Message::EnterPressed);
+    assert!(a.confirm_dialog.is_some(), "test setup sanity");
+    a.update(Message::ArrowDown);
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(1)),
+        "ArrowDown must move the cursor onto Proceed"
+    );
+    a.update(Message::EnterPressed);
+    assert!(a.confirm_dialog.is_none());
+    assert!(
+        !a.is_fallback_dirty(&path),
+        "a deliberate ArrowDown then Enter must have reverted the draft"
     );
 }

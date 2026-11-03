@@ -32,6 +32,12 @@ pub(crate) const SIDEBAR_SCROLLABLE_ID: &str = "mk023-sidebar";
 pub(crate) const WHEN_SCROLLABLE_ID: &str = "mk023-editor-when";
 pub(crate) const RESPOND_SCROLLABLE_ID: &str = "mk023-editor-respond";
 
+/// Task 033: same D-5 approximation, for the rule-set configuration pane's
+/// one scrollable. `Delete` sits in the header above it, not inside it
+/// (`rule_set_config`'s own layout), so it is excluded from the position
+/// list the same way Wizard excludes `Cancel`/`Create`.
+pub(crate) const RULE_SET_CONFIG_SCROLLABLE_ID: &str = "mk023-rule-set-config";
+
 pub fn view(app: &App) -> Element<'_, Message> {
     let sidebar = sidebar::left_sidebar(app);
     let centre = centre_panel(app);

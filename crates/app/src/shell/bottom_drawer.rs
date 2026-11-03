@@ -18,12 +18,40 @@ use crate::app::{
     WorkspaceSaveProgress,
 };
 use crate::message::Message;
+use crate::regions::{Cursor, DrawerField, Region};
 use crate::selection::DrawerMode;
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Color, Element, Length, Padding};
+
+/// Task 033: same D-5 approximation as `routes::SIDEBAR_SCROLLABLE_ID` and
+/// friends, for the drawer's one scrollable. `Close` sits in
+/// `drawer_header`, above it, not inside it, so it is excluded from the
+/// position list the same way Wizard excludes `Cancel`/`Create`.
+pub(crate) const SCROLLABLE_ID: &str = "mk023-drawer";
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` — every field here is
+/// a one-item region (`Region::Drawer(_)`'s own `len()` is always 1; a
+/// `JumpToDiagnostic(i)` and a `JumpToDiagnostic(j)` are two distinct
+/// regions, not two positions within one).
+fn cursor_wrap<'a>(
+    app: &App,
+    field: DrawerField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::Drawer(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let mode = match app.drawer {
@@ -37,7 +65,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     container(column![
         drawer_header(app, mode),
         widgets::divider(),
-        scrollable(body).height(Length::Fill),
+        scrollable(body).id(SCROLLABLE_ID).height(Length::Fill),
     ])
     .width(Length::Fill)
     .height(Length::Fill)
@@ -53,10 +81,15 @@ fn drawer_header<'a>(app: &'a App, mode: DrawerMode) -> Element<'a, Message> {
     container(
         row![
             text(title).size(size::SECTION).width(Length::Fill),
-            button(text("✕").size(size::BODY))
-                .on_press(Message::CloseDrawer)
-                .padding(Padding::from([space::S1, space::S2]))
-                .style(iced::widget::button::text),
+            cursor_wrap(
+                app,
+                DrawerField::Close,
+                button(text("✕").size(size::BODY))
+                    .on_press(Message::CloseDrawer)
+                    .padding(Padding::from([space::S1, space::S2]))
+                    .style(iced::widget::button::text)
+                    .into(),
+            ),
         ]
         .align_y(Alignment::Center),
     )
@@ -92,6 +125,11 @@ fn validation_content(app: &App) -> Element<'_, Message> {
         .spacing(space::S2)
         .padding(Padding::from([space::S3, space::S4]));
 
+    // Task 033: `DrawerField::JumpToDiagnostic`'s own position is counted
+    // only over rows with `target.is_some()` — the identical scope
+    // `regions::drawer_jump_target_count` counts, so the two can never
+    // disagree about which row position N points to.
+    let mut jump_index = 0usize;
     for diagnostic in rows {
         let target = diagnostic.target;
         let severity_label = match diagnostic.severity {
@@ -122,12 +160,18 @@ fn validation_content(app: &App) -> Element<'_, Message> {
         .spacing(space::S2)
         .align_y(Alignment::Center);
         let heading: Element<'_, Message> = if let Some(target) = target {
-            button(heading)
-                .on_press(Message::JumpToDiagnostic(target))
-                .padding(0)
-                .style(iced::widget::button::text)
-                .width(Length::Fill)
-                .into()
+            let field = DrawerField::JumpToDiagnostic(jump_index);
+            jump_index += 1;
+            cursor_wrap(
+                app,
+                field,
+                button(heading)
+                    .on_press(Message::JumpToDiagnostic(target))
+                    .padding(0)
+                    .style(iced::widget::button::text)
+                    .width(Length::Fill)
+                    .into(),
+            )
         } else {
             heading.into()
         };
@@ -222,6 +266,24 @@ pub(crate) fn durable_diagnostic_rows(app: &App) -> Vec<DurableDiagnosticRow> {
 
 // ── Save-diff panel ───────────────────────────────────────────────────────────
 
+/// The count `save_diff_content`'s own "anything to show" branch reads,
+/// factored out so `regions::drawer_fields` (task 033) can read the
+/// identical number when deciding whether `Discard`/`SaveAll` are regions
+/// right now — the D-9 lesson, one source rather than a second count that
+/// could disagree with the view's own.
+pub(crate) fn save_diff_total(app: &App) -> usize {
+    let Some(snap) = &app.snapshot else {
+        return 0;
+    };
+    let dirty_rule_sets = snap.rule_sets.iter().filter(|rs| rs.file.dirty).count();
+    let dirty_fallback = app
+        .fallback_drafts
+        .keys()
+        .filter(|p| app.is_fallback_dirty(p))
+        .count();
+    dirty_rule_sets + dirty_fallback
+}
+
 fn save_diff_content(app: &App) -> Element<'_, Message> {
     let Some(snap) = &app.snapshot else {
         return widgets::empty_state(app.t(Key::EmptyNoWorkspaceOpen));
@@ -240,7 +302,7 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
         v
     };
 
-    let total = dirty_rule_sets.len() + dirty_fallback_paths.len();
+    let total = save_diff_total(app);
     if total == 0 && app.last_save_report.is_none() {
         return container(
             column![
@@ -394,9 +456,17 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
     col = col.push(Space::new().height(space::S2));
     col = col.push(
         row![
-            widgets::ghost_btn(app.t(Key::BtnDiscard), Message::DiscardChanges),
+            cursor_wrap(
+                app,
+                DrawerField::Discard,
+                widgets::ghost_btn(app.t(Key::BtnDiscard), Message::DiscardChanges),
+            ),
             Space::new().width(Length::Fill),
-            widgets::primary_btn(app.t(Key::BtnSaveAll), Message::SaveAll),
+            cursor_wrap(
+                app,
+                DrawerField::SaveAll,
+                widgets::primary_btn(app.t(Key::BtnSaveAll), Message::SaveAll),
+            ),
         ]
         .align_y(Alignment::Center),
     );

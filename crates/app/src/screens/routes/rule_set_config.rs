@@ -2,6 +2,7 @@
 
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Cursor, Region, RuleSetConfigField};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
@@ -9,6 +10,26 @@ use apimokka_model::settings::Strategy;
 use apimokka_model::snapshot::RuleSetView;
 use iced::widget::{Space, button, column, container, pick_list, row, scrollable, text};
 use iced::{Alignment, Element, Length, Padding};
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` — every field here is
+/// a one-item region (the strategy picker is a value cycler, D-19's own
+/// mechanism, not a multi-item group).
+fn cursor_wrap<'a>(
+    app: &App,
+    field: RuleSetConfigField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::RuleSetConfig(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
 
 pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<'a, Message> {
     let t = |k| app.t(k);
@@ -31,7 +52,11 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
             ]
             .spacing(space::S1)
             .width(Length::Fill),
-            widgets::danger_btn(t(Key::BtnDelete), Message::DeleteRuleSet(rs.id)),
+            cursor_wrap(
+                app,
+                RuleSetConfigField::Delete,
+                widgets::danger_btn(t(Key::BtnDelete), Message::DeleteRuleSet(rs.id)),
+            ),
         ]
         .spacing(space::S3)
         .align_y(Alignment::Start),
@@ -82,13 +107,19 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
         .unwrap_or(Strategy::FirstMatch);
 
     let strategy_section: Element<Message> = {
-        let dropdown = pick_list(
-            Strategy::all().to_vec(),
-            Some(active_strategy),
-            Message::RuleSetSetStrategy,
-        )
-        .text_size(size::BODY)
-        .padding(Padding::from([space::S2, space::S3]));
+        let dropdown: Element<Message> = cursor_wrap(
+            app,
+            RuleSetConfigField::Strategy,
+            pick_list(
+                Strategy::all().to_vec(),
+                Some(active_strategy),
+                Message::RuleSetSetStrategy,
+            )
+            .text_size(size::BODY)
+            .padding(Padding::from([space::S2, space::S3]))
+            .handle(theme::cycler_handle())
+            .into(),
+        );
 
         let help_text = text(active_strategy.help())
             .size(size::BODY_SMALL)
@@ -127,26 +158,31 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
             } else {
                 ("▸", t(Key::RuleSetConfigMoreOptions))
             };
-            let toggle = button(
-                row![
-                    text(chevron)
-                        .size(size::LABEL)
-                        .color(theme::muted(&app.theme())),
-                    text(label)
-                        .size(size::LABEL)
-                        .color(theme::muted(&app.theme())),
-                ]
-                .spacing(space::S2)
-                .align_y(Alignment::Center),
-            )
-            .on_press(Message::ToggleRuleSetConfigMore)
-            .padding(Padding::from([space::S2, space::S3]))
-            .style(iced::widget::button::text);
+            let toggle = cursor_wrap(
+                app,
+                RuleSetConfigField::MoreToggle,
+                button(
+                    row![
+                        text(chevron)
+                            .size(size::LABEL)
+                            .color(theme::muted(&app.theme())),
+                        text(label)
+                            .size(size::LABEL)
+                            .color(theme::muted(&app.theme())),
+                    ]
+                    .spacing(space::S2)
+                    .align_y(Alignment::Center),
+                )
+                .on_press(Message::ToggleRuleSetConfigMore)
+                .padding(Padding::from([space::S2, space::S3]))
+                .style(iced::widget::button::text)
+                .into(),
+            );
 
             if app.rule_set_config_more {
                 column![inner, toggle].spacing(space::S2).into()
             } else {
-                toggle.into()
+                toggle
             }
         } else {
             inner.into()
@@ -164,15 +200,17 @@ pub(super) fn rule_set_config<'a>(app: &'a App, rs: &'a RuleSetView) -> Element<
                     widgets::divider(),
                     strategy_section,
                     Space::new().height(space::S3),
-                    container(widgets::primary_btn(
-                        t(Key::BtnAddRule),
-                        Message::AddRule(rs.id)
+                    container(cursor_wrap(
+                        app,
+                        RuleSetConfigField::AddRule,
+                        widgets::primary_btn(t(Key::BtnAddRule), Message::AddRule(rs.id)),
                     ),)
                     .padding(Padding::from([0.0, space::S5])),
                 ]
                 .spacing(0)
                 .padding(Padding::from([space::S3, space::S5])),
             )
+            .id(super::RULE_SET_CONFIG_SCROLLABLE_ID)
             .height(Length::Fill),
         ]
         .spacing(0),

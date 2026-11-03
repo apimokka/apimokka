@@ -2,11 +2,43 @@
 
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Cursor, FallbackField, Region, fallback_field_id};
 use crate::theme::{self, pad, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use iced::widget::{Space, button, column, container, mouse_area, row, text, text_input};
 use iced::{Alignment, Color, Element, Length, Padding};
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` — for this editor's
+/// one-item button regions (`Format`/`Revert`/`Save`). `Content`/`Status`
+/// are text fields and use the native focus ring instead, same precedent.
+fn cursor_wrap<'a>(
+    app: &App,
+    field: FallbackField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::FallbackEditor(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// Same shape as `rule_editor.rs`'s own `click_focus` (D-18): a click on a
+/// text-field region's own widget enters that region, via `on_release`.
+fn click_focus<'a>(
+    field: FallbackField,
+    el: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    mouse_area(el)
+        .on_release(Message::RegionClicked(Region::FallbackEditor(field)))
+        .into()
+}
 
 pub(super) fn fallback_file_editor<'a>(
     app: &'a App,
@@ -61,12 +93,15 @@ pub(super) fn fallback_file_editor<'a>(
 
     // ── Content editor (multi-line, MK-038) ───────────────────────────────
     let editor: Element<Message> = if let Some(content) = app.fallback_drafts.get(&file.path) {
-        iced::widget::text_editor(content)
-            .on_action(Message::FallbackEditorAction)
-            .size(size::MONO)
-            .font(iced::Font::MONOSPACE)
-            .height(Length::Fill)
-            .into()
+        click_focus(
+            FallbackField::Content,
+            iced::widget::text_editor(content)
+                .id(fallback_field_id(FallbackField::Content).unwrap())
+                .on_action(Message::FallbackEditorAction)
+                .size(size::MONO)
+                .font(iced::Font::MONOSPACE)
+                .height(Length::Fill),
+        )
     } else {
         // Draft is created on selection; this branch is defensive only.
         widgets::empty_state(t(Key::FallbackEmptyHint))
@@ -149,20 +184,28 @@ pub(super) fn fallback_file_editor<'a>(
             Space::new().width(Length::Fill),
             widgets::field(
                 t(Key::FallbackStatusLabel),
-                text_input("200 OK", status)
-                    .on_input(Message::FallbackFileSetStatus)
-                    .style(theme::text_input_style)
-                    .size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fixed(110.0))
+                click_focus(
+                    FallbackField::Status,
+                    text_input("200 OK", status)
+                        .id(fallback_field_id(FallbackField::Status).unwrap())
+                        .on_input(Message::FallbackFileSetStatus)
+                        .style(theme::text_input_style)
+                        .size(size::CAPTION)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fixed(110.0)),
+                ),
+            ),
+            cursor_wrap(
+                app,
+                FallbackField::Format,
+                button(text(t(Key::FallbackFormatJson)).size(size::LABEL))
+                    .on_press(Message::FallbackFileFormat)
+                    .padding(Padding::from(pad::BUTTON))
+                    .style(iced::widget::button::text)
                     .into(),
             ),
-            button(text(t(Key::FallbackFormatJson)).size(size::LABEL))
-                .on_press(Message::FallbackFileFormat)
-                .padding(Padding::from(pad::BUTTON))
-                .style(iced::widget::button::text),
-            revert_btn,
-            save_btn,
+            cursor_wrap(app, FallbackField::Revert, revert_btn),
+            cursor_wrap(app, FallbackField::Save, save_btn),
         ]
         .spacing(space::S3)
         .align_y(Alignment::End),
