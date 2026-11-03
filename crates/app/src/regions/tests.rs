@@ -18,6 +18,17 @@ fn fresh() -> App {
     App::new().0
 }
 
+/// `order_for`'s own fixed prefix on every workspace tab (task 034): the
+/// top bar's three always-present fields — the mock workspace never has a
+/// reload/restart pending by default, so `ReloadOrRestart` is absent.
+/// Factored out since most of this file's `order_for` assertions need it
+/// prepended now.
+const TOP_BAR_PREFIX: [Region; 3] = [
+    Region::TopBar(TopBarField::Switcher),
+    Region::TopBar(TopBarField::SaveAll),
+    Region::TopBar(TopBarField::StartStop),
+];
+
 fn expert_in_workspace() -> App {
     let mut a = fresh();
     a.update(Message::ChooseAudienceMode(AudienceMode::Expert));
@@ -38,14 +49,18 @@ fn order_for_is_the_mode_picker_before_a_mode_is_chosen() {
 fn order_for_is_the_tab_bar_and_sidebar_on_the_routes_tab() {
     // Task 029: Routes is the tab OpenWorkspace lands on, and the sidebar
     // only renders there — mirrors `screens::routes::view` only being
-    // reached on that tab.
+    // reached on that tab. Task 034: a fresh workspace has no selection at
+    // all, so the centre panel's own empty-state call to action is a
+    // third region here too.
     let a = expert_in_workspace();
     assert_eq!(
         a.tab,
         crate::selection::WorkspaceTab::Routes,
         "test setup sanity"
     );
-    assert_eq!(Region::order_for(&a), &[Region::TabBar, Region::Sidebar]);
+    let mut expected = TOP_BAR_PREFIX.to_vec();
+    expected.extend([Region::TabBar, Region::Sidebar, Region::RoutesEmptyCta]);
+    assert_eq!(Region::order_for(&a), expected);
 }
 
 #[test]
@@ -56,16 +71,15 @@ fn order_for_is_the_tab_bar_and_trace_regions_on_trace_with_no_event_selected() 
     // selected (§4: "exist only when rendered").
     let mut a = expert_in_workspace();
     a.update(Message::SwitchTab(WorkspaceTab::Trace));
-    assert_eq!(
-        Region::order_for(&a),
-        &[
-            Region::TabBar,
-            Region::TraceFilter,
-            Region::TracePause,
-            Region::TraceClear,
-            Region::TraceEvents,
-        ]
-    );
+    let mut expected = TOP_BAR_PREFIX.to_vec();
+    expected.extend([
+        Region::TabBar,
+        Region::TraceFilter,
+        Region::TracePause,
+        Region::TraceClear,
+        Region::TraceEvents,
+    ]);
+    assert_eq!(Region::order_for(&a), expected);
 }
 
 #[test]
@@ -77,21 +91,20 @@ fn order_for_in_expert_mode_includes_settings_logs_and_trace_fields_directly() {
 
     let mut a = expert_in_workspace();
     a.update(Message::SwitchTab(WorkspaceTab::Settings));
-    assert_eq!(
-        Region::order_for(&a),
-        &[
-            Region::TabBar,
-            Region::Settings(SettingsField::Theme),
-            Region::Settings(SettingsField::AudienceMode),
-            Region::Settings(SettingsField::Locale),
-            Region::Settings(SettingsField::Host),
-            Region::Settings(SettingsField::Port),
-            Region::Settings(SettingsField::Tls),
-            Region::Settings(SettingsField::LogFile),
-            Region::Settings(SettingsField::TraceEnable),
-            Region::Settings(SettingsField::QueueSize),
-        ]
-    );
+    let mut expected = TOP_BAR_PREFIX.to_vec();
+    expected.extend([
+        Region::TabBar,
+        Region::Settings(SettingsField::Theme),
+        Region::Settings(SettingsField::AudienceMode),
+        Region::Settings(SettingsField::Locale),
+        Region::Settings(SettingsField::Host),
+        Region::Settings(SettingsField::Port),
+        Region::Settings(SettingsField::Tls),
+        Region::Settings(SettingsField::LogFile),
+        Region::Settings(SettingsField::TraceEnable),
+        Region::Settings(SettingsField::QueueSize),
+    ]);
+    assert_eq!(Region::order_for(&a), expected);
 }
 
 #[test]
@@ -469,18 +482,17 @@ fn fallback_format_is_always_available_but_revert_and_save_gate_on_dirty() {
 fn order_for_includes_the_fallback_editor_fields_when_a_file_is_selected() {
     let mut a = expert_in_workspace();
     select_first_fallback_file(&mut a);
-    assert_eq!(
-        Region::order_for(&a),
-        &[
-            Region::TabBar,
-            Region::Sidebar,
-            Region::FallbackEditor(FallbackField::Content),
-            Region::FallbackEditor(FallbackField::Status),
-            Region::FallbackEditor(FallbackField::Format),
-            Region::FallbackEditor(FallbackField::Revert),
-            Region::FallbackEditor(FallbackField::Save),
-        ]
-    );
+    let mut expected = TOP_BAR_PREFIX.to_vec();
+    expected.extend([
+        Region::TabBar,
+        Region::Sidebar,
+        Region::FallbackEditor(FallbackField::Content),
+        Region::FallbackEditor(FallbackField::Status),
+        Region::FallbackEditor(FallbackField::Format),
+        Region::FallbackEditor(FallbackField::Revert),
+        Region::FallbackEditor(FallbackField::Save),
+    ]);
+    assert_eq!(Region::order_for(&a), expected);
 }
 
 // ── Task 033: the rule-set configuration pane ─────────────────────────────
@@ -617,16 +629,15 @@ fn delete_add_rule_and_more_toggle_activation_messages() {
 fn order_for_includes_the_rule_set_config_fields_when_a_rule_set_is_selected() {
     let mut a = expert_in_workspace();
     select_first_rule_set(&mut a);
-    assert_eq!(
-        Region::order_for(&a),
-        &[
-            Region::TabBar,
-            Region::Sidebar,
-            Region::RuleSetConfig(RuleSetConfigField::Delete),
-            Region::RuleSetConfig(RuleSetConfigField::Strategy),
-            Region::RuleSetConfig(RuleSetConfigField::AddRule),
-        ]
-    );
+    let mut expected = TOP_BAR_PREFIX.to_vec();
+    expected.extend([
+        Region::TabBar,
+        Region::Sidebar,
+        Region::RuleSetConfig(RuleSetConfigField::Delete),
+        Region::RuleSetConfig(RuleSetConfigField::Strategy),
+        Region::RuleSetConfig(RuleSetConfigField::AddRule),
+    ]);
+    assert_eq!(Region::order_for(&a), expected);
 }
 
 // ── Task 033: the bottom drawer ───────────────────────────────────────────
@@ -800,9 +811,13 @@ fn drawer_close_discard_save_all_activation_messages() {
         Region::Drawer(DrawerField::Close).activation_message(&a, &Cursor::Index(0)),
         Some(Message::CloseDrawer)
     ));
+    // Task 034 (D-24's confirmation half): routed through the confirm
+    // dialog rather than discarding directly.
     assert!(matches!(
         Region::Drawer(DrawerField::Discard).activation_message(&a, &Cursor::Index(0)),
-        Some(Message::DiscardChanges)
+        Some(Message::ConfirmRequest(
+            crate::message::ConfirmAction::DiscardChanges
+        ))
     ));
     assert!(matches!(
         Region::Drawer(DrawerField::SaveAll).activation_message(&a, &Cursor::Index(0)),
@@ -863,13 +878,482 @@ fn order_for_is_only_the_confirm_dialog_while_it_is_open() {
 // ── Task 033: the census's one-line fix for the path assistant's leak ─────
 
 #[test]
-fn order_for_is_empty_while_the_path_assistant_is_open() {
-    // The path assistant paints over the screen behind it (`shell::view`'s
-    // own `Dialog` compositing) but has no `Region` of its own and was
-    // never in `App::blocks_region_navigation` — without this, `Tab`/
-    // arrow/`Enter` would silently act on the hidden background screen's
-    // own regions instead.
+fn order_for_is_the_path_assistant_fields_while_it_is_open() {
+    // Task 034: the path assistant is now a real region (named in MK-023's
+    // own acceptance-clause inventory), overriding every region behind it
+    // the same shape every other dialog-shaped overlay already uses —
+    // superseding task 033's own leak-prevention-only `vec![]` fix.
     let mut a = expert_in_workspace();
     a.path_assistant.open = true;
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::PathAssistant(PathAssistantField::Close),
+            Region::PathAssistant(PathAssistantField::Json),
+            Region::PathAssistant(PathAssistantField::Cancel),
+            Region::PathAssistant(PathAssistantField::Insert),
+        ],
+        "no leaves are parsed from an empty JSON input"
+    );
+}
+
+#[test]
+fn path_assistant_fields_add_one_use_leaf_per_parsed_leaf() {
+    let mut a = expert_in_workspace();
+    a.path_assistant.open = true;
+    a.path_assistant.json_input = r#"{"id":123,"name":"x"}"#.into();
+    assert_eq!(
+        path_assistant_fields(&a),
+        vec![
+            PathAssistantField::Close,
+            PathAssistantField::Json,
+            PathAssistantField::UseLeaf(0),
+            PathAssistantField::UseLeaf(1),
+            PathAssistantField::Cancel,
+            PathAssistantField::Insert,
+        ]
+    );
+}
+
+#[test]
+fn path_assistant_use_leaf_activation_re_derives_the_live_leaf_list() {
+    let mut a = expert_in_workspace();
+    a.path_assistant.open = true;
+    a.path_assistant.json_input = r#"{"id":123,"name":"x"}"#.into();
+    assert!(matches!(
+        Region::PathAssistant(PathAssistantField::UseLeaf(0))
+            .activation_message(&a, &Cursor::Index(0)),
+        Some(Message::PathAssistantSelectPath(p)) if p == "id"
+    ));
+    assert!(
+        Region::PathAssistant(PathAssistantField::UseLeaf(2))
+            .activation_message(&a, &Cursor::Index(0))
+            .is_none(),
+        "only two leaves exist"
+    );
+}
+
+#[test]
+fn path_assistant_close_json_cancel_insert_activation_messages() {
+    let a = fresh();
+    assert!(matches!(
+        Region::PathAssistant(PathAssistantField::Close).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::PathAssistantClose)
+    ));
+    assert!(
+        Region::PathAssistant(PathAssistantField::Json)
+            .activation_message(&a, &Cursor::Index(0))
+            .is_none(),
+        "typing is the interaction"
+    );
+    assert!(matches!(
+        Region::PathAssistant(PathAssistantField::Cancel).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::PathAssistantClose)
+    ));
+    assert!(matches!(
+        Region::PathAssistant(PathAssistantField::Insert).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::PathAssistantInsert)
+    ));
+}
+
+// ── Task 034: the Test Rule dialog ────────────────────────────────────────
+
+#[test]
+fn test_rule_fields_are_empty_until_it_is_open() {
+    let a = expert_in_workspace();
+    assert_eq!(test_rule_fields(&a), Vec::new());
+}
+
+#[test]
+fn test_rule_fields_are_in_reading_order_when_open() {
+    let mut a = expert_in_workspace();
+    a.update(Message::TestRuleOpen);
+    assert_eq!(
+        test_rule_fields(&a),
+        vec![
+            TestRuleField::Dismiss,
+            TestRuleField::Method,
+            TestRuleField::Path,
+            TestRuleField::Headers,
+            TestRuleField::Body,
+            TestRuleField::Close,
+            TestRuleField::Run,
+        ]
+    );
+}
+
+#[test]
+fn test_rule_method_active_index_resumes_the_current_method() {
+    let mut a = expert_in_workspace();
+    a.update(Message::TestRuleOpen);
+    a.test_rule.method = "PUT".into();
+    assert_eq!(
+        Region::TestRule(TestRuleField::Method).active_index(&a),
+        Some(2)
+    );
+}
+
+#[test]
+fn test_rule_text_fields_dispatch_run_instead_of_none() {
+    // The one deliberate exception to "a text-field region has no
+    // activation" (task 034 §3) — `Enter` must still run the dry run from
+    // these three fields, task 026's own oldest behaviour in this cycle.
+    let a = fresh();
+    for field in [
+        TestRuleField::Path,
+        TestRuleField::Headers,
+        TestRuleField::Body,
+    ] {
+        assert!(matches!(
+            Region::TestRule(field).activation_message(&a, &Cursor::Index(0)),
+            Some(Message::TestRuleRun)
+        ));
+    }
+}
+
+#[test]
+fn test_rule_dismiss_close_run_and_method_activation_messages() {
+    let a = fresh();
+    assert!(matches!(
+        Region::TestRule(TestRuleField::Dismiss).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::TestRuleClose)
+    ));
+    assert!(matches!(
+        Region::TestRule(TestRuleField::Close).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::TestRuleClose)
+    ));
+    assert!(matches!(
+        Region::TestRule(TestRuleField::Run).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::TestRuleRun)
+    ));
+    assert!(matches!(
+        Region::TestRule(TestRuleField::Method).activation_message(&a, &Cursor::Index(1)),
+        Some(Message::TestRuleSetMethod(m)) if m == "POST"
+    ));
+}
+
+#[test]
+fn order_for_is_the_test_rule_fields_while_it_is_open() {
+    let mut a = expert_in_workspace();
+    a.update(Message::TestRuleOpen);
+    assert_eq!(
+        Region::order_for(&a),
+        test_rule_fields(&a)
+            .into_iter()
+            .map(Region::TestRule)
+            .collect::<Vec<_>>()
+    );
+}
+
+// ── Task 034: the workspace menu ──────────────────────────────────────────
+
+#[test]
+fn workspace_menu_fields_are_empty_until_it_is_open() {
+    let a = expert_in_workspace();
+    assert_eq!(workspace_menu_fields(&a), Vec::new());
+}
+
+#[test]
+fn workspace_menu_fields_are_recent_open_create_when_open() {
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    assert!(
+        !apimokka_model::mock::recent_workspaces().is_empty(),
+        "test setup sanity: the mock recent-workspace list is non-empty"
+    );
+    assert_eq!(
+        workspace_menu_fields(&a),
+        vec![
+            WorkspaceMenuField::Recent,
+            WorkspaceMenuField::Open,
+            WorkspaceMenuField::Create,
+        ]
+    );
+}
+
+#[test]
+fn workspace_menu_recent_activation_message_opens_the_named_workspace() {
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    let name = apimokka_model::mock::recent_workspaces()[0].name.clone();
+    assert!(matches!(
+        Region::WorkspaceMenu(WorkspaceMenuField::Recent)
+            .activation_message(&a, &Cursor::Index(0)),
+        Some(Message::OpenWorkspace(n)) if n == name
+    ));
+}
+
+#[test]
+fn workspace_menu_open_and_create_activation_messages() {
+    let a = fresh();
+    assert!(matches!(
+        Region::WorkspaceMenu(WorkspaceMenuField::Open).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::GoDashboard)
+    ));
+    assert!(matches!(
+        Region::WorkspaceMenu(WorkspaceMenuField::Create).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::GoWizard)
+    ));
+}
+
+#[test]
+fn order_for_is_the_workspace_menu_fields_while_it_is_open() {
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::WorkspaceMenu(WorkspaceMenuField::Recent),
+            Region::WorkspaceMenu(WorkspaceMenuField::Open),
+            Region::WorkspaceMenu(WorkspaceMenuField::Create),
+        ]
+    );
+}
+
+// ── Task 034: the rule editor's "recent trace activity" footer ───────────
+
+#[test]
+fn trace_activity_fields_are_empty_until_a_rule_is_selected() {
+    let a = expert_in_workspace();
+    assert_eq!(trace_activity_fields(&a), Vec::new());
+}
+
+#[test]
+fn trace_activity_fields_are_view_all_only_with_no_matching_events() {
+    let mut a = expert_in_workspace();
+    let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(rule_id));
+    a.trace.clear();
+    assert_eq!(trace_activity_fields(&a), vec![TraceActivityField::ViewAll]);
+}
+
+#[test]
+fn trace_activity_view_all_activation_message() {
+    let a = fresh();
+    assert!(matches!(
+        Region::TraceActivity(TraceActivityField::ViewAll)
+            .activation_message(&a, &Cursor::Index(0)),
+        Some(Message::ViewAllInTrace)
+    ));
+}
+
+// ── Task 034: the feedback banner ─────────────────────────────────────────
+
+#[test]
+fn feedback_banner_fields_are_empty_with_nothing_to_show() {
+    let a = fresh();
+    assert_eq!(feedback_banner_fields(&a), Vec::new());
+}
+
+#[test]
+fn feedback_banner_error_fields_depend_on_detail_and_action_presence() {
+    let mut a = fresh();
+    a.last_problem = Some(apimokka_model::FriendlyProblem::new("t", "d", None));
+    assert_eq!(
+        feedback_banner_fields(&a),
+        vec![FeedbackBannerField::Dismiss],
+        "no technical detail, no action label — only Dismiss"
+    );
+
+    a.last_problem = Some(apimokka_model::FriendlyProblem::new(
+        "t",
+        "d",
+        Some("Fix it"),
+    ));
+    assert_eq!(
+        feedback_banner_fields(&a),
+        vec![FeedbackBannerField::Action, FeedbackBannerField::Dismiss]
+    );
+
+    let mut p = apimokka_model::FriendlyProblem::new("t", "d", Some("Fix it"));
+    p.technical_detail = Some("errno 13".into());
+    a.last_problem = Some(p);
+    assert_eq!(
+        feedback_banner_fields(&a),
+        vec![
+            FeedbackBannerField::DetailsToggle,
+            FeedbackBannerField::Action,
+            FeedbackBannerField::Dismiss,
+        ]
+    );
+}
+
+#[test]
+fn feedback_banner_dismiss_re_derives_the_message_from_the_active_banner() {
+    let mut a = fresh();
+    a.last_problem = Some(apimokka_model::FriendlyProblem::new("t", "d", None));
+    assert!(matches!(
+        Region::FeedbackBanner(FeedbackBannerField::Dismiss)
+            .activation_message(&a, &Cursor::Index(0)),
+        Some(Message::DismissProblem)
+    ));
+
+    a.last_problem = None;
+    a.notice = Some("saved".into());
+    assert!(matches!(
+        Region::FeedbackBanner(FeedbackBannerField::Dismiss)
+            .activation_message(&a, &Cursor::Index(0)),
+        Some(Message::DismissNotice)
+    ));
+}
+
+// ── Task 034: the top bar ─────────────────────────────────────────────────
+
+#[test]
+fn top_bar_fields_are_empty_without_an_open_workspace() {
+    let a = fresh();
+    assert_eq!(top_bar_fields(&a), Vec::new());
+}
+
+#[test]
+fn top_bar_fields_omit_reload_or_restart_when_neither_is_available() {
+    let a = expert_in_workspace();
+    assert!(
+        crate::shell::top_bar::reload_or_restart(&a).is_none(),
+        "test setup sanity"
+    );
+    assert_eq!(
+        top_bar_fields(&a),
+        vec![
+            TopBarField::Switcher,
+            TopBarField::SaveAll,
+            TopBarField::StartStop
+        ]
+    );
+}
+
+#[test]
+fn top_bar_save_all_gates_on_dirty_count_the_same_as_the_button() {
+    let mut a = expert_in_workspace();
+    let has_cursor = Region::TopBar(TopBarField::SaveAll);
+    if a.dirty_count == 0 {
+        assert!(
+            has_cursor
+                .activation_message(&a, &Cursor::Index(0))
+                .is_none()
+        );
+        a.dirty_count = 1;
+    }
+    assert!(matches!(
+        has_cursor.activation_message(&a, &Cursor::Index(0)),
+        Some(Message::Save)
+    ));
+}
+
+#[test]
+fn top_bar_switcher_activation_message() {
+    let a = fresh();
+    assert!(matches!(
+        Region::TopBar(TopBarField::Switcher).activation_message(&a, &Cursor::Index(0)),
+        Some(Message::ToggleWorkspaceMenu)
+    ));
+}
+
+// ── Task 034 (D-22): one source for overlay precedence ───────────────────
+
+#[test]
+fn topmost_overlay_ranks_mode_picker_above_everything_even_a_stray_confirm_dialog() {
+    // Direct state construction, not a reachable sequence: confirm_dialog
+    // cannot normally be `Some` before an audience mode is chosen, but the
+    // ranking itself must hold unconditionally, not merely "whenever the
+    // app happens to reach this combination".
+    let mut a = fresh();
+    a.confirm_dialog = Some(crate::app::ConfirmDialogState {
+        action: crate::message::ConfirmAction::LeaveWorkspace,
+        title: apimokka_i18n::Key::ConfirmSwitchWorkspace,
+        body: apimokka_i18n::Key::ConfirmSwitchWorkspaceBody,
+        restore_region: None,
+        restore_cursor: None,
+    });
+    assert_eq!(a.audience_mode, None, "test setup sanity");
+    assert_eq!(Region::order_for(&a), &[Region::ModePicker]);
+}
+
+#[test]
+fn topmost_overlay_ranks_confirm_dialog_above_the_palette() {
+    // A real, reachable pair: `ConfirmRequest` can fire while the palette
+    // is open (D-7's own closing logic is for other dialogs, not this
+    // one).
+    let mut a = expert_in_workspace();
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
+    a.update(Message::ConfirmRequest(
+        crate::message::ConfirmAction::LeaveWorkspace,
+    ));
+    assert_eq!(Region::order_for(&a), &[Region::ConfirmDialog]);
+}
+
+#[test]
+fn topmost_overlay_ranks_the_palette_above_test_rule() {
+    // A real, reachable pair: `Ctrl+K` is a global accelerator gated on
+    // nothing to do with Test Rule.
+    let mut a = expert_in_workspace();
+    a.update(Message::TestRuleOpen);
+    assert!(a.test_rule.open, "test setup sanity");
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
     assert_eq!(Region::order_for(&a), Vec::<Region>::new());
 }
+
+#[test]
+fn topmost_overlay_ranks_the_palette_above_the_path_assistant() {
+    // Same reasoning as the Test Rule pair above — the exact repro the
+    // review used for D-22's own drawer/path-assistant finding starts this
+    // way.
+    let mut a = expert_in_workspace();
+    a.path_assistant.open = true;
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
+    assert_eq!(Region::order_for(&a), Vec::<Region>::new());
+}
+
+#[test]
+fn topmost_overlay_ranks_the_path_assistant_above_the_drawer() {
+    // The exact pair D-22 was filed for: both open at once, keyboard must
+    // drive the one actually on top.
+    let mut a = expert_in_workspace();
+    a.path_assistant.open = true;
+    a.update(Message::OpenValidationDrawer);
+    assert!(a.drawer.is_some(), "test setup sanity: still open");
+    assert_eq!(
+        Region::order_for(&a),
+        path_assistant_fields(&a)
+            .into_iter()
+            .map(Region::PathAssistant)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn topmost_overlay_ranks_the_workspace_menu_above_the_drawer() {
+    // A real, reachable pair: opening the drawer from the palette closes
+    // the palette but touches nothing else, so a workspace menu left open
+    // underneath survives it.
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    a.update(Message::OpenValidationDrawer);
+    assert!(a.drawer.is_some(), "test setup sanity: still open");
+    assert_eq!(
+        Region::order_for(&a),
+        &[
+            Region::WorkspaceMenu(WorkspaceMenuField::Recent),
+            Region::WorkspaceMenu(WorkspaceMenuField::Open),
+            Region::WorkspaceMenu(WorkspaceMenuField::Create),
+        ]
+    );
+}
+
+// Pairs ruled out rather than built, per task 034 §2's own "no need to
+// manufacture combinations the application cannot reach" allowance:
+//
+// - **Test Rule vs the path assistant.** Each one's own region override
+//   makes `order_for` return only its own fields while it is open, so
+//   neither's own trigger (`EditorField::TestRule`/`BodyPathAssistant`) is
+//   `Tab`-reachable while the other is open; both live behind the
+//   rule-editor region, which neither overlay leaves reachable. No
+//   keyboard path reaches this combination.
+// - **Test Rule vs the workspace menu**, and **the path assistant vs the
+//   workspace menu.** Same shape: `shell/view.rs`'s menu backdrop
+//   (`on_close_menus`) catches any click outside the menu, and the menu's
+//   own region override blocks `Tab` from reaching anything else while it
+//   is open — structurally, not just "untested".

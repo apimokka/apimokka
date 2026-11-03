@@ -34,8 +34,8 @@
 //! that is no longer in it, the same "derive, don't duplicate" reasoning
 //! the design applies to cursor identity, applied one level up.
 
-use crate::app::{App, AppView};
-use crate::message::Message;
+use crate::app::{App, AppView, Overlay};
+use crate::message::{ConfirmAction, Message};
 use crate::selection::WorkspaceTab;
 use apimokka_i18n::Key;
 use apimokka_model::mock::RecentWorkspace;
@@ -136,6 +136,59 @@ pub enum Region {
     /// other region while the dialog is open, same precedence
     /// `EnterPressed`'s own dialog-priority chain already gives it.
     ConfirmDialog,
+    /// One Test Rule control (task 034, MK-023 slice 9) — named in MK-023's
+    /// own acceptance-clause inventory (scenario 3's "5 method buttons, Run
+    /// and Close"). `test_rule.open` is now an overlay like `ConfirmDialog`
+    /// (`App::topmost_overlay`'s own list), not a `blocks_region_navigation`
+    /// special case. Task 026 §4.2's safe default survives: `Run` is the
+    /// forced entry position (`Message::TestRuleOpen`/`ReplayAsTestInput`
+    /// set it explicitly, the same mechanism `ConfirmRequest` uses), and
+    /// the three text fields dispatch `TestRuleRun` instead of the usual
+    /// `None` — the one deliberate exception to "a text-field region has no
+    /// activation" (see `test_rule_fields`' own doc comment).
+    TestRule(TestRuleField),
+    /// One workspace-menu control (task 034) — the menu had no region at
+    /// all before this slice (D-22 finding #2): while open, the keyboard
+    /// acted on the screen behind it. Overrides every region below it in
+    /// `App::topmost_overlay`'s order.
+    WorkspaceMenu(WorkspaceMenuField),
+    /// One dotted-path-assistant control (task 034) — named in the
+    /// acceptance-clause inventory. Reachable today from
+    /// `EditorField::BodyPathAssistant`'s own `Enter`; before this slice a
+    /// keyboard user could open it and only `Escape` back out (task 033's
+    /// fix was a leak-prevention gate only, not coverage). Overrides every
+    /// region below it.
+    PathAssistant(PathAssistantField),
+    /// One control in the rule editor's "recent trace activity" footer
+    /// (task 034) — the Routes focus order's own last-named entry. Lives
+    /// below `Region::Editor`'s own WHEN/RESPOND columns in reading order
+    /// (`trace_activity_section` renders below both in
+    /// `screens::routes::rule_editor`), not inside either of them — same
+    /// reason Wizard's `Cancel`/`Create` sit outside its own scrollable.
+    TraceActivity(TraceActivityField),
+    /// One feedback-banner control (task 034) — the banner (error / undo /
+    /// notice, mutually exclusive) renders between the tab bar and the
+    /// screen on every workspace tab, so its fields sit in `order_for`
+    /// right after `TabBar`, before whichever tab's own regions follow.
+    /// `Ctrl+Z` already reaches `Undo`; the rest had no route. Field list
+    /// derived from `shell::view::active_banner`, the one function the view
+    /// itself branches on — not a second reading of the same three `if`s.
+    FeedbackBanner(FeedbackBannerField),
+    /// The Routes centre panel's own empty-state call to action — "Add a
+    /// rule" or "Add rule set", depending on whether the workspace has any
+    /// rule sets yet. The census missed it in task 033 (it is the state the
+    /// Routes tab opens in); mitigated already (the sidebar's own covered
+    /// "+" rows dispatch the same messages) but still a real gap on its own
+    /// terms. A bare one-item region: the message it dispatches is live
+    /// state, not a fixed table, so there is no field enum to carry.
+    RoutesEmptyCta,
+    /// One top-bar control (task 034) — the workspace switcher and the
+    /// global action buttons, the RFC's own Routes focus order's first two
+    /// named entries ("Top bar identity" and "Server status / global
+    /// actions"). Always visible across every workspace tab (`shell::view
+    /// ::view`'s own `.header(top_bar::view(app))`), so these sit first in
+    /// `order_for`'s `AppView::Workspace` arm, before `TabBar`.
+    TopBar(TopBarField),
 }
 
 /// One field or group in the rule editor's reading order (task 030 §2).
@@ -354,6 +407,133 @@ pub enum DrawerField {
     Discard,
     /// Same presence condition as `Discard`.
     SaveAll,
+}
+
+/// One control in the Test Rule dialog's reading order (task 034 §3) —
+/// `screens::test_rule::view`'s own top-to-bottom, left-to-right layout:
+/// the header's `✕`, the method group, the three request fields, then the
+/// footer's `Close`/`Run`. Two distinct controls dispatch
+/// `Message::TestRuleClose` (the header `✕` and the footer's ghost
+/// button) — both real, independently focusable widgets, named for their
+/// position rather than merged into one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestRuleField {
+    /// The header's `✕`.
+    Dismiss,
+    /// The 5 method buttons — a multi-item group, no "Any" option (unlike
+    /// the rule editor's own `EditorField::Method`): a test request always
+    /// has one concrete method.
+    Method,
+    /// Dispatches `Message::TestRuleRun` on activation, not `None` — see
+    /// this enum's own top-level doc comment for why these three text
+    /// fields are the deliberate exception.
+    Path,
+    /// Same exception as `Path`.
+    Headers,
+    /// Same exception as `Path`.
+    Body,
+    /// The footer's ghost `Close` button.
+    Close,
+    /// The forced entry position (`Message::TestRuleOpen`/
+    /// `ReplayAsTestInput` set `focused_region`/`region_cursor` to this the
+    /// moment the dialog opens, the same mechanism `ConfirmRequest` uses
+    /// for `ConfirmDialog`'s own `Cancel`) — task 026 §4.2's oldest
+    /// behaviour in this cycle, preserved: a bare `Enter` with no prior Tab
+    /// still runs the dry run.
+    Run,
+}
+
+/// One control in the workspace menu's reading order (task 034 §3) — the
+/// menu had no region at all before this slice (D-22 finding #2).
+/// `mock::recent_workspaces()` is a fixed list for the lifetime of one
+/// open menu (nothing filters or searches it, unlike Dashboard's own
+/// workspace list), so a plain index-cursored group is enough — no
+/// identity cursor needed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceMenuField {
+    /// The recent-workspace rows — a multi-item group, present only when
+    /// the list is non-empty.
+    Recent,
+    Open,
+    Create,
+}
+
+/// One control in the dotted-path assistant's reading order (task 034 §3)
+/// — named in MK-023's own acceptance-clause inventory. Mirrors
+/// `screens::dotted_path::view`'s own layout: the header's `✕`, the JSON
+/// paste field, each parsed leaf's `Use` row, then the footer's
+/// `Cancel`/`Insert path`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathAssistantField {
+    Close,
+    /// The JSON paste field — typing is the interaction, same as every
+    /// other text-field region; no activation message.
+    Json,
+    /// Scoped by position in `dotted_path::parse_leaves`'s own output,
+    /// re-derived fresh at activation time rather than captured once — the
+    /// same "activation re-reads the live list" shape `DrawerField::
+    /// JumpToDiagnostic` already uses.
+    UseLeaf(usize),
+    Cancel,
+    Insert,
+}
+
+/// One control in the rule editor's "recent trace activity" footer (task
+/// 034 §3) — the Routes focus order's own last-named entry. Mirrors
+/// `screens::routes::trace_activity::trace_activity_section`'s own layout:
+/// the header's "View all in Trace", then up to 3 "Jump to trace event"
+/// rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TraceActivityField {
+    ViewAll,
+    /// Scoped by position among `recent_matching_events`'s own output
+    /// (at most 3), re-derived fresh at activation time — the events
+    /// themselves carry a stable `event_id`, but the *position* in this
+    /// short, capped list is what Tab order and the cursor both track, the
+    /// same shape `DrawerField::JumpToDiagnostic` already uses for a
+    /// capped, re-derived list.
+    JumpToEvent(usize),
+}
+
+/// One control in the feedback banner's reading order (task 034 §3) — the
+/// banner is mutually exclusive by construction (error > undo > notice),
+/// so this enum's own fields span all three rather than one each; which
+/// ones actually exist right now comes from `feedback_banner_fields`,
+/// derived from `shell::view::active_banner` — the same function the view
+/// itself branches on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeedbackBannerField {
+    /// The error banner's Show/Hide technical detail toggle — present only
+    /// when the problem carries a `technical_detail`.
+    DetailsToggle,
+    /// The error banner's own action button — present only when the
+    /// problem carries an `action_label`.
+    Action,
+    /// Dismisses whichever banner is showing — `Message::DismissProblem`
+    /// for the error banner, `Message::DismissNotice` for the other two.
+    /// Re-derives which from `shell::view::active_banner` at activation
+    /// time rather than fixing it to the enum variant, since the same
+    /// field name covers three different banners.
+    Dismiss,
+    /// The undo banner's own `Undo` button — `Ctrl+Z` already reaches this
+    /// message; this is the `Tab`-reachable route task 034 §7 also
+    /// requires evidence for.
+    Undo,
+}
+
+/// One control in the top bar's reading order (task 034 §3) — named in the
+/// RFC's own Routes focus order (its first two entries). `ReloadOrRestart`
+/// is absent entirely, not merely inert, when neither action is available
+/// right now — mirrors `shell::top_bar::view`'s own `config_btn` exactly
+/// (a plain `Space`, not a disabled button, in that case). The other three
+/// are present always, inert when not actionable, the same shape
+/// `FallbackField::Revert`/`Save` already established.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TopBarField {
+    Switcher,
+    SaveAll,
+    ReloadOrRestart,
+    StartStop,
 }
 
 /// One row of the sidebar's flattened visible sequence (task 029 §3). Rows
@@ -758,6 +938,177 @@ pub fn drawer_fields(app: &App) -> Vec<DrawerField> {
     fields
 }
 
+/// The Test Rule dialog's fields, in reading order — empty whenever the
+/// dialog is closed. `Run` is forced to be the entry position by
+/// `Message::TestRuleOpen`/`ReplayAsTestInput` directly, not by this
+/// list's own ordering — see `TestRuleField::Run`'s own doc comment.
+pub fn test_rule_fields(app: &App) -> Vec<TestRuleField> {
+    if !app.test_rule.open {
+        return Vec::new();
+    }
+    vec![
+        TestRuleField::Dismiss,
+        TestRuleField::Method,
+        TestRuleField::Path,
+        TestRuleField::Headers,
+        TestRuleField::Body,
+        TestRuleField::Close,
+        TestRuleField::Run,
+    ]
+}
+
+/// The `Id` string `fallback_field_id`'s own pattern generalises to Test
+/// Rule's three text fields.
+pub fn test_rule_field_id(field: TestRuleField) -> Option<String> {
+    match field {
+        TestRuleField::Path => Some("mk023-test-rule-path".into()),
+        TestRuleField::Headers => Some("mk023-test-rule-headers".into()),
+        TestRuleField::Body => Some("mk023-test-rule-body".into()),
+        _ => None,
+    }
+}
+
+/// The workspace menu's fields, in reading order — empty whenever the menu
+/// is closed. `Recent` is omitted entirely when the list is empty, the
+/// same "absent rather than an empty group" shape `RuleSetConfigField`'s
+/// own absent `Strategy` (Guided, collapsed) already establishes.
+pub fn workspace_menu_fields(app: &App) -> Vec<WorkspaceMenuField> {
+    if !app.workspace_menu_open {
+        return Vec::new();
+    }
+    let mut fields = Vec::new();
+    if !apimokka_model::mock::recent_workspaces().is_empty() {
+        fields.push(WorkspaceMenuField::Recent);
+    }
+    fields.push(WorkspaceMenuField::Open);
+    fields.push(WorkspaceMenuField::Create);
+    fields
+}
+
+/// The dotted-path assistant's fields, in reading order — empty whenever
+/// the assistant is closed.
+pub fn path_assistant_fields(app: &App) -> Vec<PathAssistantField> {
+    if !app.path_assistant.open {
+        return Vec::new();
+    }
+    let mut fields = vec![PathAssistantField::Close, PathAssistantField::Json];
+    let leaf_count =
+        crate::screens::dotted_path::parse_leaves(&app.path_assistant.json_input).len();
+    fields.extend((0..leaf_count).map(PathAssistantField::UseLeaf));
+    fields.push(PathAssistantField::Cancel);
+    fields.push(PathAssistantField::Insert);
+    fields
+}
+
+/// The `Id` string `fallback_field_id`'s own pattern generalises to the
+/// assistant's one text field.
+pub fn path_assistant_field_id(field: PathAssistantField) -> Option<String> {
+    match field {
+        PathAssistantField::Json => Some("mk023-path-assistant-json".into()),
+        _ => None,
+    }
+}
+
+/// The rule the rule editor's "recent trace activity" footer is actually
+/// showing, if any — the identical lookup `centre_panel`'s own priority 1
+/// performs, repeated here (rather than reusing `editor_context`, which
+/// returns the draft *payload*, not the `RuleView` `recent_matching_events`
+/// needs) so the region model and the view can never disagree.
+fn trace_activity_context(app: &App) -> Option<&apimokka_model::snapshot::RuleView> {
+    let rule_id = app.selection.rule?;
+    let snap = app.snapshot.as_ref()?;
+    snap.find_rule(rule_id).map(|(_, rule)| rule)
+}
+
+/// The rule editor's "recent trace activity" footer's fields, in reading
+/// order — empty whenever no rule is selected. `JumpToEvent` is scoped by
+/// position in `recent_matching_events`'s own output (at most 3), the one
+/// source both this and `screens::routes::trace_activity` read, so the two
+/// can never disagree about which event position N points to.
+pub fn trace_activity_fields(app: &App) -> Vec<TraceActivityField> {
+    let Some(rule) = trace_activity_context(app) else {
+        return Vec::new();
+    };
+    let count = crate::screens::routes::trace_activity::recent_matching_events(app, rule).len();
+    let mut fields = vec![TraceActivityField::ViewAll];
+    fields.extend((0..count).map(TraceActivityField::JumpToEvent));
+    fields
+}
+
+/// The feedback banner's fields, in reading order — empty whenever no
+/// banner is showing. Derived from `shell::view::active_banner`, the one
+/// function `shell::view::feedback_banner` itself branches on (task 034's
+/// own named risk: "derive its field list from the same function
+/// `feedback_banner` branches on, not from a second reading of the same
+/// conditions").
+pub fn feedback_banner_fields(app: &App) -> Vec<FeedbackBannerField> {
+    match crate::shell::view::active_banner(app) {
+        Some(crate::shell::view::ActiveBanner::Error(p)) => {
+            let mut fields = Vec::new();
+            if p.technical_detail.is_some() {
+                fields.push(FeedbackBannerField::DetailsToggle);
+            }
+            if p.action_label.is_some() {
+                fields.push(FeedbackBannerField::Action);
+            }
+            fields.push(FeedbackBannerField::Dismiss);
+            fields
+        }
+        Some(crate::shell::view::ActiveBanner::Undo) => {
+            vec![FeedbackBannerField::Undo, FeedbackBannerField::Dismiss]
+        }
+        Some(crate::shell::view::ActiveBanner::Notice) => vec![FeedbackBannerField::Dismiss],
+        None => Vec::new(),
+    }
+}
+
+/// Whether the Routes centre panel is showing its own empty-state call to
+/// action right now — mirrors `centre_panel`'s own fallthrough exactly
+/// (every one of its four priorities — rule, fallback file, script, rule
+/// set — misses). The census missed this control in task 033; it is the
+/// state the Routes tab opens in.
+fn routes_shows_empty_cta(app: &App) -> bool {
+    app.snapshot.is_some()
+        && app.selection.rule.is_none()
+        && app.selection.file_route.is_none()
+        && app.selection.script.is_none()
+        && app.selection.rule_set.is_none()
+}
+
+/// The empty-state call to action's own message — the one source both
+/// `centre_panel`'s own button and `activation_message` call, rather than
+/// two readings of the same expression that could drift.
+pub(crate) fn routes_empty_cta_message(app: &App) -> Option<Message> {
+    let snap = app.snapshot.as_ref()?;
+    if snap.rule_sets.is_empty() {
+        return Some(Message::AddRuleSet);
+    }
+    Some(if let Some(rs_id) = app.selection.rule_set {
+        Message::AddRule(rs_id)
+    } else {
+        snap.rule_sets
+            .first()
+            .map(|rs| Message::AddRule(rs.id))
+            .unwrap_or(Message::Noop)
+    })
+}
+
+/// The top bar's fields, in reading order — empty whenever there is no
+/// open workspace (`ws_section`'s own guard). `ReloadOrRestart` is omitted
+/// entirely when `shell::top_bar::reload_or_restart` has nothing to offer
+/// — the one source both this and the view read.
+pub fn top_bar_fields(app: &App) -> Vec<TopBarField> {
+    if app.snapshot.is_none() {
+        return Vec::new();
+    }
+    let mut fields = vec![TopBarField::Switcher, TopBarField::SaveAll];
+    if crate::shell::top_bar::reload_or_restart(app).is_some() {
+        fields.push(TopBarField::ReloadOrRestart);
+    }
+    fields.push(TopBarField::StartStop);
+    fields
+}
+
 /// Events passing the live trace filter, newest first — the one source
 /// `screens::trace::view` and `Region::TraceEvents` both read. Matches
 /// `trace.rs`'s former private `filtered_events` exactly: case-insensitive
@@ -811,45 +1162,62 @@ impl Region {
     /// task 030: the editor's fields and the trace screen's conditional
     /// regions depend on live state, not just which screen is showing.
     pub fn order_for(app: &App) -> Vec<Region> {
-        if app.audience_mode.is_none() {
-            return vec![Region::ModePicker];
-        }
-        // Task 033 (D-12 closing): the confirm dialog overrides everything
-        // else while open, same precedence `EnterPressed`'s own
-        // dialog-priority chain already gives it (confirm dialog first).
-        // `Cancel` is the entry position (`active_index` returns `None`
-        // for it), so a bare `Enter` with no prior key at all still
-        // cancels — task 026 §4.2's safety property, unchanged;
-        // `Proceed` is now reachable, but only by a deliberate `ArrowDown`
-        // first (`Tab` moves *between* regions — this is the only one in
-        // the list while the dialog is open, so it just re-enters at
-        // `Cancel`).
-        if app.confirm_dialog.is_some() {
-            return vec![Region::ConfirmDialog];
-        }
-        // Task 033 §2: the drawer's own mechanism, the same override shape
-        // — not coexisting with the screen behind it (see `Region::Drawer`'s
-        // own doc comment for why).
-        if app.drawer.is_some() {
-            return drawer_fields(app).into_iter().map(Region::Drawer).collect();
-        }
-        // Task 033 (the census): the path assistant is a `Dialog` in
-        // `shell::view` — it paints over the screen behind it — but it has
-        // no `Region` of its own and was never in
-        // `App::blocks_region_navigation`, so without this, `Tab`/arrow/
-        // `Enter` while it is open would act on whatever region the hidden
-        // background screen left focused. It is reachable today (from
-        // `EditorField::BodyPathAssistant`'s own `Enter`), so this is a
-        // real leak, not a hypothetical one. Its own field-level coverage
-        // (the JSON input, the path tree) is a census finding, reported,
-        // not built here; this is only the one-line guard against leaking
-        // through to the screen behind it.
-        if app.path_assistant.open {
-            return vec![];
+        // Task 034 (D-22): every overlay's override now comes from the one
+        // source `App::topmost_overlay` computes, instead of a second,
+        // hand-written precedence here that had drifted from it (that
+        // version ranked the drawer above the path assistant; the fixed
+        // one does not — see `topmost_overlay`'s own doc comment for the
+        // full reasoning). The palette keeps its own mechanism entirely
+        // outside the region model (it is not a `Region`), so its own
+        // entry returns empty, the same shape `blocks_region_navigation`
+        // already gave it.
+        match app.topmost_overlay() {
+            Some(Overlay::ModePicker) => return vec![Region::ModePicker],
+            Some(Overlay::ConfirmDialog) => return vec![Region::ConfirmDialog],
+            Some(Overlay::CommandPalette) => return vec![],
+            Some(Overlay::TestRule) => {
+                return test_rule_fields(app)
+                    .into_iter()
+                    .map(Region::TestRule)
+                    .collect();
+            }
+            Some(Overlay::PathAssistant) => {
+                return path_assistant_fields(app)
+                    .into_iter()
+                    .map(Region::PathAssistant)
+                    .collect();
+            }
+            Some(Overlay::WorkspaceMenu) => {
+                return workspace_menu_fields(app)
+                    .into_iter()
+                    .map(Region::WorkspaceMenu)
+                    .collect();
+            }
+            Some(Overlay::Drawer) => {
+                return drawer_fields(app).into_iter().map(Region::Drawer).collect();
+            }
+            None => {}
         }
         match app.view {
             AppView::Workspace => {
-                let mut order = vec![Region::TabBar];
+                // Task 034: the top bar renders above the tab bar
+                // (`shell::view::view`'s own `.header(...)`), and the RFC's
+                // own Routes focus order names it first — so its fields
+                // come before `TabBar`, not after.
+                let mut order: Vec<Region> = top_bar_fields(app)
+                    .into_iter()
+                    .map(Region::TopBar)
+                    .collect();
+                order.push(Region::TabBar);
+                // Task 034: the feedback banner renders between the tab bar
+                // and the screen on every tab (`shell::view::view`'s own
+                // layout) — its fields sit here, before the tab-specific
+                // ones below, in the same visual order.
+                order.extend(
+                    feedback_banner_fields(app)
+                        .into_iter()
+                        .map(Region::FeedbackBanner),
+                );
                 match app.tab {
                     // Task 029: the sidebar only renders on the Routes tab
                     // (`screens::routes::view` is only reached there).
@@ -864,6 +1232,15 @@ impl Region {
                         // in practice without needing an `if`/`else if`
                         // chain to say so here too.
                         order.extend(editor_fields(app).into_iter().map(Region::Editor));
+                        // Task 034: the rule editor's own "recent trace
+                        // activity" footer — below both WHEN/RESPOND
+                        // columns in reading order, so after all of
+                        // `editor_fields`, not interleaved with it.
+                        order.extend(
+                            trace_activity_fields(app)
+                                .into_iter()
+                                .map(Region::TraceActivity),
+                        );
                         order.extend(fallback_fields(app).into_iter().map(Region::FallbackEditor));
                         // Priority 3 (script viewer) is read-only — nothing
                         // to add, confirmed at source, not missed.
@@ -872,6 +1249,12 @@ impl Region {
                                 .into_iter()
                                 .map(Region::RuleSetConfig),
                         );
+                        // Task 034 (the census, F2): the empty state the
+                        // Routes tab opens in — mutually exclusive with all
+                        // four priorities above, self-guarded the same way.
+                        if routes_shows_empty_cta(app) {
+                            order.push(Region::RoutesEmptyCta);
+                        }
                     }
                     WorkspaceTab::Trace => {
                         order.push(Region::TraceFilter);
@@ -984,6 +1367,8 @@ impl Region {
             Region::Settings(field) => settings_field_id(field),
             Region::Wizard(field) => wizard_field_id(field),
             Region::FallbackEditor(field) => fallback_field_id(field),
+            Region::TestRule(field) => test_rule_field_id(field),
+            Region::PathAssistant(field) => path_assistant_field_id(field),
             _ => None,
         }
     }
@@ -1112,6 +1497,17 @@ impl Region {
             Region::Drawer(_) => 1,
             // Cancel, Proceed.
             Region::ConfirmDialog => 2,
+            Region::TestRule(TestRuleField::Method) => 5,
+            Region::TestRule(_) => 1,
+            Region::WorkspaceMenu(WorkspaceMenuField::Recent) => {
+                apimokka_model::mock::recent_workspaces().len()
+            }
+            Region::WorkspaceMenu(_) => 1,
+            Region::PathAssistant(_) => 1,
+            Region::TraceActivity(_) => 1,
+            Region::FeedbackBanner(_) => 1,
+            Region::RoutesEmptyCta => 1,
+            Region::TopBar(_) => 1,
         }
     }
 
@@ -1191,6 +1587,29 @@ impl Region {
             // property: a bare `Enter` with no `Tab` at all must still
             // cancel, never proceed.
             Region::ConfirmDialog => None,
+            // Not read in practice — `Message::TestRuleOpen`/
+            // `ReplayAsTestInput` force `Run`'s own entry directly, the
+            // same reason `ConfirmDialog` returns `None` here despite
+            // always starting on a specific item.
+            Region::TestRule(TestRuleField::Method) => {
+                let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+                methods
+                    .iter()
+                    .position(|&m| app.test_rule.method.to_uppercase() == m)
+            }
+            Region::TestRule(_) => None,
+            Region::WorkspaceMenu(WorkspaceMenuField::Recent) => {
+                let cur = app.snapshot.as_ref()?.identity.name.as_str();
+                apimokka_model::mock::recent_workspaces()
+                    .iter()
+                    .position(|ws| ws.name == cur)
+            }
+            Region::WorkspaceMenu(_) => None,
+            Region::PathAssistant(_) => None,
+            Region::TraceActivity(_) => None,
+            Region::FeedbackBanner(_) => None,
+            Region::RoutesEmptyCta => None,
+            Region::TopBar(_) => None,
         }
     }
 
@@ -1434,7 +1853,14 @@ impl Region {
                     .and_then(|row| row.target)
                     .map(Message::JumpToDiagnostic)
             }
-            (Region::Drawer(DrawerField::Discard), _) => Some(Message::DiscardChanges),
+            // Task 034 (D-24's confirmation half): routed through the
+            // confirm dialog instead of discarding directly — a
+            // confirmation already existed for this (`ConfirmAction::
+            // DiscardChanges`, with its own title/body keys) and dispatched
+            // nothing; two keystrokes could silently discard unsaved work.
+            (Region::Drawer(DrawerField::Discard), _) => {
+                Some(Message::ConfirmRequest(ConfirmAction::DiscardChanges))
+            }
             (Region::Drawer(DrawerField::SaveAll), _) => Some(Message::SaveAll),
             // Task 033: the confirm dialog. `Cursor::Index(0)` is `Cancel`
             // (the entry position — task 026 §4.2's safety property);
@@ -1442,6 +1868,95 @@ impl Region {
             // deliberate `ArrowDown` first.
             (Region::ConfirmDialog, Cursor::Index(0)) => Some(Message::ConfirmCancel),
             (Region::ConfirmDialog, Cursor::Index(1)) => Some(Message::ConfirmProceed),
+            // Task 034: the Test Rule dialog. `Path`/`Headers`/`Body` are
+            // the one deliberate exception to "a text-field region has no
+            // activation" — see `TestRuleField`'s own doc comment.
+            (Region::TestRule(TestRuleField::Dismiss), _) => Some(Message::TestRuleClose),
+            (Region::TestRule(TestRuleField::Method), Cursor::Index(i)) => {
+                let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+                methods
+                    .get(*i)
+                    .map(|m| Message::TestRuleSetMethod(m.to_string()))
+            }
+            (Region::TestRule(TestRuleField::Method), _) => None,
+            (
+                Region::TestRule(
+                    TestRuleField::Path | TestRuleField::Headers | TestRuleField::Body,
+                ),
+                _,
+            ) => Some(Message::TestRuleRun),
+            (Region::TestRule(TestRuleField::Close), _) => Some(Message::TestRuleClose),
+            (Region::TestRule(TestRuleField::Run), _) => Some(Message::TestRuleRun),
+            // Task 034: the workspace menu.
+            (Region::WorkspaceMenu(WorkspaceMenuField::Recent), Cursor::Index(i)) => {
+                apimokka_model::mock::recent_workspaces()
+                    .get(*i)
+                    .map(|ws| Message::OpenWorkspace(ws.name.clone()))
+            }
+            (Region::WorkspaceMenu(WorkspaceMenuField::Open), _) => Some(Message::GoDashboard),
+            (Region::WorkspaceMenu(WorkspaceMenuField::Create), _) => Some(Message::GoWizard),
+            // Task 034: the dotted-path assistant.
+            (Region::PathAssistant(PathAssistantField::Close), _) => {
+                Some(Message::PathAssistantClose)
+            }
+            (Region::PathAssistant(PathAssistantField::Json), _) => None,
+            (Region::PathAssistant(PathAssistantField::UseLeaf(i)), _) => {
+                crate::screens::dotted_path::parse_leaves(&app.path_assistant.json_input)
+                    .get(i)
+                    .map(|(path, _)| Message::PathAssistantSelectPath(path.clone()))
+            }
+            (Region::PathAssistant(PathAssistantField::Cancel), _) => {
+                Some(Message::PathAssistantClose)
+            }
+            (Region::PathAssistant(PathAssistantField::Insert), _) => {
+                Some(Message::PathAssistantInsert)
+            }
+            // Task 034: the rule editor's "recent trace activity" footer.
+            (Region::TraceActivity(TraceActivityField::ViewAll), _) => {
+                Some(Message::ViewAllInTrace)
+            }
+            (Region::TraceActivity(TraceActivityField::JumpToEvent(i)), _) => {
+                let rule = trace_activity_context(app)?;
+                crate::screens::routes::trace_activity::recent_matching_events(app, rule)
+                    .get(i)
+                    .map(|ev| Message::JumpToTraceEvent(ev.event_id))
+            }
+            // Task 034: the feedback banner. `Dismiss` re-derives which
+            // banner is showing rather than fixing one message to the
+            // field — see `FeedbackBannerField::Dismiss`'s own doc comment.
+            (Region::FeedbackBanner(FeedbackBannerField::DetailsToggle), _) => {
+                Some(Message::ToggleProblemDetails)
+            }
+            (Region::FeedbackBanner(FeedbackBannerField::Action), _) => {
+                Some(Message::ProblemAction)
+            }
+            (Region::FeedbackBanner(FeedbackBannerField::Dismiss), _) => {
+                match crate::shell::view::active_banner(app) {
+                    Some(crate::shell::view::ActiveBanner::Error(_)) => {
+                        Some(Message::DismissProblem)
+                    }
+                    Some(
+                        crate::shell::view::ActiveBanner::Undo
+                        | crate::shell::view::ActiveBanner::Notice,
+                    ) => Some(Message::DismissNotice),
+                    None => None,
+                }
+            }
+            (Region::FeedbackBanner(FeedbackBannerField::Undo), _) => Some(Message::Undo),
+            // Task 034: the Routes centre panel's own empty-state call to
+            // action.
+            (Region::RoutesEmptyCta, _) => routes_empty_cta_message(app),
+            // Task 034: the top bar.
+            (Region::TopBar(TopBarField::Switcher), _) => Some(Message::ToggleWorkspaceMenu),
+            (Region::TopBar(TopBarField::SaveAll), _) => {
+                (app.dirty_count > 0).then_some(Message::Save)
+            }
+            (Region::TopBar(TopBarField::ReloadOrRestart), _) => {
+                crate::shell::top_bar::reload_or_restart(app).map(|(_, msg)| msg)
+            }
+            (Region::TopBar(TopBarField::StartStop), _) => {
+                crate::shell::top_bar::start_stop_message(app)
+            }
             _ => None,
         }
     }

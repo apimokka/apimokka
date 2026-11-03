@@ -183,11 +183,37 @@ pub struct CommandPaletteState {
     pub selected: Option<usize>,
 }
 
+/// Every surface that can sit on top of the normal screen at once, in the
+/// one fixed precedence `App::topmost_overlay` computes — see that
+/// method's own doc comment for the full reasoning (task 034 / D-22).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Overlay {
+    ModePicker,
+    ConfirmDialog,
+    CommandPalette,
+    TestRule,
+    PathAssistant,
+    WorkspaceMenu,
+    Drawer,
+}
+
 #[derive(Debug, Clone)]
 pub struct ConfirmDialogState {
     pub action: ConfirmAction,
     pub title: Key,
     pub body: Key,
+    /// The region/cursor the screen held the instant `ConfirmRequest`
+    /// opened this dialog — restored on both `ConfirmCancel` and
+    /// `ConfirmProceed` (task 034, review answer 2). A dialog is not a
+    /// screen transition: the screen underneath never went anywhere, so
+    /// unlike every other transition in this model, losing the cursor here
+    /// has nothing to derive a fresh one *from* — `focus_adjacent_region`'s
+    /// `None` branch would just re-enter at the tab bar. Safe even if
+    /// `Proceed` invalidated what is named: `valid_focused_region` re-derives
+    /// and `reclamp_identity_cursor` runs after every message, so a stale
+    /// restore simply does not survive the next keystroke.
+    pub restore_region: Option<crate::regions::Region>,
+    pub restore_cursor: Option<crate::regions::Cursor>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -728,21 +754,24 @@ impl App {
             }
 
             // Keyboard
-            Message::EscapePressed => {
-                if self.confirm_dialog.is_some() {
-                    self.confirm_dialog = None;
-                } else if self.workspace_menu_open {
-                    self.workspace_menu_open = false;
-                } else if self.command_palette.open {
-                    self.command_palette.open = false;
-                } else if self.test_rule.open {
-                    self.test_rule.open = false;
-                } else if self.path_assistant.open {
-                    self.path_assistant.open = false;
-                } else if self.drawer.is_some() {
-                    self.drawer = None;
-                }
-            }
+            // Task 034 (D-22): dismisses whichever overlay `topmost_overlay`
+            // says is actually on top, rather than a second, hand-written
+            // precedence that could drift from `order_for`'s own — the
+            // drifted version this replaced had the workspace menu ranked
+            // above the palette, so `Escape` closed the menu while the
+            // palette sat above it, reachable (review finding F1 #3).
+            // `ConfirmCancel`, not a direct `self.confirm_dialog = None`,
+            // so `Escape` restores the cursor exactly as `Enter`-on-Cancel
+            // already does (review answer 2) — one dismissal path, not two.
+            Message::EscapePressed => match self.topmost_overlay() {
+                Some(Overlay::ModePicker) | None => {}
+                Some(Overlay::ConfirmDialog) => self.update(Message::ConfirmCancel),
+                Some(Overlay::CommandPalette) => self.command_palette.open = false,
+                Some(Overlay::TestRule) => self.test_rule.open = false,
+                Some(Overlay::PathAssistant) => self.path_assistant.open = false,
+                Some(Overlay::WorkspaceMenu) => self.workspace_menu_open = false,
+                Some(Overlay::Drawer) => self.drawer = None,
+            },
             Message::ToggleCommandPalette => {
                 // D-4 (found executing M8's capture, 2026-09-05):
                 // `screens::command_palette::view` renders in exactly one
@@ -830,28 +859,26 @@ impl App {
             Message::EnterPressed => {
                 // Task 026 (D-6, and the Enter-in-dialog defect task 024's
                 // audit found): both dialogs get a default action, on the
-                // safe side. Test Rule's default is `Run`, a local dry run
-                // with no side effect. The confirm dialog's own default —
-                // `Enter` cancels, never proceeds, since `ConfirmProceed`
-                // can delete a rule set or discard unsaved work — is task
-                // 033's own `Region::ConfirmDialog` now (`Cancel` is
-                // `Cursor::Index(0)`, the position `ConfirmRequest` sets it
-                // to the moment the dialog opens), reached through the
-                // generic region-activation branch below rather than a
-                // special case here; the behaviour is unchanged.
+                // safe side. Test Rule's own default (`Run`) and the
+                // confirm dialog's own (`Cancel`) are both reached through
+                // the generic region-activation branch below now, not a
+                // special case here — Test Rule's entry position is forced
+                // by `Message::TestRuleOpen`/`ReplayAsTestInput` (task 034),
+                // the same mechanism `ConfirmRequest` already used for
+                // `ConfirmDialog`'s own `Cancel` (task 033).
                 //
-                // The palette and Test Rule branches below gate on
-                // `self.confirm_dialog.is_none()` explicitly: both have
-                // their own activation mechanism entirely outside the
-                // region system (neither is itself a `Region`), so without
-                // this a dialog raised over either — a real sequence
-                // (`ConfirmRequest` can fire while the palette or Test Rule
-                // is open) — would still run the palette's selected row or
-                // Test Rule's `Run`, not resolve the dialog, because
-                // `focused_region`'s own `ConfirmDialog` override only ever
-                // reaches the generic branch at the end of this chain. A
-                // confirm dialog can be raised over other open state, and
-                // one keystroke must resolve to exactly one action.
+                // The palette is the one remaining special case, gated on
+                // `self.topmost_overlay() == Some(Overlay::CommandPalette)`
+                // rather than a separate `confirm_dialog.is_none()` check
+                // (task 034, review answer 3): the palette has its own
+                // activation mechanism entirely outside the region system
+                // (it is not itself a `Region`), so it needs its own
+                // branch regardless — but `topmost_overlay`'s own ranking
+                // already puts `ConfirmDialog` above `CommandPalette`, so a
+                // dialog raised over an open palette (a real sequence —
+                // `ConfirmRequest` can fire while it is open) is excluded
+                // by the same check that selects the palette branch, not a
+                // second one next to it.
                 //
                 // Re-dispatches the selected row's own `Message`, exactly as
                 // clicking it would (`GoWelcome`'s `ConfirmRequest`
@@ -860,7 +887,7 @@ impl App {
                 // from the identical table and filter `view` used to render
                 // the row the user is looking at, so the two can never
                 // disagree about what "selected" points to.
-                if self.confirm_dialog.is_none() && self.command_palette.open {
+                if self.topmost_overlay() == Some(Overlay::CommandPalette) {
                     if let Some(pos) = self.command_palette.selected {
                         let filtered = crate::palette_commands::filtered_indices(
                             self,
@@ -872,8 +899,6 @@ impl App {
                             self.update(selected_message);
                         }
                     }
-                } else if self.confirm_dialog.is_none() && self.test_rule.open {
-                    self.update(Message::TestRuleRun);
                 } else if let Some(region) = self.valid_focused_region()
                     && let Some(cursor) = self.region_cursor.clone()
                     && let Some(message) = region.activation_message(self, &cursor)
@@ -1471,6 +1496,7 @@ impl App {
                 self.test_rule.url_path = url_path;
                 self.test_rule.result = None;
                 self.test_rule.open = true;
+                self.focus_test_rule_entry();
             }
             Message::TestRuleClose => {
                 self.test_rule.open = false;
@@ -1494,6 +1520,7 @@ impl App {
                 }
                 self.test_rule.result = None;
                 self.test_rule.open = true;
+                self.focus_test_rule_entry();
             }
             Message::TestRuleSetMethod(v) => {
                 self.test_rule.method = v;
@@ -1572,6 +1599,12 @@ impl App {
                     action,
                     title,
                     body,
+                    // Task 034 (review answer 2): captured before the two
+                    // lines below overwrite them, so both `ConfirmCancel`
+                    // and `ConfirmProceed` can put the screen back where it
+                    // was rather than stranding the cursor at the tab bar.
+                    restore_region: self.focused_region,
+                    restore_cursor: self.region_cursor.clone(),
                 });
                 // Task 033: `Region::order_for` overrides to
                 // `vec![Region::ConfirmDialog]` the moment this is `Some`,
@@ -1587,10 +1620,14 @@ impl App {
                 self.region_cursor = Some(crate::regions::Cursor::Index(0));
             }
             Message::ConfirmCancel => {
-                self.confirm_dialog = None;
+                if let Some(d) = self.confirm_dialog.take() {
+                    self.focused_region = d.restore_region;
+                    self.region_cursor = d.restore_cursor;
+                }
             }
             Message::ConfirmProceed => {
                 if let Some(d) = self.confirm_dialog.take() {
+                    let (restore_region, restore_cursor) = (d.restore_region, d.restore_cursor);
                     match d.action {
                         ConfirmAction::DeleteRuleSet(id) => {
                             let archive = self.archive_rule_set(id);
@@ -1638,6 +1675,8 @@ impl App {
                             self.recompute_dirty();
                         }
                     }
+                    self.focused_region = restore_region;
+                    self.region_cursor = restore_cursor;
                 }
             }
 
@@ -2103,6 +2142,31 @@ impl App {
                 Some((
                     crate::shell::bottom_drawer::SCROLLABLE_ID,
                     offset(pos, drawer_regions.len()),
+                ))
+            }
+            // Task 034: the dotted-path assistant's one leaf-tree
+            // scrollable. `Close`/`Json`/`Cancel`/`Insert` all sit outside
+            // it; only `UseLeaf` rows are inside.
+            Some(crate::regions::Region::PathAssistant(
+                field @ crate::regions::PathAssistantField::UseLeaf(_),
+            )) => {
+                let leaf_regions: Vec<_> = crate::regions::Region::order_for(self)
+                    .into_iter()
+                    .filter(|r| {
+                        matches!(
+                            r,
+                            crate::regions::Region::PathAssistant(
+                                crate::regions::PathAssistantField::UseLeaf(_)
+                            )
+                        )
+                    })
+                    .collect();
+                let pos = leaf_regions
+                    .iter()
+                    .position(|&r| r == crate::regions::Region::PathAssistant(field))?;
+                Some((
+                    crate::screens::dotted_path::TREE_SCROLLABLE_ID,
+                    offset(pos, leaf_regions.len()),
                 ))
             }
             _ => None,
@@ -3674,24 +3738,92 @@ impl App {
     // ── MK-023 slice 2 (task 027): the region/cursor keyboard model ────────
 
     /// Whether a surface with its own, higher-priority keyboard mechanism is
-    /// currently on top of the screen. The confirm dialog is **not** listed
-    /// here any more (task 033: "a dialog is a region", the design note
-    /// this doc comment used to point at as a later slice — this is it) —
-    /// `Region::order_for` overrides to `vec![Region::ConfirmDialog]` while
-    /// it is open, so the *normal* region-navigation path is exactly what
-    /// should run, not be blocked from running. The palette and Test Rule
-    /// keep their own pre-existing mechanisms (arrow-driven filtered list;
-    /// a fixed default action), so `Tab`/`Shift+Tab` and the arrows must
-    /// still not reach through either to the screen underneath —
-    /// `EnterPressed`'s own `if`/`else if` chain above encodes the same
-    /// precedence for activation. The palette belongs here too: its own
-    /// `ArrowUp`/`ArrowDown` arms check `command_palette.open` first and
-    /// only fall through to `move_region_cursor` otherwise, but
-    /// `TabPressed`/`ShiftTabPressed` have no such arm of their own —
-    /// without it here, `Tab` would move the tab bar's cursor, unseen,
-    /// behind an open palette (review finding F1, task 027).
+    /// currently on top of the screen. Only the palette is left here now
+    /// (task 034): Test Rule moved to `Overlay`/`topmost_overlay` below,
+    /// the same way the confirm dialog did in task 033 ("a dialog is a
+    /// region"). The palette keeps its own pre-existing mechanism
+    /// (arrow-driven filtered list, no `Region` of its own), so `Tab`/
+    /// `Shift+Tab` and the arrows must still not reach through it to the
+    /// screen underneath. Its own `ArrowUp`/`ArrowDown` arms check
+    /// `command_palette.open` first and only fall through to
+    /// `move_region_cursor` otherwise, but `TabPressed`/`ShiftTabPressed`
+    /// have no such arm of their own — without it here, `Tab` would move
+    /// the tab bar's cursor, unseen, behind an open palette (review
+    /// finding F1, task 027).
     fn blocks_region_navigation(&self) -> bool {
-        self.command_palette.open || self.test_rule.open
+        self.command_palette.open
+    }
+
+    /// Every surface that can sit on top of the normal screen at once, in
+    /// one fixed precedence (task 034 / D-22): before this, `shell/view.rs`'s
+    /// z-order, `regions::order_for`'s override chain, and `EscapePressed`'s
+    /// dismissal chain each wrote this precedence out by hand, and they had
+    /// drifted — `order_for` ranked the drawer above the path assistant,
+    /// the view did not, and the workspace menu had no override at all in
+    /// either. This is the one source all three now read.
+    ///
+    /// `ModePicker` is unconditional and exclusive — nothing else can be
+    /// open before an audience mode is chosen. `ConfirmDialog` outranks
+    /// everything else: it can be raised over the palette, Test Rule, or
+    /// the drawer (`Message::ConfirmRequest` sets it regardless of what
+    /// else is open), and it is a safety-critical decision gate (task 026),
+    /// not a surface that should ever be left unreachable underneath
+    /// something else. `CommandPalette`/`TestRule`/`PathAssistant` keep the
+    /// relative order the pre-existing code already used (the palette can
+    /// be raised over either of the other two — `Ctrl+K` is a global
+    /// accelerator, gated on nothing — and already ranked above both).
+    /// `WorkspaceMenu` ranks below every dialog-shaped overlay (its own
+    /// menu backdrop — `shell/view.rs`'s `on_close_menus` — already blocks
+    /// a click reaching anything behind a dialog, so the two structurally
+    /// cannot coexist in the first place) but above `Drawer`: the drawer is
+    /// reachable from the palette regardless of what else is open
+    /// (`OpenValidationDrawer`/`OpenSaveDiffDrawer` close the palette but
+    /// touch nothing else), so opening it from underneath the menu is a
+    /// real, deliberate action, and the most recently, deliberately opened
+    /// surface is what should win.
+    ///
+    /// `shell::view::view` renders *only* the topmost overlay's own
+    /// construct (dialog, sheet, or header menu) — everything below it
+    /// stays open in state but is not drawn this frame — specifically so
+    /// this ordering can never disagree with what is visually on top: there
+    /// is no second question of which of a `Dialog` and a `Sheet` paints
+    /// above the other when both could be populated at once (`snora`'s own
+    /// fixed layer order, `header_menu` below `dialog` below `sheet`, would
+    /// otherwise make the *last*-opened overlay visually dominant
+    /// regardless of this function's own ranking — not reachable once only
+    /// one construct is ever attached per frame).
+    pub(crate) fn topmost_overlay(&self) -> Option<Overlay> {
+        if self.audience_mode.is_none() {
+            Some(Overlay::ModePicker)
+        } else if self.confirm_dialog.is_some() {
+            Some(Overlay::ConfirmDialog)
+        } else if self.command_palette.open {
+            Some(Overlay::CommandPalette)
+        } else if self.test_rule.open {
+            Some(Overlay::TestRule)
+        } else if self.path_assistant.open {
+            Some(Overlay::PathAssistant)
+        } else if self.workspace_menu_open {
+            Some(Overlay::WorkspaceMenu)
+        } else if self.drawer.is_some() {
+            Some(Overlay::Drawer)
+        } else {
+            None
+        }
+    }
+
+    /// Forces the keyboard cursor onto Test Rule's own entry position
+    /// (`Run`) the instant the dialog opens — the same mechanism
+    /// `ConfirmRequest` uses for `ConfirmDialog`'s own `Cancel` (see that
+    /// handler's own comment for why a forced set is necessary rather
+    /// than relying on a later `Tab`). Preserves task 026's oldest
+    /// behaviour in this cycle: a bare `Enter` with no prior `Tab` still
+    /// runs the dry run.
+    fn focus_test_rule_entry(&mut self) {
+        self.focused_region = Some(crate::regions::Region::TestRule(
+            crate::regions::TestRuleField::Run,
+        ));
+        self.region_cursor = Some(crate::regions::Cursor::Index(0));
     }
 
     /// The region actually holding the cursor, re-derived against the
@@ -4333,6 +4465,10 @@ mod tests_mk023;
 #[cfg(test)]
 #[path = "app/region_cursor.rs"]
 mod tests_mk023_slice2;
+
+#[cfg(test)]
+#[path = "app/control_census.rs"]
+mod tests_mk023_slice9;
 
 // ── App view / subscription (not in the impl block above) ─────────────────────
 

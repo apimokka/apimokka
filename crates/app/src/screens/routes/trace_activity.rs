@@ -2,10 +2,29 @@
 
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Cursor, Region, TraceActivityField};
 use crate::theme::{self, size, space};
 use apimokka_i18n::Key;
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Element, Length, Padding};
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` (task 034).
+fn cursor_wrap<'a>(
+    app: &App,
+    field: TraceActivityField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::TraceActivity(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
 
 /// Compact strip of recent trace events matching this rule.
 pub(super) fn trace_activity_section<'a>(
@@ -19,10 +38,15 @@ pub(super) fn trace_activity_section<'a>(
             .size(size::BODY)
             .color(theme::muted(&app.theme()))
             .width(Length::Fill),
-        button(text(app.t(Key::RoutesViewAllInTrace)).size(size::LABEL))
-            .on_press(Message::ViewAllInTrace)
-            .padding(Padding::from([space::S1, space::S2]))
-            .style(iced::widget::button::text),
+        cursor_wrap(
+            app,
+            TraceActivityField::ViewAll,
+            button(text(app.t(Key::RoutesViewAllInTrace)).size(size::LABEL))
+                .on_press(Message::ViewAllInTrace)
+                .padding(Padding::from([space::S1, space::S2]))
+                .style(iced::widget::button::text)
+                .into(),
+        ),
     ]
     .align_y(Alignment::Center);
 
@@ -35,7 +59,8 @@ pub(super) fn trace_activity_section<'a>(
     } else {
         let rows: Vec<Element<Message>> = recent
             .iter()
-            .map(|ev| {
+            .enumerate()
+            .map(|(i, ev)| {
                 let eid = ev.event_id;
                 row![
                     text(ev.outcome.glyph()).size(size::BODY),
@@ -54,10 +79,15 @@ pub(super) fn trace_activity_section<'a>(
                     text(ev.time.as_str())
                         .size(size::CAPTION)
                         .color(theme::muted(&app.theme())),
-                    button(text(app.t(Key::RoutesJumpToTraceEvent)).size(size::LABEL))
-                        .on_press(Message::JumpToTraceEvent(eid))
-                        .padding(Padding::from([space::S1, space::S2]))
-                        .style(iced::widget::button::text),
+                    cursor_wrap(
+                        app,
+                        TraceActivityField::JumpToEvent(i),
+                        button(text(app.t(Key::RoutesJumpToTraceEvent)).size(size::LABEL))
+                            .on_press(Message::JumpToTraceEvent(eid))
+                            .padding(Padding::from([space::S1, space::S2]))
+                            .style(iced::widget::button::text)
+                            .into(),
+                    ),
                 ]
                 .spacing(space::S3)
                 .align_y(Alignment::Center)
@@ -73,7 +103,7 @@ pub(super) fn trace_activity_section<'a>(
         .into()
 }
 
-fn recent_matching_events<'a>(
+pub(crate) fn recent_matching_events<'a>(
     app: &'a App,
     rule: &apimokka_model::snapshot::RuleView,
 ) -> Vec<&'a apimokka_model::MatchTraceEvent> {

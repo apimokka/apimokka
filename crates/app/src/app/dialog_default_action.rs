@@ -191,7 +191,7 @@ fn a_captured_key_is_dropped_except_escape() {
 /// review of this task: a hand-enumerated list is airtight exactly where the
 /// risk is lowest and silent exactly where a future change would introduce
 /// the hazard.
-fn all_source_files() -> Vec<(String, String)> {
+pub(crate) fn all_source_files() -> Vec<(String, String)> {
     fn walk(dir: &std::path::Path, root: &std::path::Path, out: &mut Vec<(String, String)>) {
         for entry in std::fs::read_dir(dir).expect("src/ must be readable") {
             let entry = entry.expect("dir entry must be readable");

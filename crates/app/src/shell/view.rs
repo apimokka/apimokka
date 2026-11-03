@@ -7,14 +7,16 @@
 //! Snora AppLayout structure:
 //!   header  — top bar (app identity, status chips, actions)
 //!   body    — tab bar + screen content stacked vertically
-//!   sheet   — bottom drawer (when open)
-//!   dialog  — overlay stack (confirm > palette > test-rule > path-assistant)
+//!   sheet   — bottom drawer, when it is the topmost overlay
+//!   dialog / header_menu — whichever overlay `App::topmost_overlay` says
+//!     is on top (task 034 / D-22: exactly one of the two, never both —
+//!     see `view`'s own comment for why)
 
 use iced::Element;
 use iced::widget::column;
 use snora::{AppLayout, Dialog, LayoutDirection, Sheet, SheetEdge, SheetSize};
 
-use crate::app::App;
+use crate::app::{App, Overlay};
 use crate::message::Message;
 use crate::screens;
 use crate::selection::WorkspaceTab;
@@ -40,88 +42,126 @@ pub fn view(app: &App) -> Element<'_, Message> {
         None => column![tab_bar, screen].into(),
     };
 
-    let mut layout = AppLayout::new(body)
+    let layout = AppLayout::new(body)
         .header(header)
         .direction(LayoutDirection::Ltr);
 
-    // Workspace menu (snora header_menu)
-    if app.workspace_menu_open {
-        let menu = screens::workspace_menu::view(app);
-        layout = layout
-            .header_menu(menu)
-            .on_close_menus(Message::CloseWorkspaceMenu);
-    }
-
-    // Bottom drawer
-    if app.drawer.is_some() {
-        let drawer_el = shell::bottom_drawer::view(app);
-        let sheet = Sheet::new(drawer_el)
-            .at(SheetEdge::Bottom)
-            .with_size(SheetSize::Ratio(0.32));
-        layout = layout.sheet(sheet).on_close_modals(Message::CloseDrawer);
-    }
-
-    // Dialog priority order (MK-021):
-    // 0. First-run audience mode picker (MK-040) — highest priority and NOT
-    //    dismissible: the user must choose before using the app. No
-    //    on_close_modals sink, so Esc / backdrop cannot close it.
-    if app.audience_mode.is_none() {
-        return snora::design::render(
+    // Task 034 (D-22): exactly one overlay construct is attached per
+    // frame — whichever `App::topmost_overlay` says is on top — never a
+    // `Dialog`/`header_menu` alongside a `Sheet` the way the old code
+    // unconditionally attached the workspace menu and the drawer before
+    // picking a dialog. The drawer and the workspace menu stay open in
+    // `App`'s own state either way; they simply are not drawn on a frame
+    // where something ranked above them is. Without this, `snora`'s own
+    // fixed layer order (`header_menu` below `dialog` below `sheet`) would
+    // make the *last*-attached construct visually dominant regardless of
+    // which this app actually considers "on top" — precisely how the
+    // drawer ended up visible over the path assistant, or could end up
+    // hiding a confirm dialog raised over it, before this fix.
+    match app.topmost_overlay() {
+        Some(Overlay::ModePicker) => snora::design::render(
             layout.dialog(Dialog::new(screens::mode_picker::view(app))),
             &tokens,
-        );
-    }
-    // 1. Confirm dialog
-    if app.confirm_dialog.is_some() {
-        return snora::design::render(
+        ),
+        Some(Overlay::ConfirmDialog) => snora::design::render(
             layout
                 .dialog(Dialog::new(screens::confirm_dialog::view(app)))
                 .on_close_modals(Message::ConfirmCancel),
             &tokens,
-        );
-    }
-    // 2. Command palette
-    if app.command_palette.open {
-        return snora::design::render(
+        ),
+        Some(Overlay::CommandPalette) => snora::design::render(
             layout
                 .dialog(Dialog::new(screens::command_palette::view(app)))
                 .on_close_modals(Message::ToggleCommandPalette),
             &tokens,
-        );
-    }
-    // 3. Test rule
-    if app.test_rule.open {
-        return snora::design::render(
+        ),
+        Some(Overlay::TestRule) => snora::design::render(
             layout
                 .dialog(Dialog::new(screens::test_rule::view(app)))
                 .on_close_modals(Message::TestRuleClose),
             &tokens,
-        );
-    }
-    // 4. Dotted-path assistant
-    if app.path_assistant.open {
-        return snora::design::render(
+        ),
+        Some(Overlay::PathAssistant) => snora::design::render(
             layout
                 .dialog(Dialog::new(screens::dotted_path::view(app)))
                 .on_close_modals(Message::PathAssistantClose),
             &tokens,
-        );
+        ),
+        Some(Overlay::WorkspaceMenu) => snora::design::render(
+            layout
+                .header_menu(screens::workspace_menu::view(app))
+                .on_close_menus(Message::CloseWorkspaceMenu),
+            &tokens,
+        ),
+        Some(Overlay::Drawer) => {
+            let sheet = Sheet::new(shell::bottom_drawer::view(app))
+                .at(SheetEdge::Bottom)
+                .with_size(SheetSize::Ratio(0.32));
+            snora::design::render(
+                layout.sheet(sheet).on_close_modals(Message::CloseDrawer),
+                &tokens,
+            )
+        }
+        None => snora::design::render(layout, &tokens),
     }
+}
 
-    snora::design::render(layout, &tokens)
+/// Which of the three mutually-exclusive banners is currently showing —
+/// the one source both `feedback_banner` (below) and
+/// `regions::feedback_banner_fields` (task 034) branch on, instead of two
+/// readings of the same three `if`s that could drift apart (the same D-9
+/// lesson `accelerator.rs`/`palette_commands.rs` are already the precedent
+/// for).
+pub(crate) enum ActiveBanner<'a> {
+    Error(&'a apimokka_model::FriendlyProblem),
+    Undo,
+    Notice,
+}
+
+pub(crate) fn active_banner(app: &App) -> Option<ActiveBanner<'_>> {
+    if let Some(p) = &app.last_problem {
+        Some(ActiveBanner::Error(p))
+    } else if !app.undo_stack().is_empty() {
+        Some(ActiveBanner::Undo)
+    } else if app.notice.is_some() {
+        Some(ActiveBanner::Notice)
+    } else {
+        None
+    }
+}
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` (task 034).
+fn feedback_banner_cursor_wrap<'a>(
+    app: &App,
+    field: crate::regions::FeedbackBannerField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    use crate::theme;
+
+    let has_cursor = app.focused_region == Some(crate::regions::Region::FeedbackBanner(field))
+        && app.region_cursor == Some(crate::regions::Cursor::Index(0));
+    iced::widget::container(el)
+        .padding(crate::theme::space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
 }
 
 /// MK-039 feedback banner. Priority: friendly error > undo > success notice.
 /// Returns None when there is nothing to show.
 fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
     use crate::accelerator::{self, Accelerator};
+    use crate::regions::FeedbackBannerField;
     use crate::theme::{self, size, space};
     use apimokka_i18n::Key;
     use iced::widget::{Space, button, container, row, text};
     use iced::{Alignment, Length, Padding};
 
     // 1. Friendly error (highest priority)
-    if let Some(p) = &app.last_problem {
+    if let Some(ActiveBanner::Error(p)) = active_banner(app) {
         // Build the detail column: plain detail always; technical detail either
         // inline (Expert, or expanded) or behind a Show/Hide toggle (Guided).
         let mut detail_col = iced::widget::column![
@@ -151,12 +191,15 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             } else {
                 app.t(Key::ErrorShowDetails)
             };
-            detail_col = detail_col.push(
+            detail_col = detail_col.push(feedback_banner_cursor_wrap(
+                app,
+                FeedbackBannerField::DetailsToggle,
                 button(text(toggle_label).size(size::LABEL))
                     .on_press(Message::ToggleProblemDetails)
                     .padding(Padding::from([2.0, space::S1]))
-                    .style(iced::widget::button::text),
-            );
+                    .style(iced::widget::button::text)
+                    .into(),
+            ));
         }
 
         let mut r = row![text("!").size(size::BODY), detail_col]
@@ -164,18 +207,24 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             .align_y(Alignment::Center);
 
         if let Some(label) = &p.action_label {
-            r = r.push(
+            r = r.push(feedback_banner_cursor_wrap(
+                app,
+                FeedbackBannerField::Action,
                 button(text(label.as_str()).size(size::LABEL))
                     .on_press(Message::ProblemAction)
-                    .padding(Padding::from([space::S1, space::S3])),
-            );
+                    .padding(Padding::from([space::S1, space::S3]))
+                    .into(),
+            ));
         }
-        r = r.push(
+        r = r.push(feedback_banner_cursor_wrap(
+            app,
+            FeedbackBannerField::Dismiss,
             button(text("✕").size(size::LABEL))
                 .on_press(Message::DismissProblem)
                 .padding(Padding::from([space::S1, space::S2]))
-                .style(iced::widget::button::text),
-        );
+                .style(iced::widget::button::text)
+                .into(),
+        ));
 
         return Some(
             container(r)
@@ -187,31 +236,43 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
     }
 
     // 2. Undo (after a reversible action) — driven by the top of the stack
-    if let Some(cmd) = app.undo_stack().last() {
+    if matches!(active_banner(app), Some(ActiveBanner::Undo))
+        && let Some(cmd) = app.undo_stack().last()
+    {
         let label = app.t(cmd.banner_key());
         let r = row![
             text(label).size(size::BODY).width(Length::Fill),
-            button(
-                row![
-                    text(app.t(Key::UndoLabel)).size(size::LABEL),
-                    // D-11: was a hard-coded " ⌘Z" -- advertised a macOS-only
-                    // key on every platform. `accelerator::display` is the
-                    // single source `screens/command_palette.rs` already
-                    // reads for the same binding; this is the one site task
-                    // 002 missed. Leading space kept to preserve the
-                    // existing gap rather than restructuring with spacing.
-                    text(format!(" {}", accelerator::display(Accelerator::Undo)))
-                        .size(size::LABEL)
-                        .color(theme::muted(&app.theme())),
-                ]
-                .spacing(2),
-            )
-            .on_press(Message::Undo)
-            .padding(Padding::from([space::S1, space::S3])),
-            button(text("✕").size(size::LABEL))
-                .on_press(Message::DismissNotice)
-                .padding(Padding::from([space::S1, space::S2]))
-                .style(iced::widget::button::text),
+            feedback_banner_cursor_wrap(
+                app,
+                FeedbackBannerField::Undo,
+                button(
+                    row![
+                        text(app.t(Key::UndoLabel)).size(size::LABEL),
+                        // D-11: was a hard-coded " ⌘Z" -- advertised a macOS-only
+                        // key on every platform. `accelerator::display` is the
+                        // single source `screens/command_palette.rs` already
+                        // reads for the same binding; this is the one site task
+                        // 002 missed. Leading space kept to preserve the
+                        // existing gap rather than restructuring with spacing.
+                        text(format!(" {}", accelerator::display(Accelerator::Undo)))
+                            .size(size::LABEL)
+                            .color(theme::muted(&app.theme())),
+                    ]
+                    .spacing(2),
+                )
+                .on_press(Message::Undo)
+                .padding(Padding::from([space::S1, space::S3]))
+                .into(),
+            ),
+            feedback_banner_cursor_wrap(
+                app,
+                FeedbackBannerField::Dismiss,
+                button(text("✕").size(size::LABEL))
+                    .on_press(Message::DismissNotice)
+                    .padding(Padding::from([space::S1, space::S2]))
+                    .style(iced::widget::button::text)
+                    .into(),
+            ),
         ]
         .spacing(space::S3)
         .align_y(Alignment::Center);
@@ -226,15 +287,22 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
     }
 
     // 3. Success / info notice (lowest priority)
-    if let Some(notice) = &app.notice {
+    if matches!(active_banner(app), Some(ActiveBanner::Notice))
+        && let Some(notice) = &app.notice
+    {
         let r = row![
             text("✓").size(size::BODY),
             text(notice.as_str()).size(size::BODY).width(Length::Fill),
             Space::new().width(Length::Fixed(0.0)),
-            button(text("✕").size(size::LABEL))
-                .on_press(Message::DismissNotice)
-                .padding(Padding::from([space::S1, space::S2]))
-                .style(iced::widget::button::text),
+            feedback_banner_cursor_wrap(
+                app,
+                FeedbackBannerField::Dismiss,
+                button(text("✕").size(size::LABEL))
+                    .on_press(Message::DismissNotice)
+                    .padding(Padding::from([space::S1, space::S2]))
+                    .style(iced::widget::button::text)
+                    .into(),
+            ),
         ]
         .spacing(space::S3)
         .align_y(Alignment::Center);

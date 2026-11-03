@@ -7,10 +7,64 @@
 
 use crate::app::{App, RuntimeAction};
 use crate::message::Message;
+use crate::regions::{Cursor, Region, TopBarField};
 use crate::theme::{self, pad, size, space};
 use apimokka_i18n::Key;
 use iced::widget::{Space, button, container, row, text};
 use iced::{Alignment, Element, Length, Padding};
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` (task 034). All four
+/// of this bar's controls are one-item regions.
+fn cursor_wrap<'a>(
+    app: &App,
+    field: TopBarField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::TopBar(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// The Reload/Restart action, if the current runtime phase has one
+/// available right now — the one source both `view` (below) and
+/// `regions::top_bar_fields`/`activation_message` read, so a disabled or
+/// absent phase can never be reachable from one and not the other.
+pub(crate) fn reload_or_restart(app: &App) -> Option<(Key, Message)> {
+    match app.runtime_phase() {
+        apimokka_model::RuntimeEffect::Reload
+            if app.runtime_request_available(RuntimeAction::Reload) =>
+        {
+            Some((Key::BtnReload, Message::ReloadConfig))
+        }
+        apimokka_model::RuntimeEffect::Restart
+            if app.runtime_request_available(RuntimeAction::Restart) =>
+        {
+            Some((Key::BtnRestart, Message::RestartServer))
+        }
+        _ => None,
+    }
+}
+
+/// The Start/Stop server action's own message, gated the same way
+/// `view`'s own `server_btn` is — `None` when it is not actionable right
+/// now, the same "present always, inert when not applicable" shape the
+/// fallback editor's `Revert`/`Save` already established.
+pub(crate) fn start_stop_message(app: &App) -> Option<Message> {
+    let server_action = if app.server_state == ServerState::Running {
+        RuntimeAction::Stop
+    } else {
+        RuntimeAction::Start
+    };
+    app.runtime_request_available(server_action)
+        .then_some(Message::StartStopServer)
+}
 
 /// MK-035 server state machine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -53,19 +107,24 @@ pub fn view(app: &App) -> Element<'_, Message> {
         } else {
             "▼"
         };
-        let ws_btn = button(
-            row![
-                text(snap.identity.name.as_str()).size(size::SECTION),
-                text(chevron)
-                    .size(size::LABEL)
-                    .color(theme::muted(&app.theme())),
-            ]
-            .spacing(space::S1)
-            .align_y(Alignment::Center),
-        )
-        .on_press(Message::ToggleWorkspaceMenu)
-        .padding(Padding::from([space::S1, space::S2]))
-        .style(iced::widget::button::text);
+        let ws_btn = cursor_wrap(
+            app,
+            TopBarField::Switcher,
+            button(
+                row![
+                    text(snap.identity.name.as_str()).size(size::SECTION),
+                    text(chevron)
+                        .size(size::LABEL)
+                        .color(theme::muted(&app.theme())),
+                ]
+                .spacing(space::S1)
+                .align_y(Alignment::Center),
+            )
+            .on_press(Message::ToggleWorkspaceMenu)
+            .padding(Padding::from([space::S1, space::S2]))
+            .style(iced::widget::button::text)
+            .into(),
+        );
         row![
             text("·")
                 .size(size::SECTION)
@@ -113,33 +172,31 @@ pub fn view(app: &App) -> Element<'_, Message> {
     };
 
     // ── Action buttons ────────────────────────────────────────────────────
-    let save_btn = action_btn(app.t(Key::BtnSaveAll), Message::Save, app.dirty_count > 0);
-    let config_btn: Element<'_, Message> = match phase {
-        apimokka_model::RuntimeEffect::Reload
-            if app.runtime_request_available(RuntimeAction::Reload) =>
-        {
-            action_btn(app.t(Key::BtnReload), Message::ReloadConfig, true)
-        }
-        apimokka_model::RuntimeEffect::Restart
-            if app.runtime_request_available(RuntimeAction::Restart) =>
-        {
-            action_btn(app.t(Key::BtnRestart), Message::RestartServer, true)
-        }
-        _ => Space::new().width(Length::Fixed(0.0)).into(),
+    let save_btn = cursor_wrap(
+        app,
+        TopBarField::SaveAll,
+        action_btn(app.t(Key::BtnSaveAll), Message::Save, app.dirty_count > 0),
+    );
+    let config_btn: Element<'_, Message> = match reload_or_restart(app) {
+        Some((key, msg)) => cursor_wrap(
+            app,
+            TopBarField::ReloadOrRestart,
+            action_btn(app.t(key), msg, true),
+        ),
+        None => Space::new().width(Length::Fixed(0.0)).into(),
     };
     let srv_label = match app.server_state {
         ServerState::Running => app.t(Key::BtnStopServer),
         _ => app.t(Key::BtnStartServer),
     };
-    let server_action = if app.server_state == ServerState::Running {
-        RuntimeAction::Stop
-    } else {
-        RuntimeAction::Start
-    };
-    let server_btn = action_btn(
-        srv_label,
-        Message::StartStopServer,
-        app.runtime_request_available(server_action),
+    let server_btn = cursor_wrap(
+        app,
+        TopBarField::StartStop,
+        action_btn(
+            srv_label,
+            Message::StartStopServer,
+            start_stop_message(app).is_some(),
+        ),
     );
 
     let bar = row![

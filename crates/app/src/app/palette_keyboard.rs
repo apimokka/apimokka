@@ -258,20 +258,22 @@ fn mode_picker_arrow_keys_move_the_tab_bar_instead_once_a_mode_is_chosen() {
     use crate::selection::WorkspaceTab;
 
     // Task 027's actual change, not a no-op: once in a workspace, arrow keys
-    // now drive the tab bar's cursor instead of doing nothing — the mode
-    // picker's own region is simply no longer in `Region::order_for` for
-    // this screen, confirmed via `regions::tests::order_for_is_the_tab_bar_inside_a_workspace`.
+    // now drive the first region in `order_for` instead of doing nothing —
+    // the mode picker's own region is simply no longer in it for this
+    // screen. Task 034 moved the top bar ahead of the tab bar in that
+    // order (the RFC's own Routes focus order names it first), so that is
+    // what a bare `ArrowDown` with nothing yet focused now reaches.
     let mut a = expert_in_workspace();
     a.update(Message::ArrowDown);
     assert_eq!(
         a.focused_region,
-        Some(Region::TabBar),
+        Some(Region::TopBar(crate::regions::TopBarField::Switcher)),
         "arrow keys must not resurrect the mode picker once it is no longer shown"
     );
     assert_eq!(
         a.region_cursor,
         Some(Cursor::Index(0)),
-        "first press focuses the tab bar on the active tab (Routes, index 0)"
+        "first press focuses the first region in order"
     );
     assert_eq!(
         a.tab,

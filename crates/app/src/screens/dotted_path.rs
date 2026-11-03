@@ -1,11 +1,46 @@
 //! MK-034 — O-04 Dotted-path assistant.
 use crate::app::App;
 use crate::message::Message;
+use crate::regions::{Cursor, PathAssistantField, Region, path_assistant_field_id};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
-use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
+use iced::widget::{
+    Space, button, column, container, mouse_area, row, scrollable, text, text_input,
+};
 use iced::{Alignment, Element, Length, Padding};
+
+/// Task 034: this pane's one scrollable (the parsed-leaf tree) — the same
+/// D-5 approximation every other scrollable in this app uses.
+pub(crate) const TREE_SCROLLABLE_ID: &str = "mk023-path-assistant-tree";
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap`.
+fn cursor_wrap<'a>(
+    app: &App,
+    field: PathAssistantField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::PathAssistant(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// D-18's own `mouse_area::on_release` idiom, for the JSON input field.
+fn click_focus<'a>(
+    field: PathAssistantField,
+    el: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    mouse_area(el)
+        .on_release(Message::RegionClicked(Region::PathAssistant(field)))
+        .into()
+}
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let pa = &app.path_assistant;
@@ -40,21 +75,27 @@ pub fn view(app: &App) -> Element<'_, Message> {
         let owned: Vec<(String, String)> = leaves.into_iter().collect();
         owned
             .into_iter()
-            .map(|(path, val)| {
+            .enumerate()
+            .map(|(i, (path, val))| {
                 let path_clone = path.clone();
-                row![
+                let row_el = row![
                     text(path).size(size::CAPTION).width(Length::Fill),
                     text(val)
                         .size(size::CAPTION)
                         .color(theme::muted(&app.theme()))
                         .width(Length::Fixed(100.0)),
-                    button(text(app.t(Key::BtnUse)).size(size::LABEL))
-                        .on_press(Message::PathAssistantSelectPath(path_clone))
-                        .padding(Padding::from([space::S1, space::S3])),
+                    cursor_wrap(
+                        app,
+                        PathAssistantField::UseLeaf(i),
+                        button(text(app.t(Key::BtnUse)).size(size::LABEL))
+                            .on_press(Message::PathAssistantSelectPath(path_clone))
+                            .padding(Padding::from([space::S1, space::S3]))
+                            .into(),
+                    ),
                 ]
                 .spacing(space::S3)
-                .align_y(Alignment::Center)
-                .into()
+                .align_y(Alignment::Center);
+                row_el.into()
             })
             .collect()
     };
@@ -75,25 +116,35 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 text(app.t(Key::DottedPathTitle))
                     .size(size::SECTION)
                     .width(Length::Fill),
-                button(text("✕").size(size::BODY))
-                    .on_press(Message::PathAssistantClose)
-                    .padding(Padding::from([space::S1, space::S2])),
+                cursor_wrap(
+                    app,
+                    PathAssistantField::Close,
+                    button(text("✕").size(size::BODY))
+                        .on_press(Message::PathAssistantClose)
+                        .padding(Padding::from([space::S1, space::S2]))
+                        .into(),
+                ),
             ]
             .align_y(Alignment::Center),
             widgets::divider(),
             widgets::field(
                 app.t(Key::DottedPathPasteLabel),
-                text_input("{\"user\":{\"id\":123}}", &pa.json_input)
-                    .on_input(Message::PathAssistantSetJson)
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill)
-                    .into()
+                click_focus(
+                    PathAssistantField::Json,
+                    text_input("{\"user\":{\"id\":123}}", &pa.json_input)
+                        .id(path_assistant_field_id(PathAssistantField::Json).unwrap())
+                        .on_input(Message::PathAssistantSetJson)
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                ),
             ),
             text(app.t(Key::DottedPathTreeLabel)).size(size::BODY),
             container(
-                scrollable(column(tree_rows).spacing(space::S1)).height(Length::Fixed(160.0)),
+                scrollable(column(tree_rows).spacing(space::S1))
+                    .id(TREE_SCROLLABLE_ID)
+                    .height(Length::Fixed(160.0)),
             )
             .padding(Padding::from([space::S2, 0.0])),
             {
@@ -115,9 +166,17 @@ pub fn view(app: &App) -> Element<'_, Message> {
             },
             widgets::divider(),
             row![
-                widgets::ghost_btn(app.t(Key::BtnCancel), Message::PathAssistantClose),
+                cursor_wrap(
+                    app,
+                    PathAssistantField::Cancel,
+                    widgets::ghost_btn(app.t(Key::BtnCancel), Message::PathAssistantClose),
+                ),
                 Space::new().width(Length::Fill),
-                widgets::primary_btn(app.t(Key::BtnInsertPath), Message::PathAssistantInsert),
+                cursor_wrap(
+                    app,
+                    PathAssistantField::Insert,
+                    widgets::primary_btn(app.t(Key::BtnInsertPath), Message::PathAssistantInsert),
+                ),
             ]
             .spacing(space::S3)
             .align_y(Alignment::Center),
@@ -132,7 +191,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
 /// Very simple JSON leaf extractor — extracts dotted paths and their values.
 /// Handles flat objects and one level of nesting; good enough for the mockup.
-fn parse_leaves(json: &str) -> Vec<(String, String)> {
+pub(crate) fn parse_leaves(json: &str) -> Vec<(String, String)> {
     let json = json.trim();
     if !json.starts_with('{') {
         return vec![];

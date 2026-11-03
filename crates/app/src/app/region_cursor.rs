@@ -99,10 +99,23 @@ fn tab_focuses_the_single_available_region_and_stays_there() {
 }
 
 #[test]
-fn tab_focuses_the_tab_bar_inside_a_workspace() {
+fn tab_focuses_the_top_bars_switcher_first_inside_a_workspace() {
+    // Task 034: the top bar renders above the tab bar
+    // (`shell::view::view`'s own `.header(...)`), and the RFC's own Routes
+    // focus order names it first — so the first `Tab` inside a workspace
+    // now lands here, not on the tab bar.
     let mut a = expert_in_workspace();
     a.update(Message::TabPressed);
-    assert_eq!(a.focused_region, Some(Region::TabBar));
+    assert_eq!(
+        a.focused_region,
+        Some(Region::TopBar(TopBarField::Switcher))
+    );
+}
+
+#[test]
+fn tab_reaches_the_tab_bar_after_the_top_bar_inside_a_workspace() {
+    let mut a = expert_in_workspace();
+    tab_until(&mut a, Region::TabBar);
     assert_eq!(
         a.region_cursor,
         Some(Cursor::Index(0)),
@@ -162,8 +175,7 @@ fn entering_the_tab_bar_starts_the_cursor_on_whichever_tab_is_active() {
     a.update(Message::SwitchTab(WorkspaceTab::Settings));
     // Focus is not yet established; Tab must land on the *active* tab
     // (Settings, index 2), not the first (Routes, index 0).
-    a.update(Message::TabPressed);
-    assert_eq!(a.focused_region, Some(Region::TabBar));
+    tab_until(&mut a, Region::TabBar);
     assert_eq!(
         a.region_cursor,
         Some(Cursor::Index(2)),
@@ -188,7 +200,7 @@ fn entering_the_mode_picker_starts_at_the_first_item_since_nothing_is_active() {
 #[test]
 fn arrow_keys_move_the_tab_bar_cursor_without_switching_tabs() {
     let mut a = expert_in_workspace();
-    a.update(Message::TabPressed);
+    tab_until(&mut a, Region::TabBar);
     assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
     a.update(Message::ArrowDown);
     assert_eq!(a.region_cursor, Some(Cursor::Index(1)));
@@ -214,7 +226,7 @@ fn arrow_keys_move_the_tab_bar_cursor_without_switching_tabs() {
 #[test]
 fn enter_switches_the_tab_the_cursor_is_on() {
     let mut a = expert_in_workspace();
-    a.update(Message::TabPressed);
+    tab_until(&mut a, Region::TabBar);
     a.update(Message::ArrowDown);
     a.update(Message::ArrowDown);
     assert_eq!(
@@ -273,14 +285,25 @@ fn tab_does_not_reach_the_tab_bar_while_the_confirm_dialog_is_open() {
 }
 
 #[test]
-fn arrow_keys_do_not_reach_the_tab_bar_while_test_rule_is_open() {
+fn arrow_keys_stay_within_test_rule_while_it_is_open() {
+    // Task 034: Test Rule is now a region like the confirm dialog
+    // (`Overlay::TestRule`, `Message::TestRuleOpen` forcing the entry
+    // position) rather than a `blocks_region_navigation` special case
+    // that left `focused_region` at `None` — see this test's own old name
+    // for the behaviour this replaced.
     let mut a = expert_in_workspace();
     a.update(Message::TestRuleOpen);
     assert!(a.test_rule.open, "test setup sanity");
+    assert_eq!(
+        a.focused_region,
+        Some(Region::TestRule(TestRuleField::Run)),
+        "test setup sanity: TestRuleOpen forces the entry position"
+    );
     a.update(Message::ArrowDown);
     assert_eq!(
-        a.focused_region, None,
-        "arrows must not focus the tab bar underneath the open dialog"
+        a.focused_region,
+        Some(Region::TestRule(TestRuleField::Run)),
+        "arrows must stay within Test Rule's own region order, never reach the tab bar underneath"
     );
 }
 
@@ -539,25 +562,29 @@ fn rule_ids_in(a: &App, rs_id: RuleSetId) -> Vec<NodeId> {
 }
 
 fn tab_into_sidebar(a: &mut App) {
-    a.update(Message::TabPressed); // TabBar
-    a.update(Message::TabPressed); // Sidebar
-    assert_eq!(a.focused_region, Some(Region::Sidebar), "test setup sanity");
+    tab_until(a, Region::Sidebar);
 }
 
 // ── Tab order and cycling ──────────────────────────────────────────────────
 
 #[test]
-fn tab_cycles_tab_bar_and_sidebar_on_routes_and_wraps() {
+fn tab_cycles_tab_bar_sidebar_and_the_empty_cta_on_routes_and_wraps() {
+    // Task 034 (the census, F2): a fresh workspace has no selection at all
+    // (`RouteSelection::default()`), so the Routes centre panel's own
+    // empty-state call to action is a region in this order too. Also task
+    // 034: the top bar precedes the tab bar, so the cycle now wraps back
+    // to it, not to the tab bar.
     let mut a = expert_in_workspace();
-    a.update(Message::TabPressed);
-    assert_eq!(a.focused_region, Some(Region::TabBar));
+    tab_until(&mut a, Region::TabBar);
     a.update(Message::TabPressed);
     assert_eq!(a.focused_region, Some(Region::Sidebar));
     a.update(Message::TabPressed);
+    assert_eq!(a.focused_region, Some(Region::RoutesEmptyCta));
+    a.update(Message::TabPressed);
     assert_eq!(
         a.focused_region,
-        Some(Region::TabBar),
-        "wraps back to the tab bar (task 029 §2's two-region Tab order)"
+        Some(Region::TopBar(TopBarField::Switcher)),
+        "wraps back to the first region in order"
     );
 }
 
@@ -586,8 +613,7 @@ fn entering_the_sidebar_resumes_on_the_currently_selected_rule() {
         "selecting via message alone does not move focus"
     );
 
-    a.update(Message::TabPressed); // TabBar
-    a.update(Message::TabPressed); // Sidebar
+    tab_until(&mut a, Region::Sidebar);
     assert_eq!(
         a.region_cursor,
         Some(Cursor::Sidebar(SidebarRow::Rule(rule_ids[0]))),
@@ -1488,7 +1514,7 @@ fn tab_walks_settings_in_reading_order_in_expert_mode() {
         Region::Settings(SettingsField::TraceEnable),
         Region::Settings(SettingsField::QueueSize),
     ];
-    a.update(Message::TabPressed); // TabBar
+    tab_until(&mut a, Region::TabBar);
     for region in expected {
         a.update(Message::TabPressed);
         assert_eq!(a.focused_region, Some(region));
@@ -1970,6 +1996,7 @@ fn update_and_dispatch_snaps_on_tab_pressed_not_only_on_arrow_keys() {
     //    one.
     let mut a = expert_in_workspace();
     settings_tab(&mut a);
+    tab_until(&mut a, Region::TopBar(TopBarField::StartStop)); // the top bar's own last field
     let baseline = a.update_and_dispatch(Message::TabPressed); // TabBar: Unfocus only, not a scroll target
     assert_eq!(a.focused_region, Some(Region::TabBar));
     let with_scroll = a.update_and_dispatch(Message::TabPressed); // Settings(Theme): Unfocus *and* scroll
@@ -2044,7 +2071,7 @@ fn scroll_snap_target_still_fires_for_the_sidebar() {
 // the bottom drawer — the three named uncovered surfaces (§2), plus their
 // own scroll targets.
 
-use crate::regions::{DrawerField, FallbackField, RuleSetConfigField};
+use crate::regions::{DrawerField, FallbackField, RuleSetConfigField, TestRuleField, TopBarField};
 
 fn select_first_fallback_file(a: &mut App) -> String {
     let path = a.snapshot.as_ref().unwrap().fallback_files[0].path.clone();
@@ -2224,4 +2251,385 @@ fn fallback_revert_opens_the_confirm_dialog_and_proceed_needs_a_deliberate_arrow
         !a.is_fallback_dirty(&path),
         "a deliberate ArrowDown then Enter must have reverted the draft"
     );
+}
+
+// ── Task 034 (MK-023 slice 9): the inventory, and the one overlay ────────
+// precedence source (D-22).
+
+use crate::regions::{
+    FeedbackBannerField, PathAssistantField, TraceActivityField, WorkspaceMenuField,
+};
+
+#[test]
+fn tab_reaches_every_top_bar_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    for field in [
+        TopBarField::Switcher,
+        TopBarField::SaveAll,
+        TopBarField::StartStop,
+    ] {
+        tab_until(&mut a, Region::TopBar(field));
+    }
+}
+
+#[test]
+fn tab_reaches_every_test_rule_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    a.update(Message::TestRuleOpen);
+    for field in [
+        TestRuleField::Dismiss,
+        TestRuleField::Method,
+        TestRuleField::Path,
+        TestRuleField::Headers,
+        TestRuleField::Body,
+        TestRuleField::Close,
+        TestRuleField::Run,
+    ] {
+        tab_until(&mut a, Region::TestRule(field));
+    }
+}
+
+#[test]
+fn test_rule_enter_runs_the_dry_run_from_the_entry_position_and_from_each_text_field() {
+    // Task 034 §6: task 026's own oldest behaviour in this cycle,
+    // preserved explicitly rather than assumed.
+    let mut a = expert_in_workspace();
+    a.update(Message::TestRuleOpen);
+    assert_eq!(
+        a.focused_region,
+        Some(Region::TestRule(TestRuleField::Run)),
+        "test setup sanity: the entry position"
+    );
+    a.update(Message::EnterPressed);
+    assert!(
+        a.test_rule.result.is_some(),
+        "Enter from the entry position must run it"
+    );
+
+    for field in [
+        TestRuleField::Path,
+        TestRuleField::Headers,
+        TestRuleField::Body,
+    ] {
+        a.test_rule.result = None;
+        tab_until(&mut a, Region::TestRule(field));
+        a.update(Message::EnterPressed);
+        assert!(
+            a.test_rule.result.is_some(),
+            "Enter from {field:?} must also run it — the one deliberate exception"
+        );
+    }
+}
+
+#[test]
+fn tab_reaches_every_workspace_menu_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    for field in [
+        WorkspaceMenuField::Recent,
+        WorkspaceMenuField::Open,
+        WorkspaceMenuField::Create,
+    ] {
+        tab_until(&mut a, Region::WorkspaceMenu(field));
+    }
+}
+
+#[test]
+fn tab_reaches_every_path_assistant_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    a.path_assistant.open = true;
+    a.path_assistant.json_input = r#"{"id":1}"#.into();
+    for field in [
+        PathAssistantField::Close,
+        PathAssistantField::Json,
+        PathAssistantField::UseLeaf(0),
+        PathAssistantField::Cancel,
+        PathAssistantField::Insert,
+    ] {
+        tab_until(&mut a, Region::PathAssistant(field));
+    }
+}
+
+#[test]
+fn scroll_snap_target_for_the_path_assistants_leaf_tree() {
+    let mut a = expert_in_workspace();
+    a.path_assistant.open = true;
+    a.path_assistant.json_input = r#"{"id":1,"name":"x","age":2}"#.into();
+    tab_until(&mut a, Region::PathAssistant(PathAssistantField::Close));
+    assert_eq!(
+        a.scroll_snap_target(true),
+        None,
+        "Close sits above the leaf tree's own scrollable, not inside it"
+    );
+    tab_until(
+        &mut a,
+        Region::PathAssistant(PathAssistantField::UseLeaf(1)),
+    );
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::dotted_path::TREE_SCROLLABLE_ID);
+}
+
+#[test]
+fn tab_reaches_every_trace_activity_field_in_reading_order() {
+    let mut a = expert_in_workspace();
+    let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(rule_id));
+    tab_until(&mut a, Region::TraceActivity(TraceActivityField::ViewAll));
+}
+
+#[test]
+fn tab_reaches_every_feedback_banner_field_when_a_notice_is_showing() {
+    let mut a = expert_in_workspace();
+    a.notice = Some("Saved".into());
+    tab_until(&mut a, Region::FeedbackBanner(FeedbackBannerField::Dismiss));
+}
+
+// ── D-22: the confirm dialog restores the prior cursor on close ──────────
+
+#[test]
+fn confirm_dialog_restores_the_prior_region_and_cursor_on_cancel() {
+    let mut a = expert_in_workspace();
+    let rs_id = rule_set_ids(&a)[0];
+    a.update(Message::SelectRuleSet(rs_id));
+    tab_until(&mut a, Region::RuleSetConfig(RuleSetConfigField::Delete));
+    let before = (a.focused_region, a.region_cursor.clone());
+
+    a.update(Message::ConfirmRequest(
+        crate::message::ConfirmAction::LeaveWorkspace,
+    ));
+    assert_eq!(
+        a.focused_region,
+        Some(Region::ConfirmDialog),
+        "test setup sanity"
+    );
+    a.update(Message::ConfirmCancel);
+
+    assert_eq!(
+        (a.focused_region, a.region_cursor),
+        before,
+        "cancelling must put the cursor back where it was, not strand it at the tab bar"
+    );
+}
+
+#[test]
+fn confirm_dialog_restores_even_when_proceed_invalidated_what_it_named() {
+    // Task 034, review answer 2's own safety property: a restore that
+    // `Proceed` invalidated must simply not survive the next keystroke,
+    // not corrupt anything in the meantime.
+    let mut a = expert_in_workspace();
+    let rs_id = rule_set_ids(&a)[0];
+    a.update(Message::SelectRuleSet(rs_id));
+    tab_until(&mut a, Region::RuleSetConfig(RuleSetConfigField::Delete));
+    let before = (a.focused_region, a.region_cursor.clone());
+
+    a.update(Message::ConfirmRequest(
+        crate::message::ConfirmAction::DeleteRuleSet(rs_id),
+    ));
+    a.update(Message::ConfirmProceed);
+
+    assert_eq!(
+        (a.focused_region, a.region_cursor.clone()),
+        before,
+        "the raw restore happens regardless"
+    );
+    assert!(
+        !Region::order_for(&a).contains(&Region::RuleSetConfig(RuleSetConfigField::Delete)),
+        "the rule set this named no longer exists"
+    );
+    // The next keystroke self-heals: `valid_focused_region` will not find
+    // the stale region in the new `order_for`.
+    a.update(Message::ArrowDown);
+    assert_ne!(
+        a.focused_region, before.0,
+        "a stale restore must not survive the next keystroke"
+    );
+}
+
+// ── D-22: Escape dismisses from the same source `order_for` reads ────────
+
+#[test]
+fn escape_dismisses_the_confirm_dialog_over_the_palette_and_restores_focus() {
+    let mut a = expert_in_workspace();
+    tab_until(&mut a, Region::TabBar);
+    let before = (a.focused_region, a.region_cursor.clone());
+    a.update(Message::ToggleCommandPalette);
+    a.update(Message::ConfirmRequest(
+        crate::message::ConfirmAction::LeaveWorkspace,
+    ));
+    a.update(Message::EscapePressed);
+    assert!(
+        a.confirm_dialog.is_none(),
+        "the dialog, not the palette, closed"
+    );
+    assert!(
+        a.command_palette.open,
+        "the palette underneath is untouched"
+    );
+    assert_eq!(
+        (a.focused_region, a.region_cursor),
+        before,
+        "Escape restores the cursor exactly as Cancel does"
+    );
+}
+
+#[test]
+fn escape_closes_the_palette_over_the_workspace_menu_not_the_menu() {
+    // The exact bug D-22 finding #3 named: `ToggleWorkspaceMenu` closes
+    // the palette, but the reverse was never true, so `Escape` used to
+    // dismiss the menu while the palette sat above it, reachable.
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    a.update(Message::ToggleCommandPalette);
+    assert!(a.command_palette.open, "test setup sanity");
+    a.update(Message::EscapePressed);
+    assert!(!a.command_palette.open, "the palette, on top, closed");
+    assert!(
+        a.workspace_menu_open,
+        "the menu underneath must still be open"
+    );
+}
+
+#[test]
+fn escape_closes_the_path_assistant_over_the_drawer_not_the_drawer() {
+    let mut a = expert_in_workspace();
+    a.path_assistant.open = true;
+    a.update(Message::OpenValidationDrawer);
+    assert!(a.drawer.is_some(), "test setup sanity: still open");
+    a.update(Message::EscapePressed);
+    assert!(!a.path_assistant.open, "the path assistant, on top, closed");
+    assert!(
+        a.drawer.is_some(),
+        "the drawer underneath must still be open"
+    );
+}
+
+#[test]
+fn escape_closes_the_workspace_menu_over_the_drawer_not_the_drawer() {
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    a.update(Message::OpenValidationDrawer);
+    assert!(a.drawer.is_some(), "test setup sanity: still open");
+    a.update(Message::EscapePressed);
+    assert!(!a.workspace_menu_open, "the menu, on top, closed");
+    assert!(
+        a.drawer.is_some(),
+        "the drawer underneath must still be open"
+    );
+}
+
+// ── D-24's confirmation half ───────────────────────────────────────────────
+
+#[test]
+fn drawer_discard_opens_the_confirm_dialog_instead_of_discarding_immediately() {
+    // Task 034 (D-24's confirmation half only — the scope half, what
+    // `discard_all_changes` actually discards, is explicitly not this
+    // slice's to fix, per the handoff §4.2). Dirties a fallback file
+    // specifically, since the mock's own default dirty item (`main.toml`)
+    // is a rule set, which `discard_all_changes` never touched before this
+    // slice and still does not — this test is about the *routing* fix
+    // (through the confirm dialog, not direct), not the scope gap.
+    let mut a = expert_in_workspace();
+    let path = a.snapshot.as_ref().unwrap().fallback_files[0].path.clone();
+    a.fallback_drafts.insert(
+        path.clone(),
+        iced::widget::text_editor::Content::with_text("{\"x\":1}"),
+    );
+    a.recompute_dirty();
+    assert!(a.is_fallback_dirty(&path), "test setup sanity");
+
+    a.update(Message::OpenSaveDiffDrawer);
+    tab_until(&mut a, Region::Drawer(DrawerField::Discard));
+
+    a.update(Message::EnterPressed);
+    assert!(
+        a.confirm_dialog.is_some(),
+        "Discard must open a confirmation, not discard directly"
+    );
+    assert!(
+        a.is_fallback_dirty(&path),
+        "nothing discarded yet — only the dialog opened"
+    );
+
+    a.update(Message::ArrowDown); // to Proceed
+    a.update(Message::EnterPressed);
+    assert!(
+        !a.is_fallback_dirty(&path),
+        "Proceed actually discards the fallback draft"
+    );
+}
+
+// ── Scroll visibility: N/A, with a reason, for every region kind task ────
+// 034 adds that has no scrollable at all — stated plainly rather than
+// substituted away, the same standard task 033 already held `FallbackField`
+// to.
+
+#[test]
+fn scroll_snap_target_is_none_for_every_test_rule_field() {
+    // `screens::test_rule::view` has no scrollable — a plain `column`,
+    // fixed width.
+    let mut a = expert_in_workspace();
+    a.update(Message::TestRuleOpen);
+    for field in [
+        TestRuleField::Dismiss,
+        TestRuleField::Method,
+        TestRuleField::Path,
+        TestRuleField::Headers,
+        TestRuleField::Body,
+        TestRuleField::Close,
+        TestRuleField::Run,
+    ] {
+        tab_until(&mut a, Region::TestRule(field));
+        assert_eq!(a.scroll_snap_target(true), None);
+    }
+}
+
+#[test]
+fn scroll_snap_target_is_none_for_the_top_bar_and_the_routes_empty_cta() {
+    // Neither `shell::top_bar::view` nor the Routes empty-state call to
+    // action sit inside any scrollable.
+    let mut a = expert_in_workspace();
+    for field in [
+        TopBarField::Switcher,
+        TopBarField::SaveAll,
+        TopBarField::StartStop,
+    ] {
+        tab_until(&mut a, Region::TopBar(field));
+        assert_eq!(a.scroll_snap_target(true), None);
+    }
+    tab_until(&mut a, Region::RoutesEmptyCta);
+    assert_eq!(a.scroll_snap_target(true), None);
+}
+
+#[test]
+fn scroll_snap_target_is_none_for_trace_activity_and_the_feedback_banner() {
+    // `trace_activity_section` renders below both the WHEN/RESPOND
+    // scrollables, outside either; the feedback banner sits between the
+    // tab bar and the screen, also outside any scrollable.
+    let mut a = expert_in_workspace();
+    let rule_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(rule_id));
+    tab_until(&mut a, Region::TraceActivity(TraceActivityField::ViewAll));
+    assert_eq!(a.scroll_snap_target(true), None);
+
+    let mut b = expert_in_workspace();
+    b.notice = Some("Saved".into());
+    tab_until(&mut b, Region::FeedbackBanner(FeedbackBannerField::Dismiss));
+    assert_eq!(b.scroll_snap_target(true), None);
+}
+
+#[test]
+fn scroll_snap_target_is_none_for_the_workspace_menus_open_and_create() {
+    // `Length::Shrink` on the recent-workspace list's own `scrollable` —
+    // it never exceeds its content, so there is nothing to scroll into
+    // view, for any of its three fields.
+    let mut a = expert_in_workspace();
+    a.workspace_menu_open = true;
+    for field in [
+        WorkspaceMenuField::Recent,
+        WorkspaceMenuField::Open,
+        WorkspaceMenuField::Create,
+    ] {
+        tab_until(&mut a, Region::WorkspaceMenu(field));
+        assert_eq!(a.scroll_snap_target(true), None);
+    }
 }

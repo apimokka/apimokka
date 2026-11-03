@@ -459,7 +459,15 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
             cursor_wrap(
                 app,
                 DrawerField::Discard,
-                widgets::ghost_btn(app.t(Key::BtnDiscard), Message::DiscardChanges),
+                // Task 034 (D-24's confirmation half): routed through the
+                // confirm dialog — a confirmation already existed for this
+                // (`ConfirmAction::DiscardChanges`, title/body keys and
+                // all) and was dispatched by nothing; one click used to
+                // discard every unsaved change immediately.
+                widgets::ghost_btn(
+                    app.t(Key::BtnDiscard),
+                    Message::ConfirmRequest(crate::message::ConfirmAction::DiscardChanges),
+                ),
             ),
             Space::new().width(Length::Fill),
             cursor_wrap(

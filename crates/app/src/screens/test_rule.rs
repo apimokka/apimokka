@@ -5,11 +5,61 @@ use crate::match_test::{
     UnsupportedReason,
 };
 use crate::message::Message;
+use crate::regions::{Cursor, Region, TestRuleField, test_rule_field_id};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use iced::widget::{Space, button, column, container, mouse_area, row, text, text_input};
 use iced::{Alignment, Element, Length, Padding, Theme};
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` — this dialog's
+/// one-item regions (task 034).
+fn cursor_wrap<'a>(
+    app: &App,
+    field: TestRuleField,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::TestRule(field))
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap_group` — the 5 method
+/// buttons.
+fn cursor_wrap_group<'a>(
+    app: &App,
+    field: TestRuleField,
+    index: usize,
+    el: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::TestRule(field))
+        && app.region_cursor == Some(Cursor::Index(index));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
+
+/// D-18's own `mouse_area::on_release` idiom, for the 3 text fields.
+fn click_focus<'a>(
+    field: TestRuleField,
+    el: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    mouse_area(el)
+        .on_release(Message::RegionClicked(Region::TestRule(field)))
+        .into()
+}
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let tr = &app.test_rule;
@@ -61,17 +111,18 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
     let method_btns: Vec<Element<Message>> = methods
         .iter()
-        .map(|method| {
+        .enumerate()
+        .map(|(i, method)| {
             let active = tr.method.to_uppercase() == *method;
-            button(text(*method).size(size::LABEL))
+            let btn = button(text(*method).size(size::LABEL))
                 .on_press(Message::TestRuleSetMethod((*method).to_owned()))
                 .padding(Padding::from([space::S2, space::S3]))
                 .style(if active {
                     theme::seg_active
                 } else {
                     theme::seg_inactive
-                })
-                .into()
+                });
+            cursor_wrap_group(app, TestRuleField::Method, i, btn.into())
         })
         .collect();
 
@@ -81,9 +132,14 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 text(app.t(Key::TestRuleTitle))
                     .size(size::SECTION)
                     .width(Length::Fill),
-                button(text("✕").size(size::BODY))
-                    .on_press(Message::TestRuleClose)
-                    .padding(Padding::from([space::S1, space::S2])),
+                cursor_wrap(
+                    app,
+                    TestRuleField::Dismiss,
+                    button(text("✕").size(size::BODY))
+                        .on_press(Message::TestRuleClose)
+                        .padding(Padding::from([space::S1, space::S2]))
+                        .into(),
+                ),
             ]
             .align_y(Alignment::Center),
             text(app.t(Key::TestRuleHint))
@@ -98,40 +154,57 @@ pub fn view(app: &App) -> Element<'_, Message> {
             ),
             widgets::field(
                 app.t(Key::TestRulePath),
-                text_input("/api/orders", &tr.url_path)
-                    .on_input(Message::TestRuleSetPath)
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill)
-                    .into()
+                click_focus(
+                    TestRuleField::Path,
+                    text_input("/api/orders", &tr.url_path)
+                        .id(test_rule_field_id(TestRuleField::Path).unwrap())
+                        .on_input(Message::TestRuleSetPath)
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                ),
             ),
             widgets::field(
                 app.t(Key::TestRuleHeaders),
-                text_input("content-type: application/json", &tr.headers_text)
-                    .on_input(Message::TestRuleSetHeaders)
-                    .style(theme::text_input_style)
-                    .size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill)
-                    .into()
+                click_focus(
+                    TestRuleField::Headers,
+                    text_input("content-type: application/json", &tr.headers_text)
+                        .id(test_rule_field_id(TestRuleField::Headers).unwrap())
+                        .on_input(Message::TestRuleSetHeaders)
+                        .style(theme::text_input_style)
+                        .size(size::CAPTION)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                ),
             ),
             widgets::field(
                 app.t(Key::TestRuleBody),
-                text_input("{}", &tr.body)
-                    .on_input(Message::TestRuleSetBody)
-                    .style(theme::text_input_style)
-                    .size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill)
-                    .into()
+                click_focus(
+                    TestRuleField::Body,
+                    text_input("{}", &tr.body)
+                        .id(test_rule_field_id(TestRuleField::Body).unwrap())
+                        .on_input(Message::TestRuleSetBody)
+                        .style(theme::text_input_style)
+                        .size(size::CAPTION)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                ),
             ),
             result_el,
             widgets::divider(),
             row![
                 Space::new().width(Length::Fill),
-                widgets::ghost_btn(app.t(Key::BtnClose), Message::TestRuleClose),
-                widgets::primary_btn(app.t(Key::BtnRunTest), Message::TestRuleRun),
+                cursor_wrap(
+                    app,
+                    TestRuleField::Close,
+                    widgets::ghost_btn(app.t(Key::BtnClose), Message::TestRuleClose),
+                ),
+                cursor_wrap(
+                    app,
+                    TestRuleField::Run,
+                    widgets::primary_btn(app.t(Key::BtnRunTest), Message::TestRuleRun),
+                ),
             ]
             .spacing(space::S3)
             .align_y(Alignment::Center),

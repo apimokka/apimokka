@@ -10,15 +10,31 @@ mod rule_editor;
 mod rule_set_config;
 mod script_viewer;
 mod sidebar;
-mod trace_activity;
+pub(crate) mod trace_activity;
 
 use crate::app::App;
 use crate::message::Message;
-use crate::theme::space;
+use crate::regions::{Cursor, Region};
+use crate::theme::{self, space};
 use crate::widgets;
 use apimokka_i18n::Key;
 use iced::widget::{column, container, row};
 use iced::{Element, Length};
+
+/// Same shape as `rule_editor.rs`'s own `cursor_wrap` — the empty state's
+/// one call-to-action button (task 034, the census's own F2).
+fn cursor_wrap<'a>(app: &App, el: Element<'a, Message>) -> Element<'a, Message> {
+    let has_cursor = app.focused_region == Some(Region::RoutesEmptyCta)
+        && app.region_cursor == Some(Cursor::Index(0));
+    container(el)
+        .padding(space::S1)
+        .style(if has_cursor {
+            theme::cursor_style
+        } else {
+            |_: &iced::Theme| iced::widget::container::Style::default()
+        })
+        .into()
+}
 
 /// Task 029 §4 edge case 4: the `Id` `App::update_and_dispatch` scrolls when
 /// the sidebar's keyboard cursor moves — same D-5 approximation Dashboard's
@@ -101,24 +117,20 @@ fn centre_panel(app: &App) -> Element<'_, Message> {
             } else {
                 app.t(Key::EmptyBlankWorkspace)
             }),
-            container(if has_rule_sets {
-                widgets::primary_btn(app.t(Key::EmptyNoRuleSelectedCta), {
-                    if let Some(rs_id) = app.selection.rule_set {
-                        Message::AddRule(rs_id)
-                    } else if let Some(s) = &app.snapshot {
-                        s.rule_sets
-                            .first()
-                            .map(|rs| Message::AddRule(rs.id))
-                            .unwrap_or(Message::Noop)
-                    } else {
-                        Message::Noop
-                    }
+            cursor_wrap(
+                app,
+                container(if has_rule_sets {
+                    widgets::primary_btn(
+                        app.t(Key::EmptyNoRuleSelectedCta),
+                        crate::regions::routes_empty_cta_message(app).unwrap_or(Message::Noop),
+                    )
+                } else {
+                    widgets::primary_btn(app.t(Key::BtnAddRuleSet), Message::AddRuleSet)
                 })
-            } else {
-                widgets::primary_btn(app.t(Key::BtnAddRuleSet), Message::AddRuleSet)
-            })
-            .width(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Center),
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center)
+                .into(),
+            ),
         ]
         .spacing(space::S3),
     )
