@@ -14,8 +14,8 @@ slices. One handoff per slice, added as each is issued.
 | 3 | [`028-m12-slice3-welcome-and-dashboard.md`](./028-m12-slice3-welcome-and-dashboard.md) | Welcome and Dashboard. **Complete** — `cc56256`, closed D-12's headline symptom; a keyboard-only user reaches a workspace with no pointer event. Surfaced D-18. |
 | 4 | [`029-m12-slice4-sidebar-tree.md`](./029-m12-slice4-sidebar-tree.md) | The routes sidebar tree. **Complete** — `4ba6552`, three expansion behaviours in one region, plus the keyboard-only rule-set collapse. |
 | 5 | [`030-m12-slice5-editor-and-trace.md`](./030-m12-slice5-editor-and-trace.md) | The rule editor and trace screen. **Complete** — `556102b`, scenario 3 keyboard-completable. Exposed D-19. |
-| 6 | [`031-m12-slice6-settings-and-wizard.md`](./031-m12-slice6-settings-and-wizard.md) | Settings and the Wizard. **Added 2026-11-03** after finding both screens were never assigned a slice, leaving scenarios 2 and 6 uncompletable. |
-| 7 | not yet issued | D-16, D-18, D-19 and the palette commands — where the remaining design judgement lives |
+| 6 | [`031-m12-slice6-settings-and-wizard.md`](./031-m12-slice6-settings-and-wizard.md) | Settings and the Wizard. **Complete** — `1258ce9`; all six scenarios keyboard-completable. Surfaced D-20. |
+| 7 | [`032-m12-slice7-final.md`](./032-m12-slice7-final.md) | **The last.** D-16, D-18, D-19, D-20, the palette commands, and M12's own acceptance evidence: all six scenarios keyboard-only. |
 
 Slice numbering follows the design section's list; the file-name number is the
 dev-team task number, which review requests cite.
