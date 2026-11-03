@@ -636,10 +636,84 @@ sharpest case, being a growing list. Both slices' edge-case tables substituted
 other rows for the design's *scroll visibility*, and the slice 5 handoff's own
 wording invited that substitution.
 
-**Slice 7 is the last** and carries five items: **D-16**, **D-18**, **D-19**,
-**D-20**, and the palette commands for theme, audience mode and locale.
+**Slice 7 complete 2026-11-03** (`0af9e09`). D-16, D-18, D-19 and D-20 closed
+and the palette commands added. **It also found scenario 5 broken**: the
+fallback-file editor had no region at all, so a keyboard user could select a
+fallback file from a navigable sidebar and reach nothing in the pane that
+opened. Five of the six scenarios were captured; the sixth was not. **The RFC
+did not move to `done/`** — closing it with a known uncompletable scenario
+would have been R1's finding B3 committed deliberately, at the end of a cycle
+built to prevent exactly that.
 
-On slice 7's acceptance this RFC moves to `done/` with its mechanism executed.
+**Slice 8 complete 2026-11-03** (`7df87ad`). The fallback editor, the rule-set
+configuration pane and the bottom drawer became regions, and the confirm dialog
+with them — forced into scope because reverting a fallback file goes through it,
+so the required evidence could not exist without a cursor in it. The three
+pre-existing scroll dispatches were folded into one pattern, with a regression
+test each, since two patterns side by side is how D-20 reached live.
+**Scenario 5 is captured end to end, keyboard only: D-12 closes.**
+
+**And its census is what ended the accumulation.** Walking every file in
+`screens/` and `shell/` rather than the handoff's own sample table found seven
+further surfaces holding controls no key reaches — of which **three are named
+in this RFC's own acceptance clause**: Test Rule's five method buttons (the
+scenario-3 inventory row), and the first two and the last entries of the Routes
+focus order (the top bar's identity and global actions, and the right column).
+An eighth, the Routes centre panel's own empty-state call to action, was found
+in review. **A palette row is not a substitute for reaching the control** —
+this RFC withdrew that argument once already, for theme and audience mode, and
+the top bar is the same shape.
+
+**Slice 9 is the last** and carries two things: the acceptance clause's
+remaining inventory (**D-23**), and **D-22** — the overlay precedence, which is
+written out by hand in `shell/view.rs`, `regions::order_for` and
+`EscapePressed` and has drifted into three reachable disagreements, one of them
+leaving a destructive, unconfirmed `Discard` keyboard-live beneath a dialog the
+user is looking at.
+
+**On slice 9's acceptance this RFC moves to `done/` with its mechanism
+executed** — measured against the acceptance clause below, which is the
+checklist, not against the number of slices completed.
+
+### The census
+
+Promoted here from `.git-exclude/review-request/2026-11-03-task033-m12-slice8.md`
+because it is **specification, and that directory is not under version
+control** — the same reason the control inventory above was promoted. Walked
+from source across `crates/app/src/screens/` and `crates/app/src/shell/`, not
+from any earlier table. Corrected in review (`routes.rs`'s own empty state was
+missed; `scripts.rs` is scheduled for deletion).
+
+| Screen / pane | Interactive controls | Covered |
+|---|---|---|
+| `mode_picker.rs` | 2 option cards | ✅ `ModePicker` |
+| `welcome.rs` | Open / Create | ✅ `WelcomeActions` |
+| `dashboard.rs` | Create, Search, workspace rows | ✅ |
+| `wizard.rs` | name/folder, 3 section toggles, starter group, TLS, Cancel/Create | ✅ `Wizard(..)` |
+| `shell/tab_bar.rs` | 3 tabs | ✅ `TabBar` |
+| `routes.rs` + `routes/sidebar.rs` | the tree's rows and add actions | ✅ `Sidebar` |
+| `routes.rs` **empty state** | "Add a rule" / "Add rule set" | ❌ **D-23** — the state the Routes tab opens in |
+| `routes/rule_editor.rs` | 24 fields and groups | ✅ `Editor(..)` |
+| `routes/fallback_editor.rs` | content, status, Format, Revert, Save | ✅ slice 8 |
+| `routes/rule_set_config.rs` | Delete, Strategy, More, Add rule | ✅ slice 8 — the rule-link rows are deliberately **not** a second keyboard path to `SelectRule`, which the sidebar already provides |
+| `routes/script_viewer.rs` | none — read-only | ✅ null result |
+| `routes/trace_activity.rs` | "View all in Trace", up to 3 jumps | ❌ **D-23** — the Routes focus order's last entry |
+| `settings.rs` | 10 controls and groups | ✅ `Settings(..)` |
+| `trace.rs` | filter, Pause, Clear, event list, outcome action, Replay | ✅ |
+| `test_rule.rs` | 5 method buttons, `✕`, 3 fields, Close, Run | ❌ **D-23** — the scenario-3 inventory row. Not a trap (`Enter` runs, `Escape` closes) |
+| `confirm_dialog.rs` | Cancel, Proceed | ✅ slice 8 |
+| `dotted_path.rs` | `✕`, JSON input, per-leaf Use, Cancel, Insert | ❌ **D-23** — openable from the keyboard and then unusable |
+| `workspace_menu.rs` | recent rows, Open, Create | ❌ **D-23**, and no overlay override — **D-22** |
+| `shell/top_bar.rs` | switcher, Save all, Reload, Restart, Start/Stop | ❌ **D-23** — the focus order's first two entries |
+| `shell/bottom_drawer.rs` | Close, jump-to-diagnostic, Discard, Save all | ✅ slice 8; `Discard` itself is **D-24** |
+| `shell/view.rs` `feedback_banner` | error details/action/dismiss, Undo, notice dismiss | ❌ **D-23**; the same surface as **D-21** and **D-25**, three independent repairs |
+| `command_palette.rs` | results, query, `✕` | ✅ by its own mechanism; the `✕` is covered by `Escape`, as every dialog's is |
+| `scripts.rs` | one clickable row | **dead code** — reachable from nothing; deleted in slice 9 |
+
+**What the census is for, beyond this cycle.** Coverage accumulated over nine
+slices is not a claim anyone can check. A table walked from source is, and
+slice 9 turns it into a test, so a control added later cannot quietly leave the
+keyboard model behind.
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from

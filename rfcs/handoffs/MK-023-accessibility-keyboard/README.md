@@ -4,8 +4,10 @@ Companion execution documents for
 [MK-023](../../proposed/MK-023-accessibility-keyboard.md). Their lifecycle state
 is **inherited from that RFC** and is not managed here.
 
-MK-023's external design was accepted 2026-10-31 and is implemented in six
-slices. One handoff per slice, added as each is issued.
+MK-023's external design was accepted 2026-10-31. The slice plan named six;
+evidence has extended it three times — slice 7's scenario-5 gap, slice 8's
+census, and the acceptance clause that census made visible. One handoff per
+slice, added as each is issued.
 
 | Slice | Handoff | Covers |
 |---:|---|---|
@@ -16,7 +18,8 @@ slices. One handoff per slice, added as each is issued.
 | 5 | [`030-m12-slice5-editor-and-trace.md`](./030-m12-slice5-editor-and-trace.md) | The rule editor and trace screen. **Complete** — `556102b`, scenario 3 keyboard-completable. Exposed D-19. |
 | 6 | [`031-m12-slice6-settings-and-wizard.md`](./031-m12-slice6-settings-and-wizard.md) | Settings and the Wizard. **Complete** — `1258ce9`; all six scenarios keyboard-completable. Surfaced D-20. |
 | 7 | [`032-m12-slice7-final.md`](./032-m12-slice7-final.md) | D-16, D-18, D-19, D-20 and the palette commands. **Complete** — `0af9e09`; five of six scenarios captured, and **scenario 5 found broken**. |
-| 8 | [`033-m12-slice8-remaining-panes.md`](./033-m12-slice8-remaining-panes.md) | **The last.** The three uncovered panes, the scroll-dispatch refactor, and **the census** that lets MK-023 claim keyboard operability on evidence rather than accumulation. |
+| 8 | [`033-m12-slice8-remaining-panes.md`](./033-m12-slice8-remaining-panes.md) | The three uncovered panes, the scroll-dispatch refactor, and **the census**. **Complete** — `7df87ad`; closed **D-12** (scenario 5 captured end to end) and covered a fourth surface, the confirm dialog. Its census found seven more, three of them named in MK-023's own acceptance clause. |
+| 9 | [`034-m12-slice9-inventory-and-overlay-precedence.md`](./034-m12-slice9-inventory-and-overlay-precedence.md) | **The last.** The acceptance clause's remaining inventory (**D-23**), one overlay-precedence source (**D-22**), and the two corrections from slice 8's review. On acceptance MK-023 moves to `done/`. |
 
 Slice numbering follows the design section's list; the file-name number is the
 dev-team task number, which review requests cite.
