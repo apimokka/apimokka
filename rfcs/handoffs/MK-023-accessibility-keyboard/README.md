@@ -5,9 +5,13 @@ Companion execution documents for
 is **inherited from that RFC** and is not managed here.
 
 MK-023's external design was accepted 2026-10-31. The slice plan named six;
-evidence has extended it three times — slice 7's scenario-5 gap, slice 8's
-census, and the acceptance clause that census made visible. One handoff per
-slice, added as each is issued.
+evidence has extended it four times — slice 7's scenario-5 gap, slice 8's
+census, the acceptance clause that census made visible, and slice 9's own
+overlay source proving one dimension short. Each extension came from a slice
+looking where it was told to look and finding the layer above it; the
+containers are region inside overlay inside view, and `App::view` is the
+root, so slice 10 exhausts them. One handoff per slice, added as each is
+issued.
 
 | Slice | Handoff | Covers |
 |---:|---|---|
@@ -19,7 +23,8 @@ slice, added as each is issued.
 | 6 | [`031-m12-slice6-settings-and-wizard.md`](./031-m12-slice6-settings-and-wizard.md) | Settings and the Wizard. **Complete** — `1258ce9`; all six scenarios keyboard-completable. Surfaced D-20. |
 | 7 | [`032-m12-slice7-final.md`](./032-m12-slice7-final.md) | D-16, D-18, D-19, D-20 and the palette commands. **Complete** — `0af9e09`; five of six scenarios captured, and **scenario 5 found broken**. |
 | 8 | [`033-m12-slice8-remaining-panes.md`](./033-m12-slice8-remaining-panes.md) | The three uncovered panes, the scroll-dispatch refactor, and **the census**. **Complete** — `7df87ad`; closed **D-12** (scenario 5 captured end to end) and covered a fourth surface, the confirm dialog. Its census found seven more, three of them named in MK-023's own acceptance clause. |
-| 9 | [`034-m12-slice9-inventory-and-overlay-precedence.md`](./034-m12-slice9-inventory-and-overlay-precedence.md) | **The last.** The acceptance clause's remaining inventory (**D-23**), one overlay-precedence source (**D-22**), and the two corrections from slice 8's review. On acceptance MK-023 moves to `done/`. |
+| 9 | [`034-m12-slice9-inventory-and-overlay-precedence.md`](./034-m12-slice9-inventory-and-overlay-precedence.md) | The acceptance clause's remaining inventory, one overlay-precedence source, and slice 8's two corrections. **Complete** — `83b5ffc`; closed **D-23** and **D-24**'s confirmation half, corrected the capture geometry for the whole cycle, and made the census a test. **D-22 stays open**, narrowed: the one source reports overlays the current view does not draw. |
+| 10 | [`035-m12-slice10-view-aware-overlays.md`](./035-m12-slice10-view-aware-overlays.md) | **The last.** Overlays the view actually draws (**D-22**), the confirm dialog drawn wherever it is raised, one source per method table (**D-26**). On acceptance MK-023 moves to `done/`. |
 
 Slice numbering follows the design section's list; the file-name number is the
 dev-team task number, which review requests cite.

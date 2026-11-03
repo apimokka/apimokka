@@ -664,14 +664,34 @@ in review. **A palette row is not a substitute for reaching the control** —
 this RFC withdrew that argument once already, for theme and audience mode, and
 the top bar is the same shape.
 
-**Slice 9 is the last** and carries two things: the acceptance clause's
-remaining inventory (**D-23**), and **D-22** — the overlay precedence, which is
-written out by hand in `shell/view.rs`, `regions::order_for` and
-`EscapePressed` and has drifted into three reachable disagreements, one of them
-leaving a destructive, unconfirmed `Discard` keyboard-live beneath a dialog the
-user is looking at.
+**Slice 9 complete 2026-11-03** (`83b5ffc`). `App::topmost_overlay()` became
+the one source `shell/view.rs`, `regions::order_for`, `EnterPressed` and
+`EscapePressed` all read, and **every control the acceptance clause names is
+now reachable** — Test Rule, the top bar, the workspace menu, the path
+assistant, the trace-activity footer, the feedback banner and the Routes
+empty-state call to action, with the dead `scripts.rs` deleted. **D-23 closed**,
+and the census became a test, so a control added later cannot quietly leave the
+model behind. The capture geometry was corrected for the whole cycle: the
+nested compositor's own column width and output scale, not the host-side
+resize, were what slice 8's half-width frames came from.
 
-**On slice 9's acceptance this RFC moves to `done/` with its mechanism
+**D-22 did not close.** The one source answers *which overlay state is set*,
+not *which overlay is drawn*, and those differ: `App::view` routes only
+`AppView::Workspace` through `shell::view`, so an overlay keeps the whole
+keyboard model on a screen that never draws it. Four keystrokes from a fresh
+workspace — `Tab`, `Enter`, `Tab`, `Enter` through the top bar's own switcher —
+leave the Dashboard with none of its own controls reachable, and a confirm
+dialog raised from the Dashboard or the Wizard is never drawn at all, for
+pointer users as much as keyboard ones. That is this design's own central
+sentence failing, not an edge around it.
+
+**Slice 10 is the last**, and the reason is structural rather than hopeful:
+the containers are **region inside overlay inside view**, and `App::view` is
+the root. Slice 8 closed the region level, slice 9 the overlay level, slice 10
+makes the overlay source view-aware and draws the confirm dialog wherever it is
+raised. There is no fourth container.
+
+**On slice 10's acceptance this RFC moves to `done/` with its mechanism
 executed** — measured against the acceptance clause below, which is the
 checklist, not against the number of slices completed.
 
@@ -692,28 +712,31 @@ missed; `scripts.rs` is scheduled for deletion).
 | `wizard.rs` | name/folder, 3 section toggles, starter group, TLS, Cancel/Create | ✅ `Wizard(..)` |
 | `shell/tab_bar.rs` | 3 tabs | ✅ `TabBar` |
 | `routes.rs` + `routes/sidebar.rs` | the tree's rows and add actions | ✅ `Sidebar` |
-| `routes.rs` **empty state** | "Add a rule" / "Add rule set" | ❌ **D-23** — the state the Routes tab opens in |
+| `routes.rs` **empty state** | "Add a rule" / "Add rule set" | ✅ slice 9 |
 | `routes/rule_editor.rs` | 24 fields and groups | ✅ `Editor(..)` |
 | `routes/fallback_editor.rs` | content, status, Format, Revert, Save | ✅ slice 8 |
 | `routes/rule_set_config.rs` | Delete, Strategy, More, Add rule | ✅ slice 8 — the rule-link rows are deliberately **not** a second keyboard path to `SelectRule`, which the sidebar already provides |
 | `routes/script_viewer.rs` | none — read-only | ✅ null result |
-| `routes/trace_activity.rs` | "View all in Trace", up to 3 jumps | ❌ **D-23** — the Routes focus order's last entry |
+| `routes/trace_activity.rs` | "View all in Trace", up to 3 jumps | ✅ slice 9 — the Routes focus order's last entry |
 | `settings.rs` | 10 controls and groups | ✅ `Settings(..)` |
 | `trace.rs` | filter, Pause, Clear, event list, outcome action, Replay | ✅ |
-| `test_rule.rs` | 5 method buttons, `✕`, 3 fields, Close, Run | ❌ **D-23** — the scenario-3 inventory row. Not a trap (`Enter` runs, `Escape` closes) |
+| `test_rule.rs` | 5 method buttons, `✕`, 3 fields, Close, Run | ✅ slice 9 — the scenario-3 inventory row; `Run` stays the entry position, so a bare `Enter` still runs the dry run |
 | `confirm_dialog.rs` | Cancel, Proceed | ✅ slice 8 |
-| `dotted_path.rs` | `✕`, JSON input, per-leaf Use, Cancel, Insert | ❌ **D-23** — openable from the keyboard and then unusable |
-| `workspace_menu.rs` | recent rows, Open, Create | ❌ **D-23**, and no overlay override — **D-22** |
-| `shell/top_bar.rs` | switcher, Save all, Reload, Restart, Start/Stop | ❌ **D-23** — the focus order's first two entries |
+| `dotted_path.rs` | `✕`, JSON input, per-leaf Use, Cancel, Insert | ✅ slice 9 |
+| `workspace_menu.rs` | recent rows, Open, Create | ✅ slice 9; its overlay override is **D-22**'s remaining view-dimension case |
+| `shell/top_bar.rs` | switcher, Save all, Reload, Restart, Start/Stop | ✅ slice 9 — the focus order's first two entries; its fields precede `TabBar` |
 | `shell/bottom_drawer.rs` | Close, jump-to-diagnostic, Discard, Save all | ✅ slice 8; `Discard` itself is **D-24** |
-| `shell/view.rs` `feedback_banner` | error details/action/dismiss, Undo, notice dismiss | ❌ **D-23**; the same surface as **D-21** and **D-25**, three independent repairs |
+| `shell/view.rs` `feedback_banner` | error details/action/dismiss, Undo, notice dismiss | ✅ slice 9; **D-21** and **D-25** remain on the same surface, two separate repairs |
 | `command_palette.rs` | results, query, `✕` | ✅ by its own mechanism; the `✕` is covered by `Escape`, as every dialog's is |
-| `scripts.rs` | one clickable row | **dead code** — reachable from nothing; deleted in slice 9 |
+| `scripts.rs` | one clickable row | **deleted** in slice 9 — it was reachable from nothing |
 
 **What the census is for, beyond this cycle.** Coverage accumulated over nine
 slices is not a claim anyone can check. A table walked from source is, and
-slice 9 turns it into a test, so a control added later cannot quietly leave the
-keyboard model behind.
+slice 9 turned it into a test (`app/control_census.rs`), so a control added
+later cannot quietly leave the keyboard model behind. It counts literal call
+sites rather than logical controls, deliberately: its job is not to count
+correctly but to make a file's control surface changing impossible to do
+silently.
 
 **This RFC moves to `done/` when its mechanism has been executed**, not when the
 design was agreed. That distinction is the whole reason it was returned from
