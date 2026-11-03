@@ -11,7 +11,6 @@ record. The lifecycle policy is the MK-000 entry below.
 
 | RFC | Title | Tracks |
 |---|---|---|
-| [MK-023](./proposed/MK-023-accessibility-keyboard.md) | Accessibility and keyboard contract | Returned from `done/` 2026-08-15 — Tab traversal never implemented; keyboard-only users cannot pass the first screen |
 | [MK-024](./proposed/MK-024-responsive-behaviour.md) | Responsive and window behaviour | Returned from `done/` 2026-08-12 — never implemented; blocked on a snora design-path gap (see its 2026-08-15 correction) |
 | [MK-033](./proposed/MK-033-command-palette.md) | Command palette | Returned from `done/` 2026-08-15. Keyboard requirements built by M9/M10; **context-aware disabled commands remain unimplemented**, so it stays here |
 | [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
@@ -25,6 +24,7 @@ record. The lifecycle policy is the MK-000 entry below.
 | [MK-000](./done/MK-000-rfc-lifecycle.md) | RFC lifecycle policy | v0.1.0 |
 | [MK-021](./done/MK-021-workflow-centred-ia.md) | Workflow-centred information architecture | v0.6.0 |
 | [MK-022](./done/MK-022-visual-design-system.md) | Visual design system | v0.6.0 |
+| [MK-023](./done/MK-023-accessibility-keyboard.md) | Accessibility and keyboard contract | Unreleased — built 2026-10-31…2026-11-03 in ten reviewed slices (M12); returned from `done/` 2026-08-15 and re-earned on evidence |
 | [MK-025](./done/MK-025-welcome-dashboard.md) | Welcome and Dashboard | v0.6.0 |
 | [MK-026](./done/MK-026-workspace-wizard.md) | New workspace wizard | v0.6.0 |
 | [MK-027](./done/MK-027-workspace-shell.md) | Workspace shell (top bar and left rail) | v0.6.0 |
@@ -71,7 +71,7 @@ both, and that no handoff directory duplicates a lifecycle folder.
 
 | Handoffs | For | State |
 |---|---|---|
-| [MK-023-accessibility-keyboard](./handoffs/MK-023-accessibility-keyboard/) | Accessibility and keyboard contract | Design accepted 2026-10-31; slice 1 issued |
+| [MK-023-accessibility-keyboard](./handoffs/MK-023-accessibility-keyboard/) | Accessibility and keyboard contract | Design accepted 2026-10-31; all ten slices complete 2026-11-03 |
 | [MK-036-content-microcopy](./handoffs/MK-036-content-microcopy/) | Content and microcopy | D-17 issued |
 | [MK-056-ux-acceptance-protocol](./handoffs/MK-056-ux-acceptance-protocol/) | UX acceptance protocol | M6 recruitment and session pack, live |
 

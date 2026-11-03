@@ -3,7 +3,7 @@
 **Issued:** 2026-11-03
 **Issued by:** programme architect
 **Authorized by:** project owner — pending
-**Design:** [MK-023](../../proposed/MK-023-accessibility-keyboard.md) § *External design*, and its **2026-11-03 correction**
+**Design:** [MK-023](../../done/MK-023-accessibility-keyboard.md) § *External design*, and its **2026-11-03 correction**
 **Cycle:** C2, implementation slice 6 of **7** — the count changed; see §1
 
 ---

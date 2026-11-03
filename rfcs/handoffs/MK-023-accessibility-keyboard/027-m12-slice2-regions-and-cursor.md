@@ -3,7 +3,7 @@
 **Issued:** 2026-10-31
 **Issued by:** programme architect
 **Authorized by:** project owner — pending
-**Design:** [MK-023](../../proposed/MK-023-accessibility-keyboard.md) § *External design — the keyboard interaction model*, accepted 2026-10-31
+**Design:** [MK-023](../../done/MK-023-accessibility-keyboard.md) § *External design — the keyboard interaction model*, accepted 2026-10-31
 **Cycle:** C2, implementation slice 2 of 6 — **the foundation the remaining four build on**
 
 ---

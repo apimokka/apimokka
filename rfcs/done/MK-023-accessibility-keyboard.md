@@ -1,6 +1,6 @@
 # RFC MK-023 — Accessibility and keyboard contract
 
-**Status.** Proposed
+**Status.** Implemented (Unreleased)
 **Tracks.** ABDD policy, keyboard shortcut catalogue, focus order, screen-reader landmarks.
 **Touches.** Every interactive surface.
 **Supersedes.** MK-015 (accessibility, keyboard, command palette).
@@ -685,15 +685,33 @@ dialog raised from the Dashboard or the Wizard is never drawn at all, for
 pointer users as much as keyboard ones. That is this design's own central
 sentence failing, not an edge around it.
 
-**Slice 10 is the last**, and the reason is structural rather than hopeful:
+**Slice 10 complete 2026-11-03** (`9d405e1`), and with it this RFC.
+`topmost_overlay()` now answers *which overlay is drawn*, not only which one
+is set: the four workspace-only overlays are reported only while
+`AppView::Workspace` is showing — the same single equality test `App::view`'s
+own match already makes, so the two cannot disagree — and the confirm dialog,
+the one overlay legitimately raised from Welcome, Dashboard or the Wizard, is
+now drawn over whichever screen is showing. **D-22 closed**, and **D-26** with
+it (one `HTTP_METHODS` constant, the rule editor's prefixed variants derived
+from it rather than spelled a third and fourth time).
+
+**The reason this ends rather than extends again is structural, not hopeful:**
 the containers are **region inside overlay inside view**, and `App::view` is
 the root. Slice 8 closed the region level, slice 9 the overlay level, slice 10
-makes the overlay source view-aware and draws the confirm dialog wherever it is
-raised. There is no fourth container.
+the view level. There is no fourth container.
 
-**On slice 10's acceptance this RFC moves to `done/` with its mechanism
-executed** — measured against the acceptance clause below, which is the
-checklist, not against the number of slices completed.
+**The capture for this slice was run by the architect during review**, the dev
+team's own three attempts having been blocked by a rig fault — `niri msg
+action screenshot-window` writes its PNG asynchronously, so a reader that does
+not wait for the file sees the previous frame and concludes the application
+has frozen. Recorded because the lesson is reusable:
+`.git-exclude/release-evidence/2026-11-03-task035-m12-slice10-architect-capture/`.
+
+**Acceptance met, on evidence.** All six primary scenarios are captured
+keyboard-only with zero pointer events, and every control the audit inventory
+lists is reachable or recorded with the reason it is not. **This RFC moves to
+`done/` with its mechanism executed** — measured against the acceptance clause
+below, which is the checklist, not against the number of slices completed.
 
 ### The census
 

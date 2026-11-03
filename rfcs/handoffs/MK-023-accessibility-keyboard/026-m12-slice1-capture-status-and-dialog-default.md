@@ -3,7 +3,7 @@
 **Issued:** 2026-10-31
 **Issued by:** programme architect
 **Authorized by:** project owner — pending
-**Design:** `rfcs/proposed/MK-023-accessibility-keyboard.md` § *External design — the keyboard interaction model*, **accepted 2026-10-31**
+**Design:** `rfcs/done/MK-023-accessibility-keyboard.md` § *External design — the keyboard interaction model*, **accepted 2026-10-31**
 **Closes:** D-6, and the `Enter`-in-dialog defect task 024's audit found
 **Cycle:** C2, implementation slice 1 of 6
 

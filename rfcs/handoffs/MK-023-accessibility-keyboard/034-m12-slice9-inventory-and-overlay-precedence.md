@@ -3,7 +3,7 @@
 **Issued:** 2026-11-03
 **Issued by:** programme architect
 **Authorized by:** project owner — pending
-**Design:** [MK-023](../../proposed/MK-023-accessibility-keyboard.md) § *External design*, § *Acceptance*
+**Design:** [MK-023](../../done/MK-023-accessibility-keyboard.md) § *External design*, § *Acceptance*
 **Review that produced it:** `.git-exclude/reviewed/2026-11-03-task033-slice8-review.md`
 **Cycle:** C2, implementation slice **9 of 9**
 
