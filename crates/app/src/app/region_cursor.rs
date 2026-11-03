@@ -1775,3 +1775,219 @@ fn enter_on_wizard_create_creates_the_workspace_from_a_fresh_welcome_launch() {
     assert_eq!(a.view, AppView::Workspace);
     assert_eq!(a.snapshot.as_ref().unwrap().identity.name, "payments-mock");
 }
+
+// ── Task 032 — the final slice ─────────────────────────────────────────────
+
+// ── D-18: a click enters its text-field region ─────────────────────────────
+
+#[test]
+fn region_clicked_enters_a_one_item_text_field_region_from_nothing_focused() {
+    let mut a = expert_at_dashboard();
+    assert_eq!(a.focused_region, None, "test setup sanity");
+    a.update(Message::RegionClicked(Region::DashboardSearch));
+    assert_eq!(a.focused_region, Some(Region::DashboardSearch));
+    assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
+}
+
+#[test]
+fn region_clicked_moves_focus_away_from_whatever_tab_last_left_it_on() {
+    let mut a = expert_in_workspace();
+    let health_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(health_id));
+    tab_until(&mut a, Region::Sidebar);
+    assert_eq!(a.focused_region, Some(Region::Sidebar), "test setup sanity");
+
+    a.update(Message::RegionClicked(Region::Editor(
+        EditorField::RespondStatus,
+    )));
+    assert_eq!(
+        a.focused_region,
+        Some(Region::Editor(EditorField::RespondStatus))
+    );
+    assert_eq!(a.region_cursor, Some(Cursor::Index(0)));
+}
+
+// ── D-19: `Enter` cycles forward on all four value cyclers ─────────────────
+
+#[test]
+fn enter_dispatches_the_same_message_arrow_down_would_on_all_four_cyclers() {
+    let mut a = expert_in_workspace();
+    select_rule_with_conditions(&mut a);
+
+    for region in [
+        Region::Editor(EditorField::UrlPathOp),
+        Region::Editor(EditorField::HeaderOp(0)),
+        Region::Editor(EditorField::BodyOp(0)),
+        Region::Settings(SettingsField::Locale),
+    ] {
+        // `Message` derives no `PartialEq` — same `Debug`-rendering
+        // comparison `palette_commands.rs`'s own tests already use.
+        assert_eq!(
+            format!("{:?}", region.activation_message(&a, &Cursor::Index(0))),
+            format!("{:?}", region.cycle_value(&a, 1)),
+            "{region:?}: `Enter` must dispatch the same message `ArrowDown` would"
+        );
+    }
+}
+
+#[test]
+fn enter_on_url_path_op_actually_advances_the_rules_value() {
+    let mut a = expert_in_workspace();
+    let health_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(health_id));
+    tab_until(&mut a, Region::Editor(EditorField::UrlPathOp));
+
+    let payload_op = |a: &App| {
+        a.snapshot
+            .as_ref()
+            .unwrap()
+            .rule_draft(health_id)
+            .map(|d| d.payload.url_path_op)
+            .unwrap_or_else(|| {
+                a.snapshot
+                    .as_ref()
+                    .unwrap()
+                    .find_rule(health_id)
+                    .unwrap()
+                    .1
+                    .payload
+                    .url_path_op
+            })
+    };
+    assert_eq!(payload_op(&a), Some(apimokka_model::UrlPathOp::Equal));
+    a.update(Message::EnterPressed);
+    assert_ne!(
+        payload_op(&a),
+        Some(apimokka_model::UrlPathOp::Equal),
+        "Enter must have moved the value forward, not left it a no-op"
+    );
+    assert_eq!(
+        a.region_cursor,
+        Some(Cursor::Index(0)),
+        "a pick_list region is always one item — the cursor never moves"
+    );
+}
+
+#[test]
+fn enter_on_settings_locale_cycles_forward_and_updates_the_real_locale() {
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::Locale));
+    assert_eq!(a.locale, apimokka_i18n::Locale::En, "test setup sanity");
+    a.update(Message::EnterPressed);
+    assert_eq!(a.locale, apimokka_i18n::Locale::Ja);
+}
+
+// ── D-20: scroll-into-view for the six previously-unwired scrollables ──────
+
+#[test]
+fn scroll_snap_target_is_none_when_the_key_is_not_a_navigation_key() {
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::Theme));
+    assert_eq!(a.scroll_snap_target(false), None);
+}
+
+#[test]
+fn scroll_snap_target_picks_the_when_column_for_a_when_field() {
+    let mut a = expert_in_workspace();
+    let health_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(health_id));
+    tab_until(&mut a, Region::Editor(EditorField::UrlPathOp));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::routes::WHEN_SCROLLABLE_ID);
+}
+
+#[test]
+fn scroll_snap_target_picks_the_respond_column_not_the_when_one() {
+    // Task 031 §11's own named risk: this is the one place the fix can be
+    // wired to the wrong target and still look plausible.
+    let mut a = expert_in_workspace();
+    let health_id = a.snapshot.as_ref().unwrap().rule_sets[0].rules[0].id;
+    a.update(Message::SelectRule(health_id));
+    tab_until(&mut a, Region::Editor(EditorField::RespondStatus));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::routes::RESPOND_SCROLLABLE_ID);
+}
+
+#[test]
+fn scroll_snap_target_for_the_trace_event_list() {
+    let mut a = expert_in_workspace();
+    trace_tab(&mut a);
+    tab_until(&mut a, Region::TraceEvents);
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::trace::EVENTS_SCROLLABLE_ID);
+}
+
+#[test]
+fn scroll_snap_target_for_the_match_detail_panel() {
+    let mut a = expert_in_workspace();
+    trace_tab(&mut a);
+    a.update(Message::SelectTraceEvent(1)); // Matched
+    tab_until(&mut a, Region::TraceOutcomeAction);
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::trace::DETAIL_SCROLLABLE_ID);
+}
+
+#[test]
+fn scroll_snap_target_for_settings() {
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    tab_until(&mut a, Region::Settings(SettingsField::Host));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::settings::SCROLLABLE_ID);
+}
+
+#[test]
+fn update_and_dispatch_snaps_on_tab_pressed_not_only_on_arrow_keys() {
+    // Regression, in two parts:
+    //
+    // 1. Every region this slice wires scroll-into-view for is reached by
+    //    `Tab`, not an arrow (each field is its own one-item region, unlike
+    //    the sidebar/Dashboard/palette's shared-region-plus-arrows shape
+    //    `is_navigation_key` was written for) — a first version of
+    //    `scroll_snap_target` gated on `is_navigation_key` alone and never
+    //    fired on `Tab` at all.
+    //
+    // 2. `focus_release_decision` *also* fires on the same `Tab` (every
+    //    region this slice adds has no `focus_id`, so landing on one is an
+    //    `Unfocus`) — a second version fixed (1) by gating on `Tab` but kept
+    //    every block as an early `return`, so the pre-existing `Unfocus`
+    //    `Task` masked the new scroll one every time, silently. `units()`
+    //    on a single `Task` can't tell "fired" from "didn't" by itself
+    //    (`Task::none()` is the only 0), which is why this compares two
+    //    transitions rather than asserting on one in isolation — a
+    //    `Task::batch` of both is what landing on a non-text, scrolling
+    //    region now returns, one more unit than landing on a non-scrolling
+    //    one.
+    let mut a = expert_in_workspace();
+    settings_tab(&mut a);
+    let baseline = a.update_and_dispatch(Message::TabPressed); // TabBar: Unfocus only, not a scroll target
+    assert_eq!(a.focused_region, Some(Region::TabBar));
+    let with_scroll = a.update_and_dispatch(Message::TabPressed); // Settings(Theme): Unfocus *and* scroll
+    assert_eq!(
+        a.focused_region,
+        Some(Region::Settings(SettingsField::Theme))
+    );
+    assert_eq!(
+        with_scroll.units(),
+        baseline.units() + 1,
+        "landing on a scrolling region must batch a snap_to Task alongside \
+         the Unfocus one, not have it silently dropped"
+    );
+}
+
+#[test]
+fn scroll_snap_target_for_the_wizard_excludes_cancel_and_create() {
+    let mut a = wizard_from_welcome();
+    tab_until(&mut a, Region::Wizard(WizardField::Folder));
+    let (id, _y) = a.scroll_snap_target(true).expect("a target");
+    assert_eq!(id, crate::screens::wizard::SCROLLABLE_ID);
+
+    tab_until(&mut a, Region::Wizard(WizardField::Create));
+    assert_eq!(
+        a.scroll_snap_target(true),
+        None,
+        "Cancel/Create sit in the action bar below the scrollable, not inside it"
+    );
+}

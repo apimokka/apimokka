@@ -467,32 +467,6 @@ pub fn accent_strip_style(t: &Theme) -> container::Style {
     }
 }
 
-/// Left-rail selected destination background.
-pub fn rail_selected_style(t: &Theme) -> container::Style {
-    let ep = t.extended_palette();
-    let p = ep.primary.base.color;
-    let alpha = if ep.background.base.color.r < 0.5 {
-        0.20
-    } else {
-        0.08
-    };
-    container::Style {
-        background: Some(Background::Color(Color {
-            r: p.r,
-            g: p.g,
-            b: p.b,
-            a: alpha,
-        })),
-        text_color: Some(ep.background.base.text),
-        border: Border {
-            radius: radius::MD.into(),
-            ..Default::default()
-        },
-        shadow: Shadow::default(),
-        snap: true,
-    }
-}
-
 // ── Segmented-control button styles ──────────────────────────────────────────
 //
 // These replace the container-wrapping pattern that caused double-radius
@@ -633,6 +607,26 @@ pub fn cursor_style(t: &Theme) -> container::Style {
         shadow: Shadow::default(),
         snap: true,
     }
+}
+
+/// D-19 (task 032 §4): a value-cycling `pick_list`'s handle must stop
+/// promising a popup it cannot give — the editor's three operator pickers
+/// and Settings' locale, the only four `pick_list`s this app has
+/// (`Region::is_value_cycler`). `⇅` (U+21C5, "up arrow over down arrow")
+/// reads as "arrows change this" rather than "click to open", unlike the
+/// default `▼` handle every other `pick_list` in the wild uses. Not ASCII,
+/// so `text::Shaping::Advanced` (`Basic` only covers Latin-1) — verified to
+/// render in this app's own font stack in the task 032 live capture rather
+/// than trusted from the code point alone, per the handoff's own warning
+/// that the font might not have it.
+pub fn cycler_handle() -> iced::widget::pick_list::Handle<iced::Font> {
+    iced::widget::pick_list::Handle::Static(iced::widget::pick_list::Icon {
+        font: iced::Font::DEFAULT,
+        code_point: '⇅',
+        size: None,
+        line_height: iced::widget::text::LineHeight::default(),
+        shaping: iced::widget::text::Shaping::Advanced,
+    })
 }
 
 // ── Text input style ──────────────────────────────────────────────────────────

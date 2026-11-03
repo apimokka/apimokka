@@ -5,7 +5,9 @@ use crate::regions::{Cursor, Region, dashboard_filtered_workspaces};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
-use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
+use iced::widget::{
+    Space, button, column, container, mouse_area, row, scrollable, text, text_input,
+};
 use iced::{Alignment, Element, Length, Padding};
 
 /// Task 028 §3.1: the `Id` `App::update_and_dispatch` focuses when
@@ -45,13 +47,22 @@ pub fn view(app: &App) -> Element<'_, Message> {
     // cursor indicator — no extra wrapper is drawn around it, unlike the
     // button regions, since a focused native `text_input` already renders
     // one.
-    let search = text_input(app.t(Key::DashSearchPlaceholder), &app.dash_search)
-        .id(SEARCH_INPUT_ID)
-        .on_input(Message::DashSearch)
-        .style(theme::text_input_style)
-        .size(size::BODY)
-        .padding(Padding::from([space::S2, space::S3]))
-        .width(Length::Fill);
+    // D-18 (task 032): `on_release`, not `on_press` — a focused `text_input`
+    // captures `ButtonPressed` itself (positioning its native cursor), but
+    // not `ButtonReleased`, so `on_release` is the one mouse-area hook that
+    // still fires for a click landing on the field, confirmed at
+    // `iced_widget::text_input`'s own source rather than assumed.
+    let search: Element<Message> = mouse_area(
+        text_input(app.t(Key::DashSearchPlaceholder), &app.dash_search)
+            .id(SEARCH_INPUT_ID)
+            .on_input(Message::DashSearch)
+            .style(theme::text_input_style)
+            .size(size::BODY)
+            .padding(Padding::from([space::S2, space::S3]))
+            .width(Length::Fill),
+    )
+    .on_release(Message::RegionClicked(Region::DashboardSearch))
+    .into();
 
     // The one source this view and `Region::DashboardWorkspaces`'s cursor
     // logic both read (the D-9 lesson) — see `regions.rs`.

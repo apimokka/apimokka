@@ -106,6 +106,26 @@ pub const TABLE: &[Command] = &[
         shortcut: None,
         message: || Message::ToggleTheme,
     },
+    // Task 032 §6: an *additional* route to what Settings' own regions
+    // already do (task 031 §3 withdrew the command-palette-only design) —
+    // both state-independent action labels, same as `ToggleTheme` just
+    // above: "Toggle audience mode"/"Change locale" name the action, not
+    // the resulting state, so (unlike the server row below, D-9's own
+    // precedent for a *target*-named toggle) no per-state label is needed
+    // to keep them accurate. Consistent with each other and with
+    // `ToggleTheme`, the third member of this same settings-toggle group.
+    Command {
+        label: |_| Key::PaletteCmdToggleAudienceMode,
+        shortcut: None,
+        message: || Message::ToggleAudienceMode,
+    },
+    Command {
+        // D-10: `Key::PaletteCmdLocale` existed with no row reading it
+        // until now.
+        label: |_| Key::PaletteCmdLocale,
+        shortcut: None,
+        message: || Message::ToggleLocale,
+    },
     Command {
         label: |_| Key::PaletteCmdGoRoutes,
         shortcut: None,
@@ -234,5 +254,67 @@ mod tests {
             !filtered_indices(&app, "stop").contains(&server_row_index),
             "\"stop\" should not find it while it reads \"Start server\""
         );
+    }
+
+    // ── Task 032 §6: theme, audience mode, locale ──────────────────────────
+
+    fn find_row(msg: &Message) -> &'static Command {
+        TABLE
+            .iter()
+            .find(|cmd| format!("{:?}", (cmd.message)()) == format!("{:?}", msg))
+            .unwrap_or_else(|| panic!("no row dispatches {msg:?}"))
+    }
+
+    /// §6: all three labels are state-independent ("Toggle theme"/"Toggle
+    /// audience mode"/"Change locale" name the action, not the resulting
+    /// state), unlike the server row above — deliberate, not an oversight:
+    /// a 2-state preference toggle doesn't carry the "wrong action, bad
+    /// consequence" weight start/stop does, so there is no D-9 staleness
+    /// risk a per-state label would exist to prevent. `Key::PaletteCmdLocale`
+    /// already existed, orphaned since D-10 — this is what finally uses it.
+    #[test]
+    fn theme_audience_mode_and_locale_rows_have_state_independent_labels() {
+        let theme_row = find_row(&Message::ToggleTheme);
+        let mode_row = find_row(&Message::ToggleAudienceMode);
+        let locale_row = find_row(&Message::ToggleLocale);
+
+        let mut app = App::new().0;
+        assert_eq!((theme_row.label)(&app), Key::PaletteCmdToggleTheme);
+        assert_eq!((mode_row.label)(&app), Key::PaletteCmdToggleAudienceMode);
+        assert_eq!((locale_row.label)(&app), Key::PaletteCmdLocale);
+
+        app.theme_choice = crate::app::ThemeChoice::HighContrastDark;
+        app.audience_mode = Some(apimokka_model::AudienceMode::Guided);
+        app.locale = apimokka_i18n::Locale::Ja;
+        assert_eq!(
+            (theme_row.label)(&app),
+            Key::PaletteCmdToggleTheme,
+            "the label does not track state at all, by design"
+        );
+        assert_eq!((mode_row.label)(&app), Key::PaletteCmdToggleAudienceMode);
+        assert_eq!((locale_row.label)(&app), Key::PaletteCmdLocale);
+    }
+
+    #[test]
+    fn theme_audience_mode_and_locale_rows_dispatch_what_they_claim() {
+        let mut app = App::new().0;
+        app.update(Message::ChooseAudienceMode(
+            apimokka_model::AudienceMode::Expert,
+        ));
+
+        (find_row(&Message::ToggleTheme).message)();
+        app.update(Message::ToggleTheme);
+        assert_eq!(app.theme_choice, crate::app::ThemeChoice::Dark);
+
+        (find_row(&Message::ToggleAudienceMode).message)();
+        app.update(Message::ToggleAudienceMode);
+        assert_eq!(
+            app.audience_mode,
+            Some(apimokka_model::AudienceMode::Guided)
+        );
+
+        (find_row(&Message::ToggleLocale).message)();
+        app.update(Message::ToggleLocale);
+        assert_eq!(app.locale, apimokka_i18n::Locale::Ja);
     }
 }

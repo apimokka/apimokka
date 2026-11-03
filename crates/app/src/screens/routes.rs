@@ -25,6 +25,13 @@ use iced::{Element, Length};
 /// workspace list and the command palette's results list already use.
 pub(crate) const SIDEBAR_SCROLLABLE_ID: &str = "mk023-sidebar";
 
+/// Task 032 (D-20): same D-5 approximation, for the rule editor's two
+/// independently-scrolling columns. A region belongs to exactly one of
+/// them (`regions::is_respond_field`), so `App::update_and_dispatch` must
+/// pick the matching id, not always the same one.
+pub(crate) const WHEN_SCROLLABLE_ID: &str = "mk023-editor-when";
+pub(crate) const RESPOND_SCROLLABLE_ID: &str = "mk023-editor-respond";
+
 pub fn view(app: &App) -> Element<'_, Message> {
     let sidebar = sidebar::left_sidebar(app);
     let centre = centre_panel(app);

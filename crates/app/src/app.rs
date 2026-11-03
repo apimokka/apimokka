@@ -701,11 +701,30 @@ impl App {
             Message::ChangeLocale(l) => {
                 self.locale = l;
             }
+            Message::ToggleLocale => {
+                use apimokka_i18n::Locale;
+                self.locale = match self.locale {
+                    Locale::En => Locale::Ja,
+                    Locale::Ja => Locale::En,
+                };
+            }
             Message::ToggleTheme => {
                 self.theme_choice = self.theme_choice.toggle();
             }
             Message::SetTheme(choice) => {
                 self.theme_choice = choice;
+            }
+            Message::ToggleAudienceMode => {
+                use apimokka_model::AudienceMode;
+                // Palette-reachable only inside a workspace, which already
+                // requires a mode to have been chosen (`Region::order_for`'s
+                // own `audience_mode.is_none()` short-circuit) — `Guided` is
+                // the fallback only in case that invariant is ever wrong,
+                // not an expected path.
+                self.audience_mode = Some(match self.audience_mode {
+                    Some(AudienceMode::Expert) => AudienceMode::Guided,
+                    _ => AudienceMode::Expert,
+                });
             }
 
             // Keyboard
@@ -858,6 +877,17 @@ impl App {
                     // visibly highlighted (the D-9 lesson, applied here).
                     self.update(message);
                 }
+            }
+            Message::RegionClicked(region) => {
+                // D-18: reuses `enter_region` rather than setting
+                // `focused_region`/`region_cursor` directly — every
+                // text-field region this dispatches for is a one-item
+                // region with no `active_index` of its own, so the result
+                // is always `Cursor::Index(0)`, but going through the same
+                // entry point `Tab` uses means a click and a `Tab` landing
+                // on the same region can never disagree about what
+                // "entering" it means.
+                self.enter_region(region);
             }
 
             // Workspace menu
@@ -1719,6 +1749,15 @@ impl App {
         let is_arrow_key = matches!(msg, Message::ArrowUp | Message::ArrowDown);
         let is_navigation_key =
             is_arrow_key || matches!(msg, Message::ArrowLeft | Message::ArrowRight);
+        // Task 032 (D-20): broader than `is_navigation_key` — every region
+        // this slice wires scroll-into-view for is reached by `Tab`, not an
+        // arrow, since each field is its own one-item region rather than a
+        // sibling within one shared region (the shape `is_navigation_key`'s
+        // three pre-existing call sites below were written for). A `Tab`
+        // that lands on a region this far down the screen must scroll it
+        // into view exactly as an arrow move within a group already does.
+        let could_move_cursor =
+            is_navigation_key || matches!(msg, Message::TabPressed | Message::ShiftTabPressed);
         let before_region = self.focused_region;
         self.update(msg);
         let after_region = self.focused_region;
@@ -1726,6 +1765,25 @@ impl App {
         if opening_palette && self.command_palette.open {
             return iced::widget::operation::focus(screens::command_palette::SEARCH_INPUT_ID);
         }
+
+        // Task 032 (D-20 fix): every block below used to `return` its own
+        // `Task` the moment it applied, which silently assumed at most one
+        // could ever apply to the same message. That was true before this
+        // slice — `focus_release_decision` only ever fired on a *region*
+        // transition, and the three pre-existing scroll blocks only ever
+        // fired on an arrow move *within* one (`before == after`, so
+        // `focus_release_decision` is always `None` there) — but this
+        // slice's own scroll targets (editor/Settings/Wizard fields) are
+        // each reached by exactly the region transition that
+        // `focus_release_decision` also reacts to, so both can legitimately
+        // apply to the same `Tab` (release native focus *and* scroll the
+        // newly-entered region into view). Collecting into a `Vec` and
+        // `Task::batch`-ing is what a first version's sequential early
+        // returns got wrong — caught live (D-20's own scroll never fired on
+        // `Tab` at all, masked by the unfocus `Task` it was racing against,
+        // not reported by a test, since a test only checked `units() > 0`,
+        // true of either task alone).
+        let mut tasks: Vec<iced::Task<Message>> = Vec::new();
 
         // Task 028 §3.1, generalised in task 029 §5: entering a region
         // without a text field must release any text field that still holds
@@ -1758,12 +1816,12 @@ impl App {
         // the earliest point this mechanism can observe.
         match focus_release_decision(before_region, after_region) {
             Some(FocusRelease::Focus(id)) => {
-                return iced::widget::operation::focus(id);
+                tasks.push(iced::widget::operation::focus(id));
             }
             Some(FocusRelease::Unfocus) => {
-                return iced::advanced::widget::operate(
+                tasks.push(iced::advanced::widget::operate(
                     iced::advanced::widget::operation::focusable::unfocus(),
-                );
+                ));
             }
             None => {}
         }
@@ -1787,10 +1845,10 @@ impl App {
                 crate::palette_commands::filtered_indices(self, &self.command_palette.query).len();
             let last_index = filtered_len.saturating_sub(1).max(1) as f32;
             let y = selected as f32 / last_index;
-            return iced::widget::operation::snap_to(
+            tasks.push(iced::widget::operation::snap_to(
                 screens::command_palette::RESULTS_SCROLLABLE_ID,
                 iced::widget::scrollable::RelativeOffset { x: 0.0, y },
-            );
+            ));
         }
 
         // Task 028 §3.3: same D-5 approximation as above, applied to the
@@ -1814,10 +1872,10 @@ impl App {
             if let Some(pos) = names.iter().position(|n| n == name) {
                 let last_index = names.len().saturating_sub(1).max(1) as f32;
                 let y = pos as f32 / last_index;
-                return iced::widget::operation::snap_to(
+                tasks.push(iced::widget::operation::snap_to(
                     screens::dashboard::WORKSPACES_SCROLLABLE_ID,
                     iced::widget::scrollable::RelativeOffset { x: 0.0, y },
-                );
+                ));
             }
         }
 
@@ -1837,14 +1895,161 @@ impl App {
             if let Some(pos) = rows.iter().position(|r| r == row) {
                 let last_index = rows.len().saturating_sub(1).max(1) as f32;
                 let y = pos as f32 / last_index;
-                return iced::widget::operation::snap_to(
+                tasks.push(iced::widget::operation::snap_to(
                     screens::routes::SIDEBAR_SCROLLABLE_ID,
                     iced::widget::scrollable::RelativeOffset { x: 0.0, y },
-                );
+                ));
             }
         }
 
-        iced::Task::none()
+        // Task 032 (D-20): the six scrollables the review found unwired.
+        // Factored into a pure method, unlike the three blocks above —
+        // `iced::Task` has no way to inspect *which* id or offset it
+        // carries, so the decision has to live somewhere testable, and
+        // none of those three ever were (D-20 passed two reviews
+        // unnoticed, including the one that introduced the second and
+        // third of them).
+        if let Some((id, y)) = self.scroll_snap_target(could_move_cursor) {
+            tasks.push(iced::widget::operation::snap_to(
+                id,
+                iced::widget::scrollable::RelativeOffset { x: 0.0, y },
+            ));
+        }
+
+        if tasks.is_empty() {
+            iced::Task::none()
+        } else {
+            iced::Task::batch(tasks)
+        }
+    }
+
+    /// Task 032 (D-20): the scrollable id and relative y offset
+    /// `update_and_dispatch` should `snap_to` right now, or `None` if the
+    /// focused region either does not scroll or has nothing to clamp to.
+    /// Same D-5 approximation the three pre-existing call sites in
+    /// `update_and_dispatch` use (linear position in the live list, not a
+    /// measured pixel position — iced 0.14 still exposes no "scroll this
+    /// child into view" operation for a specific child). `could_move_cursor`
+    /// is broader than those three's own `is_navigation_key` — see its own
+    /// doc comment for why `Tab`/`Shift+Tab` must be included here.
+    fn scroll_snap_target(&self, could_move_cursor: bool) -> Option<(&'static str, f32)> {
+        if !could_move_cursor {
+            return None;
+        }
+
+        fn offset(pos: usize, len: usize) -> f32 {
+            pos as f32 / (len.saturating_sub(1).max(1) as f32)
+        }
+
+        match self.focused_region {
+            // A region belongs to exactly one of the editor's two
+            // independently-scrolling columns (`regions::is_respond_field`);
+            // filtering `editor_fields` by that predicate gives each
+            // column's own field list, in the same reading order
+            // `editor_fields` already establishes, so the id and the
+            // position list are both picked for the matching column, not
+            // always the WHEN one.
+            Some(crate::regions::Region::Editor(field)) => {
+                let is_respond = crate::regions::is_respond_field(field);
+                let column: Vec<_> = crate::regions::editor_fields(self)
+                    .into_iter()
+                    .filter(|&f| crate::regions::is_respond_field(f) == is_respond)
+                    .collect();
+                let pos = column.iter().position(|&f| f == field)?;
+                let id = if is_respond {
+                    screens::routes::RESPOND_SCROLLABLE_ID
+                } else {
+                    screens::routes::WHEN_SCROLLABLE_ID
+                };
+                Some((id, offset(pos, column.len())))
+            }
+            // The trace event list — the sharpest case named (it grows
+            // while the server runs, so the cursor will leave the viewport
+            // in ordinary use, not only on a long form).
+            Some(crate::regions::Region::TraceEvents) => {
+                let crate::regions::Cursor::TraceEvent(id) = self.region_cursor.as_ref()? else {
+                    return None;
+                };
+                let events = crate::regions::filtered_trace_events(self);
+                let pos = events.iter().position(|ev| ev.event_id == *id)?;
+                Some((
+                    screens::trace::EVENTS_SCROLLABLE_ID,
+                    offset(pos, events.len()),
+                ))
+            }
+            // The match-detail panel's own scrollable —
+            // `TraceOutcomeAction`/`TraceReplay` are at most 2 items,
+            // declared in that order whenever either exists, so this is a
+            // coarser version of the same idea rather than a different one.
+            Some(
+                region @ (crate::regions::Region::TraceOutcomeAction
+                | crate::regions::Region::TraceReplay),
+            ) => {
+                let detail_regions: Vec<_> = crate::regions::Region::order_for(self)
+                    .into_iter()
+                    .filter(|r| {
+                        matches!(
+                            r,
+                            crate::regions::Region::TraceOutcomeAction
+                                | crate::regions::Region::TraceReplay
+                        )
+                    })
+                    .collect();
+                let pos = detail_regions.iter().position(|&r| r == region)?;
+                Some((
+                    screens::trace::DETAIL_SCROLLABLE_ID,
+                    offset(pos, detail_regions.len()),
+                ))
+            }
+            // Settings' one page-level scrollable — every `SettingsField`
+            // region is a stop in it.
+            Some(crate::regions::Region::Settings(field)) => {
+                let settings_regions: Vec<_> = crate::regions::Region::order_for(self)
+                    .into_iter()
+                    .filter(|r| matches!(r, crate::regions::Region::Settings(_)))
+                    .collect();
+                let pos = settings_regions
+                    .iter()
+                    .position(|&r| r == crate::regions::Region::Settings(field))?;
+                Some((
+                    screens::settings::SCROLLABLE_ID,
+                    offset(pos, settings_regions.len()),
+                ))
+            }
+            // The Wizard's one form-level scrollable. `Cancel`/`Create` sit
+            // in the action bar below it, not inside it
+            // (`screens::wizard::view`'s own layout), so they are excluded
+            // from the position list rather than skewing it.
+            Some(crate::regions::Region::Wizard(field))
+                if !matches!(
+                    field,
+                    crate::regions::WizardField::Cancel | crate::regions::WizardField::Create
+                ) =>
+            {
+                let wizard_regions: Vec<_> = crate::regions::Region::order_for(self)
+                    .into_iter()
+                    .filter(|r| {
+                        matches!(
+                            r,
+                            crate::regions::Region::Wizard(f)
+                                if !matches!(
+                                    f,
+                                    crate::regions::WizardField::Cancel
+                                        | crate::regions::WizardField::Create
+                                )
+                        )
+                    })
+                    .collect();
+                let pos = wizard_regions
+                    .iter()
+                    .position(|&r| r == crate::regions::Region::Wizard(field))?;
+                Some((
+                    screens::wizard::SCROLLABLE_ID,
+                    offset(pos, wizard_regions.len()),
+                ))
+            }
+            _ => None,
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

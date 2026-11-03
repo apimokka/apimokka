@@ -5,8 +5,15 @@ use crate::regions::{Region, WizardField, wizard_field_id};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::Key;
-use iced::widget::{Space, button, checkbox, column, container, row, scrollable, text, text_input};
+use iced::widget::{
+    Space, button, checkbox, column, container, mouse_area, row, scrollable, text, text_input,
+};
 use iced::{Alignment, Element, Length, Padding};
+
+/// Task 032 (D-20): the `Id` `App::update_and_dispatch` scrolls when the
+/// Wizard's keyboard cursor moves — same D-5 approximation the
+/// sidebar/Dashboard/palette scrollables already use.
+pub const SCROLLABLE_ID: &str = "mk023-wizard";
 
 /// `cursor_style`'s border is drawn at the wrapping container's own bounds;
 /// without a gap an opaque sibling paints over it — the fix task 028 §6
@@ -48,6 +55,18 @@ fn cursor_wrap_group<'a>(
         .into()
 }
 
+/// D-18 (task 032): a click on a text-field region's own widget enters that
+/// region, via `on_release` (see `Message::RegionClicked`'s doc comment for
+/// why `on_press` would not fire on a click landing on the field itself).
+fn click_focus<'a>(
+    field: WizardField,
+    el: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    mouse_area(el)
+        .on_release(Message::RegionClicked(Region::Wizard(field)))
+        .into()
+}
+
 pub fn view(app: &App) -> Element<'_, Message> {
     let w = &app.wizard;
     let t = |k| app.t(k);
@@ -59,14 +78,16 @@ pub fn view(app: &App) -> Element<'_, Message> {
             cursor_wrap(
                 app,
                 WizardField::Name,
-                text_input("payments-mock", &w.name)
-                    .id(wizard_field_id(WizardField::Name).unwrap())
-                    .on_input(Message::WizardSetName)
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill)
-                    .into()
+                click_focus(
+                    WizardField::Name,
+                    text_input("payments-mock", &w.name)
+                        .id(wizard_field_id(WizardField::Name).unwrap())
+                        .on_input(Message::WizardSetName)
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                )
             )
         ),
         widgets::field(
@@ -74,14 +95,16 @@ pub fn view(app: &App) -> Element<'_, Message> {
             cursor_wrap(
                 app,
                 WizardField::Folder,
-                text_input("~/projects", &w.folder)
-                    .id(wizard_field_id(WizardField::Folder).unwrap())
-                    .on_input(Message::WizardSetFolder)
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill)
-                    .into()
+                click_focus(
+                    WizardField::Folder,
+                    text_input("~/projects", &w.folder)
+                        .id(wizard_field_id(WizardField::Folder).unwrap())
+                        .on_input(Message::WizardSetFolder)
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                )
             )
         ),
     ]
@@ -101,14 +124,16 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     cursor_wrap(
                         app,
                         WizardField::Host,
-                        text_input("127.0.0.1", &w.host)
-                            .id(wizard_field_id(WizardField::Host).unwrap())
-                            .on_input(Message::WizardSetHost)
-                            .style(theme::text_input_style)
-                            .size(size::BODY)
-                            .padding(Padding::from([space::S2, space::S3]))
-                            .width(Length::Fill)
-                            .into()
+                        click_focus(
+                            WizardField::Host,
+                            text_input("127.0.0.1", &w.host)
+                                .id(wizard_field_id(WizardField::Host).unwrap())
+                                .on_input(Message::WizardSetHost)
+                                .style(theme::text_input_style)
+                                .size(size::BODY)
+                                .padding(Padding::from([space::S2, space::S3]))
+                                .width(Length::Fill),
+                        )
                     )
                 ),
                 widgets::field(
@@ -116,14 +141,16 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     cursor_wrap(
                         app,
                         WizardField::Port,
-                        text_input("8080", &w.port)
-                            .id(wizard_field_id(WizardField::Port).unwrap())
-                            .on_input(Message::WizardSetPort)
-                            .style(theme::text_input_style)
-                            .size(size::BODY)
-                            .padding(Padding::from([space::S2, space::S3]))
-                            .width(Length::Fixed(100.0))
-                            .into()
+                        click_focus(
+                            WizardField::Port,
+                            text_input("8080", &w.port)
+                                .id(wizard_field_id(WizardField::Port).unwrap())
+                                .on_input(Message::WizardSetPort)
+                                .style(theme::text_input_style)
+                                .size(size::BODY)
+                                .padding(Padding::from([space::S2, space::S3]))
+                                .width(Length::Fixed(100.0)),
+                        )
                     )
                 ),
             ]
@@ -216,14 +243,16 @@ pub fn view(app: &App) -> Element<'_, Message> {
                 cursor_wrap(
                     app,
                     WizardField::QueueSize,
-                    text_input("1024", &w.queue_size)
-                        .id(wizard_field_id(WizardField::QueueSize).unwrap())
-                        .on_input(Message::WizardSetQueueSize)
-                        .style(theme::text_input_style)
-                        .size(size::BODY)
-                        .padding(Padding::from([space::S2, space::S3]))
-                        .width(Length::Fixed(120.0))
-                        .into()
+                    click_focus(
+                        WizardField::QueueSize,
+                        text_input("1024", &w.queue_size)
+                            .id(wizard_field_id(WizardField::QueueSize).unwrap())
+                            .on_input(Message::WizardSetQueueSize)
+                            .style(theme::text_input_style)
+                            .size(size::BODY)
+                            .padding(Padding::from([space::S2, space::S3]))
+                            .width(Length::Fixed(120.0)),
+                    )
                 )
             ),
         ]
@@ -267,9 +296,12 @@ pub fn view(app: &App) -> Element<'_, Message> {
     .padding(Padding::from([space::S3, space::S6]))
     .style(theme::panel_style);
 
-    let inner = column![scrollable(form).height(Length::Fill), action_bar,]
-        .width(Length::Fixed(680.0))
-        .height(Length::Fixed(620.0));
+    let inner = column![
+        scrollable(form).id(SCROLLABLE_ID).height(Length::Fill),
+        action_bar,
+    ]
+    .width(Length::Fixed(680.0))
+    .height(Length::Fixed(620.0));
 
     container(inner)
         .style(theme::dialog_style)

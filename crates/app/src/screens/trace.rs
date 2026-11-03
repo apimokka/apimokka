@@ -7,7 +7,9 @@
 
 use apimokka_i18n::Key;
 use apimokka_model::{MatchTraceEvent, TraceOutcome};
-use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
+use iced::widget::{
+    Space, button, column, container, mouse_area, row, scrollable, text, text_input,
+};
 use iced::{Alignment, Element, Length, Padding};
 
 use crate::app::App;
@@ -20,6 +22,12 @@ use crate::widgets;
 /// `TraceFilter` becomes the focused region, and unfocuses when it stops
 /// being one (via `Region::focus_id`).
 pub const FILTER_INPUT_ID: &str = "mk023-trace-filter";
+
+/// Task 032 (D-20): the `Id`s `App::update_and_dispatch` scrolls when the
+/// event list's or the match-detail panel's keyboard cursor moves — same
+/// D-5 approximation the sidebar/Dashboard/palette scrollables already use.
+pub const EVENTS_SCROLLABLE_ID: &str = "mk023-trace-events";
+pub const DETAIL_SCROLLABLE_ID: &str = "mk023-trace-detail";
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let events = filtered_trace_events(app);
@@ -49,13 +57,18 @@ fn cursor_wrap<'a>(has_cursor: bool, el: Element<'a, Message>) -> Element<'a, Me
 fn event_stream<'a>(app: &'a App, events: &[&'a MatchTraceEvent]) -> Element<'a, Message> {
     let filter_bar = container(
         row![
-            text_input(app.t(Key::TraceFilterPath), &app.trace_filter)
-                .id(FILTER_INPUT_ID)
-                .on_input(Message::TraceFilterChanged)
-                .style(theme::text_input_style)
-                .size(size::BODY)
-                .padding(Padding::from([space::S2, space::S3]))
-                .width(Length::Fill),
+            // D-18 (task 032): `on_release`, same reasoning as
+            // `dashboard.rs`'s search field.
+            mouse_area(
+                text_input(app.t(Key::TraceFilterPath), &app.trace_filter)
+                    .id(FILTER_INPUT_ID)
+                    .on_input(Message::TraceFilterChanged)
+                    .style(theme::text_input_style)
+                    .size(size::BODY)
+                    .padding(Padding::from([space::S2, space::S3]))
+                    .width(Length::Fill),
+            )
+            .on_release(Message::RegionClicked(Region::TraceFilter)),
             Space::new().width(space::S2),
             cursor_wrap(
                 app.focused_region == Some(Region::TracePause),
@@ -153,6 +166,7 @@ fn event_stream<'a>(app: &'a App, events: &[&'a MatchTraceEvent]) -> Element<'a,
                 .spacing(space::S2)
                 .padding(Padding::from([space::S2, space::S4])),
         )
+        .id(EVENTS_SCROLLABLE_ID)
         .height(Length::Fill),
     ]
     .width(Length::Fill)
@@ -253,11 +267,15 @@ fn match_detail(app: &App) -> Element<'_, Message> {
         ),
     ));
 
-    container(scrollable(col).height(Length::Fill))
-        .width(Length::Fixed(380.0))
-        .height(Length::Fill)
-        .style(theme::panel_style)
-        .into()
+    container(
+        scrollable(col)
+            .id(DETAIL_SCROLLABLE_ID)
+            .height(Length::Fill),
+    )
+    .width(Length::Fixed(380.0))
+    .height(Length::Fill)
+    .style(theme::panel_style)
+    .into()
 }
 
 // ── Outcome variant renderers ─────────────────────────────────────────────────

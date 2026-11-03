@@ -34,9 +34,17 @@ pub enum Message {
 
     // ── Locale / theme ────────────────────────────────────────────────────
     ChangeLocale(apimokka_i18n::Locale),
+    /// Task 032 §6: the palette's locale row (`Key::PaletteCmdLocale`,
+    /// orphaned since D-10) — state-independent, same shape as
+    /// `ToggleTheme`, since `palette_commands::Command.message` is a
+    /// zero-argument `fn` that cannot read which locale is current.
+    ToggleLocale,
     ToggleTheme,
     /// MK-050: pick a specific theme (Light / Dark / HC Light / HC Dark).
     SetTheme(crate::app::ThemeChoice),
+    /// Task 032 §6: the palette's audience-mode row — same reasoning as
+    /// `ToggleLocale`.
+    ToggleAudienceMode,
 
     // ── Keyboard ──────────────────────────────────────────────────────────
     EscapePressed,
@@ -69,6 +77,16 @@ pub enum Message {
     /// bar's tab, or (task 026) the open dialog's default action, which
     /// takes priority over all of the above. A no-op where none applies.
     EnterPressed,
+    /// Task 032 (D-18): a click on a text-field region's own widget enters
+    /// that region — `focused_region` and `region_cursor` follow native
+    /// focus instead of staying wherever `Tab` last left them. Dispatched
+    /// from `iced::widget::mouse_area::on_release`, not `on_press`: a
+    /// focused `text_input`'s own `update()` captures `ButtonPressed`
+    /// (positioning its native text cursor) but not `ButtonReleased`, so
+    /// `on_release` is the one mouse-area hook that still fires on a click
+    /// landing on the field itself, confirmed against
+    /// `iced_widget::text_input`'s own event handling rather than assumed.
+    RegionClicked(crate::regions::Region),
 
     // ── Workspace switcher ────────────────────────────────────────────────
     ToggleWorkspaceMenu,

@@ -14,7 +14,7 @@ use crate::widgets;
 use apimokka_i18n::Key;
 use apimokka_model::{BodyOp, HeaderOp, UrlPathOp, respond::RespondMode, settings::Strategy};
 use iced::widget::{
-    Space, button, column, container, pick_list, row, scrollable, text, text_input,
+    Space, button, column, container, mouse_area, pick_list, row, scrollable, text, text_input,
 };
 use iced::{Alignment, Color, Element, Length, Padding};
 
@@ -56,6 +56,21 @@ fn cursor_wrap_group<'a>(
         } else {
             |_: &iced::Theme| iced::widget::container::Style::default()
         })
+        .into()
+}
+
+/// D-18 (task 032): a click on a text-field region's own widget enters that
+/// region. `on_release`, not `on_press` — see `Message::RegionClicked`'s own
+/// doc comment for why `on_press` would not fire on a click landing on the
+/// field itself. None of this editor's text fields use `cursor_wrap` (the
+/// native focus ring is their own cursor indicator, same as
+/// `DashboardSearch`/`TraceFilter`), so this wraps the bare widget directly.
+fn click_focus<'a>(
+    field: EditorField,
+    el: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    mouse_area(el)
+        .on_release(Message::RegionClicked(Region::Editor(field)))
         .into()
 }
 
@@ -297,6 +312,7 @@ pub(super) fn rule_editor<'a>(
                     .spacing(space::S3)
                     .padding(Padding::from([space::S4, space::S3])),
             )
+            .id(super::WHEN_SCROLLABLE_ID)
             .height(Length::Fill),
         )
         .width(Length::FillPortion(3))
@@ -324,7 +340,11 @@ pub(super) fn rule_editor<'a>(
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(100.0));
-                (Key::RuleWeightLabel, Key::RuleWeightHint, inp.into())
+                (
+                    Key::RuleWeightLabel,
+                    Key::RuleWeightHint,
+                    click_focus(EditorField::PerRuleField, inp),
+                )
             }
             Strategy::Priority => {
                 let current = rule_prototype
@@ -338,7 +358,11 @@ pub(super) fn rule_editor<'a>(
                     .size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(100.0));
-                (Key::RulePriorityLabel, Key::RulePriorityHint, inp.into())
+                (
+                    Key::RulePriorityLabel,
+                    Key::RulePriorityHint,
+                    click_focus(EditorField::PerRuleField, inp),
+                )
             }
             _ => unreachable!(),
         };
@@ -372,6 +396,7 @@ pub(super) fn rule_editor<'a>(
             col.spacing(space::S3)
                 .padding(Padding::from([space::S4, space::S3]))
         })
+        .id(super::RESPOND_SCROLLABLE_ID)
         .height(Length::Fill),
     )
     .width(Length::FillPortion(2))
@@ -471,13 +496,16 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
         app.t(Key::HintUrlOp),
         column![
             row![
-                text_input(app.t(Key::UrlPathField), &p.url_path)
-                    .id(editor_text_field_id(EditorField::UrlPath).unwrap())
-                    .on_input(Message::RuleSetUrlPath)
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill),
+                click_focus(
+                    EditorField::UrlPath,
+                    text_input(app.t(Key::UrlPathField), &p.url_path)
+                        .id(editor_text_field_id(EditorField::UrlPath).unwrap())
+                        .on_input(Message::RuleSetUrlPath)
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                ),
                 cursor_wrap(
                     app,
                     EditorField::UrlPathOp,
@@ -485,6 +513,7 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
                         .text_size(size::CAPTION)
                         .padding(Padding::from([space::S2, space::S3]))
                         .width(Length::Fixed(140.0))
+                        .handle(theme::cycler_handle())
                         .into(),
                 ),
             ]
@@ -547,13 +576,16 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
         .map(|(i, h)| {
             let show_val = !h.op.value_irrelevant();
             row![
-                text_input(app.t(Key::HeaderColumnName), &h.name)
-                    .id(editor_text_field_id(EditorField::HeaderName(i)).unwrap())
-                    .on_input(move |v| Message::HeaderSetName { index: i, value: v })
-                    .style(theme::text_input_style)
-                    .size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S2]))
-                    .width(Length::Fixed(110.0)),
+                click_focus(
+                    EditorField::HeaderName(i),
+                    text_input(app.t(Key::HeaderColumnName), &h.name)
+                        .id(editor_text_field_id(EditorField::HeaderName(i)).unwrap())
+                        .on_input(move |v| Message::HeaderSetName { index: i, value: v })
+                        .style(theme::text_input_style)
+                        .size(size::CAPTION)
+                        .padding(Padding::from([space::S2, space::S2]))
+                        .width(Length::Fixed(110.0)),
+                ),
                 cursor_wrap(
                     app,
                     EditorField::HeaderOp(i),
@@ -563,18 +595,21 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
                     .text_size(size::CAPTION)
                     .padding(Padding::from([space::S2, space::S2]))
                     .width(Length::Fixed(110.0))
+                    .handle(theme::cycler_handle())
                     .into(),
                 ),
                 {
                     let val_el: Element<Message> = if show_val {
-                        text_input(app.t(Key::HeaderColumnValue), &h.value)
-                            .id(editor_text_field_id(EditorField::HeaderValue(i)).unwrap())
-                            .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
-                            .style(theme::text_input_style)
-                            .size(size::CAPTION)
-                            .padding(Padding::from([space::S2, space::S2]))
-                            .width(Length::Fill)
-                            .into()
+                        click_focus(
+                            EditorField::HeaderValue(i),
+                            text_input(app.t(Key::HeaderColumnValue), &h.value)
+                                .id(editor_text_field_id(EditorField::HeaderValue(i)).unwrap())
+                                .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
+                                .style(theme::text_input_style)
+                                .size(size::CAPTION)
+                                .padding(Padding::from([space::S2, space::S2]))
+                                .width(Length::Fill),
+                        )
                     } else {
                         Space::new().width(Length::Fill).into()
                     };
@@ -627,13 +662,16 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
             };
             column![
                 row![
-                    text_input("user.id", &b.path)
-                        .id(editor_text_field_id(EditorField::BodyPath(i)).unwrap())
-                        .on_input(move |v| Message::BodySetPath { index: i, value: v })
-                        .style(theme::text_input_style)
-                        .size(size::CAPTION)
-                        .padding(Padding::from([space::S2, space::S2]))
-                        .width(Length::Fill),
+                    click_focus(
+                        EditorField::BodyPath(i),
+                        text_input("user.id", &b.path)
+                            .id(editor_text_field_id(EditorField::BodyPath(i)).unwrap())
+                            .on_input(move |v| Message::BodySetPath { index: i, value: v })
+                            .style(theme::text_input_style)
+                            .size(size::CAPTION)
+                            .padding(Padding::from([space::S2, space::S2]))
+                            .width(Length::Fill),
+                    ),
                     cursor_wrap(
                         app,
                         EditorField::BodyPathAssistant(i),
@@ -651,18 +689,21 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
                         .text_size(size::CAPTION)
                         .padding(Padding::from([space::S2, space::S2]))
                         .width(Length::Fixed(120.0))
+                        .handle(theme::cycler_handle())
                         .into(),
                     ),
                     {
                         let bval: Element<Message> = if show_val {
-                            text_input(app.t(Key::BodyValuePlaceholder), &b.value)
-                                .id(editor_text_field_id(EditorField::BodyValue(i)).unwrap())
-                                .on_input(move |v| Message::BodySetValue { index: i, value: v })
-                                .style(theme::text_input_style)
-                                .size(size::CAPTION)
-                                .padding(Padding::from([space::S2, space::S2]))
-                                .width(Length::Fill)
-                                .into()
+                            click_focus(
+                                EditorField::BodyValue(i),
+                                text_input(app.t(Key::BodyValuePlaceholder), &b.value)
+                                    .id(editor_text_field_id(EditorField::BodyValue(i)).unwrap())
+                                    .on_input(move |v| Message::BodySetValue { index: i, value: v })
+                                    .style(theme::text_input_style)
+                                    .size(size::CAPTION)
+                                    .padding(Padding::from([space::S2, space::S2]))
+                                    .width(Length::Fill),
+                            )
                         } else {
                             Space::new().width(Length::Fill).into()
                         };
@@ -742,23 +783,27 @@ fn respond_card<'a>(
 
     let respond_body_id = editor_text_field_id(EditorField::RespondBody).unwrap();
     let body_el: Element<Message> = if is_inline {
-        text_input(app.t(Key::RespondBodyPlaceholder), &p.respond.text)
-            .id(respond_body_id)
-            .on_input(Message::RespondSetText)
-            .style(theme::text_input_style)
-            .size(size::BODY)
-            .padding(Padding::from([space::S2, space::S3]))
-            .width(Length::Fill)
-            .into()
+        click_focus(
+            EditorField::RespondBody,
+            text_input(app.t(Key::RespondBodyPlaceholder), &p.respond.text)
+                .id(respond_body_id)
+                .on_input(Message::RespondSetText)
+                .style(theme::text_input_style)
+                .size(size::BODY)
+                .padding(Padding::from([space::S2, space::S3]))
+                .width(Length::Fill),
+        )
     } else {
-        text_input("path/to/response.json", &p.respond.file_path)
-            .id(respond_body_id)
-            .on_input(Message::RespondSetFilePath)
-            .style(theme::text_input_style)
-            .size(size::BODY)
-            .padding(Padding::from([space::S2, space::S3]))
-            .width(Length::Fill)
-            .into()
+        click_focus(
+            EditorField::RespondBody,
+            text_input("path/to/response.json", &p.respond.file_path)
+                .id(respond_body_id)
+                .on_input(Message::RespondSetFilePath)
+                .style(theme::text_input_style)
+                .size(size::BODY)
+                .padding(Padding::from([space::S2, space::S3]))
+                .width(Length::Fill),
+        )
     };
 
     let delay_str = response_delay
@@ -773,26 +818,31 @@ fn respond_card<'a>(
             row![
                 widgets::field(
                     app.t(Key::RespondStatusLabel),
-                    text_input("200 OK", &p.respond.status)
-                        .id(editor_text_field_id(EditorField::RespondStatus).unwrap())
-                        .on_input(Message::RespondSetStatus)
-                        .style(theme::text_input_style)
-                        .size(size::CAPTION)
-                        .padding(Padding::from([space::S2, space::S3]))
-                        .width(Length::Fixed(110.0))
-                        .into(),
+                    click_focus(
+                        EditorField::RespondStatus,
+                        text_input("200 OK", &p.respond.status)
+                            .id(editor_text_field_id(EditorField::RespondStatus).unwrap())
+                            .on_input(Message::RespondSetStatus)
+                            .style(theme::text_input_style)
+                            .size(size::CAPTION)
+                            .padding(Padding::from([space::S2, space::S3]))
+                            .width(Length::Fixed(110.0)),
+                    ),
                 ),
                 Space::new().width(space::S3),
                 widgets::field(
                     app.t(Key::RespondDelayLabel),
                     row![
-                        text_input("0", &delay_str)
-                            .id(editor_text_field_id(EditorField::RespondDelay).unwrap())
-                            .on_input(Message::RespondSetDelay)
-                            .style(theme::text_input_style)
-                            .size(size::CAPTION)
-                            .padding(Padding::from([space::S2, space::S3]))
-                            .width(Length::Fixed(70.0)),
+                        click_focus(
+                            EditorField::RespondDelay,
+                            text_input("0", &delay_str)
+                                .id(editor_text_field_id(EditorField::RespondDelay).unwrap())
+                                .on_input(Message::RespondSetDelay)
+                                .style(theme::text_input_style)
+                                .size(size::CAPTION)
+                                .padding(Padding::from([space::S2, space::S3]))
+                                .width(Length::Fixed(70.0)),
+                        ),
                         text(app.t(Key::RespondDelayUnit)).size(size::LABEL),
                     ]
                     .spacing(space::S1)

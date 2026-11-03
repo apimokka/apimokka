@@ -303,6 +303,7 @@ pub fn t(key: Key) -> &'static str {
         Key::PaletteCmdRestart => "Restart server",
         Key::PaletteCmdSwitchWorkspace => "Switch workspace",
         Key::PaletteCmdToggleTheme => "Toggle theme",
+        Key::PaletteCmdToggleAudienceMode => "Toggle audience mode",
         Key::PaletteCmdLocale => "Change locale",
         Key::PaletteCmdGoRoutes => "Go to Routes",
         Key::PaletteCmdGoTrace => "Go to Trace",

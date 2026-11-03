@@ -292,6 +292,7 @@ pub fn t(key: Key) -> &'static str {
         Key::PaletteCmdRestart => "サーバー再起動",
         Key::PaletteCmdSwitchWorkspace => "ワークスペース切替",
         Key::PaletteCmdToggleTheme => "テーマ切替",
+        Key::PaletteCmdToggleAudienceMode => "ガイドモード切替",
         Key::PaletteCmdLocale => "言語変更",
         Key::PaletteCmdGoRoutes => "ルートへ移動",
         Key::PaletteCmdGoTrace => "トレースへ移動",

@@ -334,6 +334,7 @@ pub enum Key {
     PaletteCmdRestart,
     PaletteCmdSwitchWorkspace,
     PaletteCmdToggleTheme,
+    PaletteCmdToggleAudienceMode,
     PaletteCmdLocale,
     PaletteCmdGoRoutes,
     PaletteCmdGoTrace,

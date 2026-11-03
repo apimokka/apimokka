@@ -5,8 +5,15 @@ use crate::regions::{Region, SettingsField, settings_field_id};
 use crate::theme::{self, size, space};
 use crate::widgets;
 use apimokka_i18n::{Key, Locale};
-use iced::widget::{Space, button, checkbox, column, container, pick_list, row, text, text_input};
+use iced::widget::{
+    Space, button, checkbox, column, container, mouse_area, pick_list, row, text, text_input,
+};
 use iced::{Alignment, Element, Length, Padding};
+
+/// Task 032 (D-20): the `Id` `App::update_and_dispatch` scrolls when
+/// Settings' keyboard cursor moves — same D-5 approximation the
+/// sidebar/Dashboard/palette scrollables already use.
+pub const SCROLLABLE_ID: &str = "mk023-settings";
 
 /// `cursor_style`'s border is drawn at the wrapping container's own bounds;
 /// without a gap an opaque sibling paints over it — the fix task 028 §6
@@ -45,6 +52,20 @@ fn cursor_wrap_group<'a>(
         } else {
             |_: &iced::Theme| iced::widget::container::Style::default()
         })
+        .into()
+}
+
+/// D-18 (task 032): a click on a text-field region's own widget enters that
+/// region, via `on_release` (see `Message::RegionClicked`'s doc comment for
+/// why `on_press` would not fire on a click landing on the field itself).
+/// None of Settings' text fields use `cursor_wrap` — the native focus ring
+/// is their own cursor indicator.
+fn click_focus<'a>(
+    field: SettingsField,
+    el: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    mouse_area(el)
+        .on_release(Message::RegionClicked(Region::Settings(field)))
         .into()
 }
 
@@ -151,6 +172,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     .text_size(size::BODY)
                     .padding(Padding::from([space::S2, space::S3]))
                     .width(Length::Fixed(100.0))
+                    .handle(theme::cycler_handle())
                     .into()
                 )
             ),
@@ -176,26 +198,30 @@ pub fn view(app: &App) -> Element<'_, Message> {
             row![
                 widgets::field(
                     app.t(Key::SettingsHost),
-                    text_input("127.0.0.1", &drafts.listener_ip)
-                        .id(settings_field_id(SettingsField::Host).unwrap())
-                        .on_input(Message::SettingsSetHost)
-                        .style(theme::text_input_style)
-                        .size(size::BODY)
-                        .padding(Padding::from([space::S2, space::S3]))
-                        .width(Length::Fill)
-                        .into()
+                    click_focus(
+                        SettingsField::Host,
+                        text_input("127.0.0.1", &drafts.listener_ip)
+                            .id(settings_field_id(SettingsField::Host).unwrap())
+                            .on_input(Message::SettingsSetHost)
+                            .style(theme::text_input_style)
+                            .size(size::BODY)
+                            .padding(Padding::from([space::S2, space::S3]))
+                            .width(Length::Fill),
+                    )
                 ),
                 Space::new().width(space::S3),
                 widgets::field(
                     app.t(Key::SettingsPort),
-                    text_input("8080", &drafts.listener_port)
-                        .id(settings_field_id(SettingsField::Port).unwrap())
-                        .on_input(Message::SettingsSetPort)
-                        .style(theme::text_input_style)
-                        .size(size::BODY)
-                        .padding(Padding::from([space::S2, space::S3]))
-                        .width(Length::Fixed(100.0))
-                        .into()
+                    click_focus(
+                        SettingsField::Port,
+                        text_input("8080", &drafts.listener_port)
+                            .id(settings_field_id(SettingsField::Port).unwrap())
+                            .on_input(Message::SettingsSetPort)
+                            .style(theme::text_input_style)
+                            .size(size::BODY)
+                            .padding(Padding::from([space::S2, space::S3]))
+                            .width(Length::Fixed(100.0)),
+                    )
                 ),
             ]
             .align_y(Alignment::End),
@@ -252,7 +278,10 @@ pub fn view(app: &App) -> Element<'_, Message> {
     }
 
     page = page.push(Space::new().height(space::S4));
-    iced::widget::scrollable(page).height(Length::Fill).into()
+    iced::widget::scrollable(page)
+        .id(SCROLLABLE_ID)
+        .height(Length::Fill)
+        .into()
 }
 
 fn section<'a>(
@@ -307,13 +336,15 @@ fn push_logs_trace_sections<'a>(
             cursor_wrap(
                 app,
                 SettingsField::LogFile,
-                text_input("", &s.log_file)
-                    .id(crate::regions::settings_field_id(SettingsField::LogFile).unwrap())
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fill)
-                    .into(),
+                click_focus(
+                    SettingsField::LogFile,
+                    text_input("", &s.log_file)
+                        .id(crate::regions::settings_field_id(SettingsField::LogFile).unwrap())
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fill),
+                ),
             ),
         ),
     ));
@@ -336,19 +367,21 @@ fn push_logs_trace_sections<'a>(
                 cursor_wrap(
                     app,
                     SettingsField::QueueSize,
-                    text_input(
-                        "1024",
-                        &trace
-                            .map(|trace| trace.queue_size)
-                            .unwrap_or_default()
-                            .to_string()
+                    click_focus(
+                        SettingsField::QueueSize,
+                        text_input(
+                            "1024",
+                            &trace
+                                .map(|trace| trace.queue_size)
+                                .unwrap_or_default()
+                                .to_string()
+                        )
+                        .id(crate::regions::settings_field_id(SettingsField::QueueSize).unwrap())
+                        .style(theme::text_input_style)
+                        .size(size::BODY)
+                        .padding(Padding::from([space::S2, space::S3]))
+                        .width(Length::Fixed(120.0)),
                     )
-                    .id(crate::regions::settings_field_id(SettingsField::QueueSize).unwrap())
-                    .style(theme::text_input_style)
-                    .size(size::BODY)
-                    .padding(Padding::from([space::S2, space::S3]))
-                    .width(Length::Fixed(120.0))
-                    .into()
                 )
             ),
             Space::new().height(0.0),

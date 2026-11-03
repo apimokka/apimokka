@@ -518,6 +518,24 @@ pub fn editor_fields(app: &App) -> Vec<EditorField> {
     fields
 }
 
+/// Whether `field` belongs to the rule editor's RESPOND column rather than
+/// its WHEN column — task 032 (D-20): the editor's two scrollables scroll
+/// independently, so `App::update_and_dispatch` must pick the matching one
+/// rather than always the same one. `editor_fields(app)` filtered by this
+/// predicate, in either direction, is each column's own field list in its
+/// own reading order — the same list `editor_fields` already establishes,
+/// not a second one that could drift from it.
+pub fn is_respond_field(field: EditorField) -> bool {
+    matches!(
+        field,
+        EditorField::RespondMode
+            | EditorField::RespondBody
+            | EditorField::RespondStatus
+            | EditorField::RespondDelay
+            | EditorField::PerRuleField
+    )
+}
+
 /// Events passing the live trace filter, newest first — the one source
 /// `screens::trace::view` and `Region::TraceEvents` both read. Matches
 /// `trace.rs`'s former private `filtered_events` exactly: case-insensitive
@@ -961,7 +979,12 @@ impl Region {
                     EditorField::MoveUp => Some(Message::MoveRuleUp(rule_id)),
                     EditorField::MoveDown => Some(Message::MoveRuleDown(rule_id)),
                     EditorField::Delete => Some(Message::DeleteRule(rule_id)),
-                    EditorField::UrlPath | EditorField::UrlPathOp => None,
+                    EditorField::UrlPath => None,
+                    // D-19 (task 032): `Enter` on a value-cycler advances it
+                    // one step forward — the same message `ArrowDown` would
+                    // dispatch via `cycle_value` — so the natural key for an
+                    // apparently-openable control is not dead.
+                    EditorField::UrlPathOp => self.cycle_value(app, 1),
                     EditorField::Method => {
                         let methods = ["", "GET", "POST", "PUT", "PATCH", "DELETE"];
                         methods
@@ -969,14 +992,14 @@ impl Region {
                             .map(|m| Message::RuleSetMethod(m.to_string()))
                     }
                     EditorField::MoreWhenToggle => Some(Message::ToggleRuleWhenMore),
-                    EditorField::HeaderName(_)
-                    | EditorField::HeaderOp(_)
-                    | EditorField::HeaderValue(_) => None,
+                    EditorField::HeaderName(_) | EditorField::HeaderValue(_) => None,
+                    // D-19: same reasoning as `UrlPathOp` above.
+                    EditorField::HeaderOp(_) => self.cycle_value(app, 1),
                     EditorField::HeaderRemove(i) => Some(Message::HeaderRemove(i)),
                     EditorField::AddHeader => Some(Message::HeaderAdd),
-                    EditorField::BodyPath(_)
-                    | EditorField::BodyOp(_)
-                    | EditorField::BodyValue(_) => None,
+                    EditorField::BodyPath(_) | EditorField::BodyValue(_) => None,
+                    // D-19: same reasoning as `UrlPathOp` above.
+                    EditorField::BodyOp(_) => self.cycle_value(app, 1),
                     EditorField::BodyPathAssistant(i) => Some(Message::PathAssistantOpen(i)),
                     EditorField::BodyRemove(i) => Some(Message::BodyRemove(i)),
                     EditorField::AddBody => Some(Message::BodyAdd),
@@ -1009,13 +1032,15 @@ impl Region {
                     .get(*i)
                     .map(|&m| Message::ChooseAudienceMode(m))
             }
-            // Cycling, typing, or disabled — not activation (task 031 §8:
-            // `LogFile` and `QueueSize` have no `on_input` wired at all;
-            // `Enter` must agree with the click that already does nothing).
+            // D-19 (task 032): same reasoning as `UrlPathOp` above — applies
+            // to all four cyclers, not only the editor's three.
+            (Region::Settings(SettingsField::Locale), _) => self.cycle_value(app, 1),
+            // Typing or disabled — not activation (task 031 §8: `LogFile`
+            // and `QueueSize` have no `on_input` wired at all; `Enter` must
+            // agree with the click that already does nothing).
             (
                 Region::Settings(
-                    SettingsField::Locale
-                    | SettingsField::Host
+                    SettingsField::Host
                     | SettingsField::Port
                     | SettingsField::LogFile
                     | SettingsField::QueueSize,
