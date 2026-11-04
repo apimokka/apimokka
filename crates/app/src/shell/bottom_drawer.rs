@@ -62,15 +62,27 @@ pub fn view(app: &App) -> Element<'_, Message> {
         DrawerMode::Validation => validation_content(app),
         DrawerMode::SaveDiff => save_diff_content(app),
     };
-    container(column![
+    let mut col = column![
         drawer_header(app, mode),
         widgets::divider(),
         scrollable(body).id(SCROLLABLE_ID).height(Length::Fill),
-    ])
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .style(theme::panel_style)
-    .into()
+    ];
+    // D-27 (task 036): `Discard`/`Save all` sit outside the scrollable, the
+    // same way `Close` already sits in `drawer_header` above it, rather
+    // than taking a scroll-snap position (offset 0.5 of 3) that does not
+    // guarantee visibility — D-5's own recorded limit. Visibility no longer
+    // depends on scroll position at all.
+    if mode == DrawerMode::SaveDiff
+        && let Some(actions) = save_diff_actions(app)
+    {
+        col = col.push(widgets::divider());
+        col = col.push(actions);
+    }
+    container(col)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(theme::panel_style)
+        .into()
 }
 
 fn drawer_header<'a>(app: &'a App, mode: DrawerMode) -> Element<'a, Message> {
@@ -452,34 +464,46 @@ fn save_diff_content(app: &App) -> Element<'_, Message> {
         );
     }
 
-    // ── Actions ──────────────────────────────────────────────────────────
-    col = col.push(Space::new().height(space::S2));
-    col = col.push(
-        row![
-            cursor_wrap(
-                app,
-                DrawerField::Discard,
-                // Task 034 (D-24's confirmation half): routed through the
-                // confirm dialog — a confirmation already existed for this
-                // (`ConfirmAction::DiscardChanges`, title/body keys and
-                // all) and was dispatched by nothing; one click used to
-                // discard every unsaved change immediately.
-                widgets::ghost_btn(
-                    app.t(Key::BtnDiscard),
-                    Message::ConfirmRequest(crate::message::ConfirmAction::DiscardChanges),
-                ),
-            ),
-            Space::new().width(Length::Fill),
-            cursor_wrap(
-                app,
-                DrawerField::SaveAll,
-                widgets::primary_btn(app.t(Key::BtnSaveAll), Message::SaveAll),
-            ),
-        ]
-        .align_y(Alignment::Center),
-    );
-
     col.into()
+}
+
+/// D-27 (task 036): `Discard`/`Save all`, factored out of `save_diff_content`
+/// so `view` can place them outside the drawer's one scrollable — `None`
+/// when there is nothing to act on, mirroring `save_diff_content`'s own
+/// `total == 0` check (`save_diff_total` is the one source both read, the
+/// same reasoning `drawer_fields` is already built on).
+fn save_diff_actions(app: &App) -> Option<Element<'_, Message>> {
+    if save_diff_total(app) == 0 {
+        return None;
+    }
+    Some(
+        container(
+            row![
+                cursor_wrap(
+                    app,
+                    DrawerField::Discard,
+                    // Task 034 (D-24's confirmation half): routed through the
+                    // confirm dialog — a confirmation already existed for this
+                    // (`ConfirmAction::DiscardChanges`, title/body keys and
+                    // all) and was dispatched by nothing; one click used to
+                    // discard every unsaved change immediately.
+                    widgets::ghost_btn(
+                        app.t(Key::BtnDiscard),
+                        Message::ConfirmRequest(crate::message::ConfirmAction::DiscardChanges),
+                    ),
+                ),
+                Space::new().width(Length::Fill),
+                cursor_wrap(
+                    app,
+                    DrawerField::SaveAll,
+                    widgets::primary_btn(app.t(Key::BtnSaveAll), Message::SaveAll),
+                ),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .padding(Padding::from([space::S3, space::S4]))
+        .into(),
+    )
 }
 
 pub(crate) fn last_save_report_lines(app: &App) -> Vec<String> {

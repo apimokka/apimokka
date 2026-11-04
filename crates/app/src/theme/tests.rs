@@ -274,6 +274,63 @@ fn high_contrast_presets_keep_their_iced_slots_and_borders() {
     }
 }
 
+// ── D-21 contract tests (task 036). The friendly-error banner's fill and
+// text, pinned the same way the D-13 tests above pin the muted-surface
+// walk — a parallel walk rather than an entry in `muted_surfaces()` itself,
+// because the banner's real foreground is `warning_text`, not `muted()`:
+// adding it to that array would check the wrong pairing (and fail, since
+// `text_muted` carries no guarantee against a `warning` fill). ────────────
+
+#[test]
+fn banner_text_meets_aa_on_its_own_fill_in_all_presets() {
+    // Both of the banner's text roles — the message text and any muted text
+    // on it (`shell::view`'s `feedback_banner`, detail/technical_detail) —
+    // share `banner_text`, the one snora foreground guaranteed against
+    // `warning` (see `banner_text`'s own doc comment for why there is no
+    // second, dimmer role here the way `text_muted` is one elsewhere).
+    // Checking it once below therefore covers both call sites.
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let fill = fill(&banner_style(&t));
+        let r = ratio(banner_text(&t), fill);
+        if r < 4.5 {
+            failures.push(format!("{} {r:.2}:1", p.name));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "banner text below AA 4.5:1: {failures:?}"
+    );
+    // Discriminates against the pre-fix pairing: `ep.background.base.text`
+    // on `ep.warning.weak.color` measured 1.25–2.54:1 in every preset
+    // (task 036 §2), and `theme::muted` on the same fill measured
+    // 1.05–2.36:1 for the detail/technical_detail roles.
+}
+
+#[test]
+fn banner_fill_and_text_come_from_their_snora_tokens_in_all_presets() {
+    // Unlike `light_and_dark_muted_surfaces_fill_with_their_snora_tokens`,
+    // this covers all four presets: the banner's high-contrast pairing
+    // failed too (1.94 / 1.25:1), so high contrast is not left on its old
+    // iced-derived slot the way the other muted surfaces are.
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        assert_eq!(
+            fill(&banner_style(&t)),
+            to_iced_color(p.tokens.palette.warning),
+            "{} banner fill",
+            p.name
+        );
+        assert_eq!(
+            banner_text(&t),
+            to_iced_color(p.tokens.palette.warning_text),
+            "{} banner text",
+            p.name
+        );
+    }
+}
+
 // ── D-15 contract tests (task 023). text_input's colour roles, pinned so a
 // later change cannot silently reintroduce an unguaranteed colour. ──────────
 

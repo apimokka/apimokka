@@ -394,6 +394,8 @@ pub enum Key {
     ConfirmSwitchWorkspaceBody,
     ConfirmOverwriteWorkspace,
     ConfirmOverwriteWorkspaceBody,
+    ConfirmCreateWorkspace,     // D-25 (task 036): "Create workspace?"
+    ConfirmCreateWorkspaceBody, // "Unsaved edits will be lost."
 
     // ── Fallback file editor (file-system routing) ───────────────────────
     FallbackEditorHeading,
@@ -434,9 +436,13 @@ pub enum Key {
     HintHeaderOp,
     UndoLabel,
     RedoLabel,
-    UndoRuleDeleted,   // "Deleted rule"
-    UndoRuleAdded,     // "Added rule"
-    UndoRuleMoved,     // "Moved rule"
+    UndoRuleDeleted,    // "Deleted rule"
+    UndoRuleAdded,      // "Added rule"
+    UndoRuleMoved,      // "Moved rule"
+    UndoSettingChanged, // D-25 (task 036): "Setting changed" — a RootSetting
+    // edit (strategy, listener IP/port, TLS, log level) shared
+    // `UndoRuleMoved` with the actual move; generic, since the variant
+    // covers more than strategy alone (see app.rs's `banner_key`).
     UndoUrlPathEdited, // "URL path changed"
     UndoRedoAvailable, // "Redo available"
     PaletteCmdUndo,    // "Undo"

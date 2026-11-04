@@ -147,6 +147,25 @@ fn rule_editor_builds_with_weight_and_priority_fields() {
     }
 }
 
+// ── D-25 (task 036) ──────────────────────────────────────────────────
+
+#[test]
+fn strategy_change_undo_banner_names_a_setting_not_a_moved_rule() {
+    let mut a = expert();
+    let before = a.snapshot.as_ref().unwrap().root_settings.strategy;
+    let new_strategy = if before == Strategy::FirstMatch {
+        Strategy::WeightedRandom
+    } else {
+        Strategy::FirstMatch
+    };
+    a.update(Message::RuleSetSetStrategy(new_strategy));
+    assert_eq!(
+        a.undo_stack().last().unwrap().banner_key(),
+        apimokka_i18n::Key::UndoSettingChanged,
+        "a RootSetting edit's undo banner should name a setting, not UndoRuleMoved"
+    );
+}
+
 #[test]
 fn validation_strip_builds_for_rule_with_issues() {
     // The mock data has a rule (error-scenarios.toml rules[0]) with a

@@ -365,7 +365,14 @@ impl HistoryEntry {
             Self::MoveRule { .. } => apimokka_i18n::Key::UndoRuleMoved,
             Self::RuleMatch { .. } => apimokka_i18n::Key::UndoUrlPathEdited,
             Self::Respond { .. } => apimokka_i18n::Key::UndoUrlPathEdited,
-            Self::RootSetting { .. } | Self::RulePrototype { .. } | Self::TracePrototype { .. } => {
+            // D-25 (task 036): was `UndoRuleMoved`, shared with the actual
+            // move. `RootSetting` is the general root-setting editor (any
+            // `WorkspaceRootKey` — strategy, listener IP/port, TLS, log
+            // level: see every `update_root_setting` call site), not only
+            // the strategy edit the handoff names, so the new key names
+            // "a setting" generically rather than "strategy" specifically.
+            Self::RootSetting { .. } => apimokka_i18n::Key::UndoSettingChanged,
+            Self::RulePrototype { .. } | Self::TracePrototype { .. } => {
                 apimokka_i18n::Key::UndoRuleMoved
             }
             Self::HeaderAdd { .. }
@@ -1594,8 +1601,12 @@ impl App {
                     ConfirmAction::LeaveWorkspace => {
                         (Key::ConfirmSwitchWorkspace, Key::ConfirmSwitchWorkspaceBody)
                     }
+                    // D-25 (task 036): was `ConfirmSwitchWorkspace` — right
+                    // in substance (the open workspace is being left), but
+                    // naming the wrong action for a press of "Create
+                    // workspace".
                     ConfirmAction::CreateWorkspace => {
-                        (Key::ConfirmSwitchWorkspace, Key::ConfirmSwitchWorkspaceBody)
+                        (Key::ConfirmCreateWorkspace, Key::ConfirmCreateWorkspaceBody)
                     }
                     ConfirmAction::RevertFile(_) => {
                         (Key::ConfirmRevertFile, Key::ConfirmRevertFileBody)
@@ -2128,9 +2139,18 @@ impl App {
             }
             // Task 033: the bottom drawer's one scrollable. `Close` sits in
             // `drawer_header`, above it, not inside it, excluded the same
-            // way.
+            // way. D-27 (task 036): `Discard`/`SaveAll` moved out of the
+            // scrollable too (`bottom_drawer::save_diff_actions`), so they
+            // are excluded here the same way — snapping to an offset for a
+            // field that is never inside the scrollable was exactly D-27's
+            // defect, not a visibility guarantee.
             Some(crate::regions::Region::Drawer(field))
-                if field != crate::regions::DrawerField::Close =>
+                if !matches!(
+                    field,
+                    crate::regions::DrawerField::Close
+                        | crate::regions::DrawerField::Discard
+                        | crate::regions::DrawerField::SaveAll
+                ) =>
             {
                 let drawer_regions: Vec<_> = crate::regions::Region::order_for(self)
                     .into_iter()
@@ -2138,7 +2158,12 @@ impl App {
                         matches!(
                             r,
                             crate::regions::Region::Drawer(f)
-                                if *f != crate::regions::DrawerField::Close
+                                if !matches!(
+                                    f,
+                                    crate::regions::DrawerField::Close
+                                        | crate::regions::DrawerField::Discard
+                                        | crate::regions::DrawerField::SaveAll
+                                )
                         )
                     })
                     .collect();

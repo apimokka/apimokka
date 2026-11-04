@@ -425,12 +425,40 @@ pub fn dialog_style(t: &Theme) -> container::Style {
     }
 }
 
-/// Semantic banner: reload/restart pending.
+/// D-21 (task 036): the pairing `banner_style`'s text takes, for every text
+/// role the friendly-error banner carries (the message text and any muted
+/// text on it, per the handoff's item 4). Snora guarantees exactly one
+/// foreground for its `warning` fill — `warning_text` — so both roles share
+/// it; there is no second, dimmer role carrying the same guarantee against
+/// this fill the way `text_muted` carries one against the three neutral
+/// surfaces (see `text_safe_fill`). Measured 2026-11-04 (`ratio`, WCAG):
+/// 5.42:1 Light, 10.64:1 Dark, 8.41:1 HC Light, 14.86:1 HC Dark — all above
+/// the 4.5 floor, none inherited from the token's own doc claim.
+pub fn banner_text(t: &Theme) -> Color {
+    to_iced_color(tokens_for(t).palette.warning_text)
+}
+
+/// Semantic banner: the friendly-error surface (`shell::view`'s highest-
+/// priority `feedback_banner` branch) — reload/restart pending, or any
+/// other friendly error, carrying the message text and the only visible
+/// Undo affordance's sibling surface.
+///
+/// D-21 (task 036): the fill and text were `ep.warning.weak.color` and
+/// `ep.background.base.text` — one iced-derived slot and one token picked
+/// for a different surface (`background`, not `warning`) — and measured
+/// 1.25–2.54:1 against the 4.5 floor in every preset (§5 of the task
+/// handoff). Both roles now come from snora's `warning`/`warning_text`
+/// pair, the only snora tokens that carry a guarantee for this specific
+/// fill+text pairing (same shape as D-13's `text_safe_fill` and D-15's
+/// `text_input_style`, a third and fourth time). This keeps the banner's
+/// warning semantic — the fill stays the status colour, not a neutral one —
+/// which the known-risk in the handoff flagged as the alternative to avoid.
 pub fn banner_style(t: &Theme) -> container::Style {
-    let ep = t.extended_palette();
     container::Style {
-        background: Some(Background::Color(ep.warning.weak.color)),
-        text_color: Some(ep.background.base.text),
+        background: Some(Background::Color(to_iced_color(
+            tokens_for(t).palette.warning,
+        ))),
+        text_color: Some(banner_text(t)),
         border: Border {
             radius: radius::MD.into(),
             ..Default::default()

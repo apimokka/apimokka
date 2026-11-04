@@ -2184,19 +2184,22 @@ fn tab_reaches_every_drawer_field_in_reading_order() {
 }
 
 #[test]
-fn scroll_snap_target_for_the_drawer_excludes_close_but_covers_the_rest() {
+fn scroll_snap_target_for_the_drawer_excludes_close_discard_and_save_all() {
+    // D-27 (task 036): `Discard`/`SaveAll` moved out of the drawer's one
+    // scrollable (`bottom_drawer::save_diff_actions`), the same way `Close`
+    // already sits outside it — so, like `Close`, neither is a scroll-snap
+    // target any more. Before the fix this asserted the opposite: both got
+    // an offset (0.5 of 3), which is D-27's own defect, not a guarantee.
     let mut a = expert_in_workspace();
     a.update(Message::OpenSaveDiffDrawer);
     tab_until(&mut a, Region::Drawer(DrawerField::Close));
     assert_eq!(a.scroll_snap_target(true), None);
 
     tab_until(&mut a, Region::Drawer(DrawerField::Discard));
-    let (id, _y) = a.scroll_snap_target(true).expect("a target");
-    assert_eq!(id, crate::shell::bottom_drawer::SCROLLABLE_ID);
+    assert_eq!(a.scroll_snap_target(true), None);
 
     tab_until(&mut a, Region::Drawer(DrawerField::SaveAll));
-    let (id, _y) = a.scroll_snap_target(true).expect("a target");
-    assert_eq!(id, crate::shell::bottom_drawer::SCROLLABLE_ID);
+    assert_eq!(a.scroll_snap_target(true), None);
 }
 
 // ── Required evidence (§7), reducer-level: Scenario 5's revert step ───────

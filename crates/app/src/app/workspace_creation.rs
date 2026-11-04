@@ -61,6 +61,29 @@ fn open_workspace_still_loads_the_mock() {
     );
 }
 
+// ── D-25 (task 036) ──────────────────────────────────────────────────
+
+#[test]
+fn create_workspace_confirmation_names_itself_not_switch() {
+    let mut a = App::new().0;
+    a.update(Message::ChooseAudienceMode(
+        apimokka_model::AudienceMode::Expert,
+    ));
+    a.update(Message::ConfirmRequest(
+        crate::message::ConfirmAction::CreateWorkspace,
+    ));
+    let dialog = a
+        .confirm_dialog
+        .as_ref()
+        .expect("ConfirmRequest raises the dialog");
+    assert_eq!(
+        dialog.title,
+        apimokka_i18n::Key::ConfirmCreateWorkspace,
+        "pressing Create workspace should ask about creating, not switching"
+    );
+    assert_eq!(dialog.body, apimokka_i18n::Key::ConfirmCreateWorkspaceBody);
+}
+
 #[test]
 fn blank_workspace_shows_add_rule_set_cta() {
     // With no rule sets, the centre panel shows the blank-workspace CTA.

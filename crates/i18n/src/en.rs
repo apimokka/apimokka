@@ -364,6 +364,8 @@ pub fn t(key: Key) -> &'static str {
         Key::ConfirmSwitchWorkspaceBody => "Unsaved edits will be lost.",
         Key::ConfirmOverwriteWorkspace => "Overwrite existing workspace?",
         Key::ConfirmOverwriteWorkspaceBody => "Existing files in the folder will be replaced.",
+        Key::ConfirmCreateWorkspace => "Create workspace?",
+        Key::ConfirmCreateWorkspaceBody => "Unsaved edits will be lost.",
 
         Key::SettingsSectionAppearance => "Appearance",
         Key::SettingsTheme => "Theme",
@@ -411,6 +413,7 @@ pub fn t(key: Key) -> &'static str {
         Key::UndoRuleDeleted => "Deleted rule",
         Key::UndoRuleAdded => "Added rule",
         Key::UndoRuleMoved => "Moved rule",
+        Key::UndoSettingChanged => "Setting changed",
         Key::UndoUrlPathEdited => "URL path changed",
         Key::UndoRedoAvailable => "Redo available",
         Key::PaletteCmdUndo => "Undo",

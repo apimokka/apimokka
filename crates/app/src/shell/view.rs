@@ -196,12 +196,17 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
     if let Some(ActiveBanner::Error(p)) = active_banner(app) {
         // Build the detail column: plain detail always; technical detail either
         // inline (Expert, or expanded) or behind a Show/Hide toggle (Guided).
+        // D-21 (task 036): `detail`/`technical_detail` took `theme::muted`,
+        // guaranteed only against the three neutral surfaces, not against
+        // this banner's `warning` fill. `theme::banner_text` is the role
+        // snora does guarantee here — see its own doc comment for why both
+        // of this banner's text roles share one colour.
         let mut detail_col = iced::widget::column![
             text(p.title.as_str()).size(size::BODY_STRONG),
             text(p.detail.as_str())
                 .size(size::BODY_SMALL)
                 .line_height(theme::line_height::body_small())
-                .color(theme::muted(&app.theme())),
+                .color(theme::banner_text(&app.theme())),
         ]
         .spacing(space::S1)
         .width(Length::Fill);
@@ -214,7 +219,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
                     text(tech.as_str())
                         .size(size::CAPTION)
                         .font(iced::Font::MONOSPACE)
-                        .color(theme::muted(&app.theme())),
+                        .color(theme::banner_text(&app.theme())),
                 );
             }
             // A toggle is offered in either mode so the user can flip it.
