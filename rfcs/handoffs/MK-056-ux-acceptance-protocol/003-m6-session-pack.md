@@ -270,10 +270,21 @@ only thing that can answer it.
 
    Do **not** name text size, point at an element, or offer a scale.
 3. **Record which tier** any named text belongs to — `CAPTION` 12.0,
-   `BODY_SMALL` 14.0, or `BODY` 16.0. Without the tier the finding cannot be
-   acted on: a 12.0 complaint means the triage was too conservative; a 14.0
-   complaint means the tier itself is wrong. If you cannot tell, screenshot it
-   and I will identify the tier from source.
+   `BODY_SMALL` 14.0, or `BODY` 16.0 — **and which role**: ordinary body text,
+   or the **muted** grey used for hints, counts, timestamps and metadata.
+   Without the tier the finding cannot be acted on: a 12.0 complaint means the
+   triage was too conservative; a 14.0 complaint means the tier itself is
+   wrong. **Without the role it can be filed against the wrong half of the
+   problem entirely** — muted text at `BODY` 16.0 that is hard to read is a
+   *contrast* finding, not a size one, and the muted role passes AA (4.55
+   Light / 5.01 Dark) while failing the 7:1 AAA bar that is the age-relevant
+   one. If you cannot tell either, screenshot it and I will identify both from
+   source.
+
+   **Do not ask about colour**, any more than about size. The question in
+   step 2 is the only question; the role is something *you* record about what
+   the participant names, not something you put to them. (MK-056 amendment,
+   2026-11-04.)
 
 **Must be observed in at least one high-contrast preset** — S3, or the
 high-contrast part of scenario 6 — since low-vision legibility is the case the
@@ -369,7 +380,10 @@ Hand me the session logs. I will:
 1. classify every logged deviation into S1/S2/S3 per §6, applying the
    single-vs-second-sighting rule across sessions rather than within one;
 2. reconcile the readability probe against MK-059's fifty retained sites and
-   record the outcome in MK-059, including a null result;
+   record the outcome in MK-059, including a null result — **and, where a
+   finding names the muted role rather than a tier, measure that pairing in
+   `theme/tests.rs` the way D-13, D-15 and D-21 were, rather than acting on
+   the report alone** (MK-056 amendment, 2026-11-04);
 3. produce the M6 exit evidence against MK-056's acceptance criteria and state
    plainly which are met and which are not;
 4. raise any S1 as a blocking defect before R2 is considered.

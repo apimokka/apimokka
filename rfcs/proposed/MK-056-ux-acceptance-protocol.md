@@ -476,6 +476,39 @@ focus-ring rendering.
 > size, which no participant can decompose; and it does not revisit `DISPLAY`
 > staying at 36.0, which is a recorded divergence rather than an open question.
 
+> ### Amendment, 2026-11-04 — record the role, not only the tier
+>
+> **Proposed by the architect; awaiting the project owner's acceptance.**
+>
+> **Why.** The project owner asked on 2026-11-03 whether the application could
+> be *"kinder to elder people"*, and that question has two halves: text size
+> and text colour. The probe above answers the first. The exclusion paragraph
+> says contrast is *"L2's job and already asserted"* — **true at AA, and only
+> at AA.** The muted role measures **4.55 (Light) / 5.01 (Dark)** on our own
+> surfaces: it passes the 4.5 floor our tests assert and fails the **7:1 AAA**
+> bar that is the age-relevant one. Nothing in this programme currently
+> answers that band — no test asserts it, and no question asks about it.
+>
+> **What changes, and it is one item.** Step 3 records **which role** the
+> named text uses — body or muted — alongside which tier. Nothing else: no new
+> question, no new session, and **no question about colour**, because asking
+> one would teach a participant to look for a problem they had not noticed,
+> which is the discipline step 2 already exists to protect. *(This supersedes
+> the architect's own 2026-11-04 proposal to "extend the probe to ask about
+> the muted role's colour" — asking was the wrong instrument, for the reason
+> this probe already states.)*
+>
+> **What it buys.** If a participant names text they find hard to read and
+> that text is at `BODY` 16.0 in the muted role, today's step 3 files it as a
+> tier complaint and the fix goes to the wrong place. With the role recorded,
+> the same observation answers the AA-to-AAA question on evidence — and a null
+> result is as real here as it is for size: nobody remarking on muted text at
+> any tier is the evidence that AA is enough for this application.
+>
+> **Still not a contrast measurement.** If a role is named, the remedy is
+> measured in `theme/tests.rs` the way D-13, D-15 and D-21 were. The probe
+> says *which* pairing to go and measure; it never says by how much.
+
 ### 7. Environment sampling
 
 Full coverage across audience mode (2), locale (2), theme (4), window size (2),
