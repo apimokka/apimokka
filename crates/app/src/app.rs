@@ -4538,7 +4538,7 @@ mod tests_mk033;
 
 #[cfg(test)]
 #[path = "app/dialog_default_action.rs"]
-mod tests_mk023;
+pub(crate) mod tests_mk023;
 
 #[cfg(test)]
 #[path = "app/region_cursor.rs"]

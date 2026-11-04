@@ -468,6 +468,56 @@ pub fn banner_style(t: &Theme) -> container::Style {
     }
 }
 
+/// D-21 round 2 (task 036, F1a): the "Show/Hide details" and "✕" dismiss
+/// buttons on the friendly-error banner used `iced::widget::button::text`,
+/// which paints its label with `palette.background.base.text` — the exact
+/// iced-derived slot round 1 moved everything else on this surface off of.
+/// A container's `text_color` does not reach a button's own label, so
+/// `banner_style`'s fix never reached these two.
+///
+/// Deliberately **not** `button::text`'s own shape, which dims the label on
+/// Hover/Disabled via `scale_alpha` — measured first, not assumed safe:
+/// scaling `banner_text`'s alpha to 0.8 and compositing over `warning`
+/// drops Light to ~4.09:1, *below* the 4.5 floor this role exists to clear.
+/// This surface has exactly one guaranteed foreground and no second,
+/// dimmer one to fall back to (see `banner_text`'s own doc comment), so
+/// every status keeps the same full-strength colour — the hierarchy these
+/// two controls need comes from size/weight/position, not opacity.
+pub fn banner_text_button(
+    t: &Theme,
+    _status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    iced::widget::button::Style {
+        text_color: banner_text(t),
+        ..iced::widget::button::Style::default()
+    }
+}
+
+/// D-21 round 2 (task 036, F2): the region-cursor ring on the friendly-error
+/// banner's own controls. `cursor_style`'s primary-coloured border measures
+/// 1.13–2.33:1 against this surface's `warning` fill — below the WCAG
+/// 1.4.11 non-text floor (3:1) in every preset — because it is shared with
+/// every other surface's cursor, none of them this colour. A per-surface
+/// cursor treatment (the task handoff's own fallback, proposed here rather
+/// than assumed): `banner_text` already clears 4.5:1 for *text* on this
+/// fill (see `banner_text`'s own doc comment), so a 2 px ring in that colour
+/// clears the lower 3:1 non-text floor with room in every preset, uniformly
+/// — no high-contrast/non-high-contrast split, unlike `card_selected_style`'s
+/// border (which this otherwise mirrors).
+pub fn banner_cursor_style(t: &Theme) -> container::Style {
+    container::Style {
+        background: None,
+        text_color: None,
+        border: Border {
+            width: 2.0,
+            color: banner_text(t),
+            radius: radius::MD.into(),
+        },
+        shadow: Shadow::default(),
+        snap: true,
+    }
+}
+
 /// Hairline divider (1 px high container).
 pub fn hairline_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();

@@ -108,9 +108,13 @@ pub(super) fn rule_editor<'a>(
             .iter()
             .map(|issue| {
                 row![
-                    text("⚠")
-                        .size(size::LABEL)
-                        .color(Color::from_rgb(0.85, 0.45, 0.0)),
+                    // D-21 round 2 (task 036, F1b): was a hard-coded orange
+                    // (0.85, 0.45, 0.0) — never measured against any fill,
+                    // let alone this container's `banner_style`. Dropped so
+                    // it inherits the container's `text_color` (`banner_text`,
+                    // guaranteed against the `warning` fill) the same way
+                    // the message text below already does.
+                    text("⚠").size(size::LABEL),
                     // RFC MK-059 decision 4: a validation message is
                     // arbitrary-length explanatory prose, same as the
                     // bottom drawer's diagnostic list.
@@ -125,9 +129,13 @@ pub(super) fn rule_editor<'a>(
         Some(
             container(
                 column![
-                    text(t(Key::RuleEditorValidationWarning))
-                        .size(size::LABEL)
-                        .color(theme::muted(&app.theme())),
+                    // D-21 round 2 (task 036, F1b): was `theme::muted`,
+                    // guaranteed only against the three neutral surfaces —
+                    // exactly the reasoning round 1 used to move the
+                    // banner's own detail text *off* this fill. Dropped
+                    // for the same reason: it now inherits `banner_style`'s
+                    // `text_color`, the one role this fill guarantees.
+                    text(t(Key::RuleEditorValidationWarning)).size(size::LABEL),
                     column(msgs).spacing(space::S1),
                 ]
                 .spacing(space::S1),

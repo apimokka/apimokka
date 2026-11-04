@@ -1,6 +1,16 @@
 //! D-13 contract tests (task 021 and its correction round). They pin the §5
 //! measurements so a later change cannot silently trade muted-text contrast
 //! for surface separation, or the reverse.
+//!
+//! Boundary decision: single-responsibility — this is `theme.rs`'s entire
+//! contract-test suite (D-13, D-15, D-21 and its round-2 correction), one
+//! `#[cfg(test)] mod tests` the design module includes by `#[path]` rather
+//! than inlining; splitting the design module's own tests from its own
+//! source would be the opposite boundary to every other module in this
+//! crate, not a cleaner one. Task 036 round 2 grew it past the 500-line
+//! signal threshold by adding D-21's missed colours (buttons, the cursor
+//! ring, a call-site census) to the same surface's existing contract, not
+//! by taking on a second responsibility.
 
 use super::*;
 use snora::design::{Tokens, theme as snora_theme};
@@ -329,6 +339,127 @@ fn banner_fill_and_text_come_from_their_snora_tokens_in_all_presets() {
             p.name
         );
     }
+}
+
+// ── D-21 round 2 (task 036, F1/F2). Round 1's own test asserted the roles
+// it touched while the surface still failed elsewhere — the review's own
+// diagnosis. These two walk every exposed colour `banner_style`'s users can
+// draw (the button label role and the cursor-ring role this round adds),
+// plus a census of every call site, so a sixth user cannot go unchecked the
+// way the first five already did once. ──────────────────────────────────
+
+/// Every `.style(theme::banner_style)` site, recorded 2026-11-04 (task 036
+/// round 2). `theme::banner_style` (qualified) appears nowhere in this
+/// crate except as a real call site — not in a doc comment, not in
+/// `theme.rs`'s own unqualified definition — so counting it is the same
+/// "table goes stale, that is the alarm" shape `app/control_census.rs`
+/// already uses for its own needles. On failure: read the new or changed
+/// site, confirm every colour it draws is `banner_text`/
+/// `banner_text_button`/`banner_cursor_style` (or bare inheritance of the
+/// container's own `text_color`), then update this table — do not loosen
+/// the needle or drop a row to make this pass.
+const BANNER_STYLE_SITES: &[(&str, usize)] = &[
+    ("shell/view.rs", 1),
+    ("screens/routes/rule_editor.rs", 1),
+    ("screens/test_rule.rs", 2),
+    ("screens/trace.rs", 1),
+];
+
+#[test]
+fn every_banner_style_site_is_recorded_and_the_census_catches_a_new_one() {
+    // `theme.rs` (the unqualified definition) and this file itself (which
+    // names the qualified form in prose, including right here) are not
+    // call sites and are excluded from the walk for that reason — not to
+    // narrow the net, but because they are the one place the string is
+    // expected to appear without being a usage.
+    let files: std::collections::BTreeMap<String, String> =
+        crate::app::tests_mk023::all_source_files()
+            .into_iter()
+            .filter(|(path, _)| path != "theme.rs" && path != "theme/tests.rs")
+            .collect();
+
+    let mut mismatches = Vec::new();
+    for &(path, expected) in BANNER_STYLE_SITES {
+        match files.get(path) {
+            Some(contents) => {
+                let actual = contents.matches("theme::banner_style").count();
+                if actual != expected {
+                    mismatches.push(format!("{path}: recorded {expected}, counted {actual}"));
+                }
+            }
+            None => mismatches.push(format!("{path}: recorded but no longer exists")),
+        }
+    }
+
+    let recorded: std::collections::BTreeSet<&str> =
+        BANNER_STYLE_SITES.iter().map(|&(p, _)| p).collect();
+    for (path, contents) in &files {
+        if !recorded.contains(path.as_str()) && contents.contains("theme::banner_style") {
+            mismatches.push(format!("{path}: new banner_style user, not in the census"));
+        }
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "the banner_style census in theme/tests.rs is stale: {mismatches:#?}"
+    );
+}
+
+#[test]
+fn banner_text_button_meets_aa_in_every_status_and_every_preset() {
+    // F1a: "Show/Hide details" and "✕" (`shell/view.rs`'s error branch) used
+    // `iced::widget::button::text`, which paints `ep.background.base.text` —
+    // a button's label is not reached by a container's `text_color`, so
+    // round 1's fix to `banner_style` never reached these. All three
+    // non-disabled statuses are checked, not only Active: `button::text`'s
+    // own stock shape dims Hovered by alpha, which this function
+    // deliberately does not do (see its own doc comment — a measured 4.09:1
+    // on Light is why), and this test is what keeps a future edit from
+    // quietly reintroducing that dimming.
+    use iced::widget::button::Status;
+
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let fill = fill(&banner_style(&t));
+        for status in [Status::Active, Status::Hovered, Status::Pressed] {
+            let r = ratio(banner_text_button(&t, status).text_color, fill);
+            if r < 4.5 {
+                failures.push(format!("{} {status:?} {r:.2}:1", p.name));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "banner button label below AA 4.5:1: {failures:?}"
+    );
+    // Discriminates against the pre-fix role: `ep.background.base.text` on
+    // `warning` measures 1.25–2.54:1 (the same numbers D-21's own §2 table
+    // names for the message text, because it was the same slot).
+}
+
+#[test]
+fn banner_cursor_ring_meets_non_text_contrast_in_all_presets() {
+    // F2: `cursor_style`'s primary-coloured border measures 1.13–2.33:1 on
+    // this fill — below the WCAG 1.4.11 non-text floor (3:1). The banner's
+    // three controls (`DetailsToggle`, `Action`, `Dismiss`) each take
+    // `banner_cursor_style` instead (`shell/view.rs`'s `feedback_banner_
+    // cursor_wrap` call sites), which reuses the already-AA-guaranteed
+    // `banner_text` as the ring colour — comfortably above the lower,
+    // non-text floor this check uses.
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let fill = fill(&banner_style(&t));
+        let r = ratio(banner_cursor_style(&t).border.color, fill);
+        if r < 3.0 {
+            failures.push(format!("{} {r:.2}:1", p.name));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "banner cursor ring below non-text 3:1: {failures:?}"
+    );
 }
 
 // ── D-15 contract tests (task 023). text_input's colour roles, pinned so a

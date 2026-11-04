@@ -163,19 +163,29 @@ pub(crate) fn active_banner(app: &App) -> Option<ActiveBanner<'_>> {
 }
 
 /// Same shape as `rule_editor.rs`'s own `cursor_wrap` (task 034).
+///
+/// D-21 round 2 (task 036, F2): the cursor ring's colour is now a parameter
+/// rather than always `theme::cursor_style`, because `cursor_style`'s
+/// primary-coloured ring measures 1.13–2.33:1 against `banner_style`'s
+/// `warning` fill — below the 3:1 non-text floor in every preset. The error
+/// banner's three fields (`DetailsToggle`, `Action`, and `Dismiss` when the
+/// error banner is active) pass `theme::banner_cursor_style`; the undo and
+/// success banners, on `chip_style`'s neutral fill, keep the generic
+/// `theme::cursor_style` — `Dismiss` is shared by all three banners (see
+/// its own doc comment), so the choice has to be made by the caller, which
+/// already knows which banner is on screen, not by the field alone.
 fn feedback_banner_cursor_wrap<'a>(
     app: &App,
     field: crate::regions::FeedbackBannerField,
+    cursor_style_fn: fn(&iced::Theme) -> iced::widget::container::Style,
     el: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    use crate::theme;
-
     let has_cursor = app.focused_region == Some(crate::regions::Region::FeedbackBanner(field))
         && app.region_cursor == Some(crate::regions::Cursor::Index(0));
     iced::widget::container(el)
         .padding(crate::theme::space::S1)
         .style(if has_cursor {
-            theme::cursor_style
+            cursor_style_fn
         } else {
             |_: &iced::Theme| iced::widget::container::Style::default()
         })
@@ -231,10 +241,11 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             detail_col = detail_col.push(feedback_banner_cursor_wrap(
                 app,
                 FeedbackBannerField::DetailsToggle,
+                theme::banner_cursor_style,
                 button(text(toggle_label).size(size::LABEL))
                     .on_press(Message::ToggleProblemDetails)
                     .padding(Padding::from([2.0, space::S1]))
-                    .style(iced::widget::button::text)
+                    .style(theme::banner_text_button)
                     .into(),
             ));
         }
@@ -247,6 +258,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             r = r.push(feedback_banner_cursor_wrap(
                 app,
                 FeedbackBannerField::Action,
+                theme::banner_cursor_style,
                 button(text(label.as_str()).size(size::LABEL))
                     .on_press(Message::ProblemAction)
                     .padding(Padding::from([space::S1, space::S3]))
@@ -256,10 +268,11 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
         r = r.push(feedback_banner_cursor_wrap(
             app,
             FeedbackBannerField::Dismiss,
+            theme::banner_cursor_style,
             button(text("✕").size(size::LABEL))
                 .on_press(Message::DismissProblem)
                 .padding(Padding::from([space::S1, space::S2]))
-                .style(iced::widget::button::text)
+                .style(theme::banner_text_button)
                 .into(),
         ));
 
@@ -282,6 +295,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             feedback_banner_cursor_wrap(
                 app,
                 FeedbackBannerField::Undo,
+                theme::cursor_style,
                 button(
                     row![
                         text(app.t(Key::UndoLabel)).size(size::LABEL),
@@ -304,6 +318,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             feedback_banner_cursor_wrap(
                 app,
                 FeedbackBannerField::Dismiss,
+                theme::cursor_style,
                 button(text("✕").size(size::LABEL))
                     .on_press(Message::DismissNotice)
                     .padding(Padding::from([space::S1, space::S2]))
@@ -334,6 +349,7 @@ fn feedback_banner(app: &App) -> Option<Element<'_, Message>> {
             feedback_banner_cursor_wrap(
                 app,
                 FeedbackBannerField::Dismiss,
+                theme::cursor_style,
                 button(text("✕").size(size::LABEL))
                     .on_press(Message::DismissNotice)
                     .padding(Padding::from([space::S1, space::S2]))
