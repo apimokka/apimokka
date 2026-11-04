@@ -478,7 +478,7 @@ focus-ring rendering.
 
 > ### Amendment, 2026-11-04 — record the role, not only the tier
 >
-> **Proposed by the architect; awaiting the project owner's acceptance.**
+> **Accepted by the project owner, 2026-11-04.**
 >
 > **Why.** The project owner asked on 2026-11-03 whether the application could
 > be *"kinder to elder people"*, and that question has two halves: text size
@@ -654,10 +654,44 @@ canonical gate green.
 > **The defect in these criteria therefore stays open**, re-opened for a decision
 > that now depends on D-12's.
 
+> ### Resolved, 2026-11-04 — D-12 is closed, and every wall above is gone
+>
+> The note above made its case on four specific walls. **MK-023 removed all
+> four** (cycle C2, ten reviewed slices, `dbf947c`…`9d405e1`), and **D-12
+> closed 2026-11-03**:
+>
+> | Wall, as the 2026-09-17 note recorded it | What it is now |
+> |---|---|
+> | Welcome's controls are `button`s, unreachable | `Region::WelcomeActions`, slice 3 — captured keyboard-only with zero pointer events |
+> | The palette is inert outside a workspace | Still inert (D-4, deliberate) — and no longer the route: theme, audience mode and locale are Settings regions, slices 6–7 |
+> | Locale is fixed at `Locale::En` on launch | `SettingsField::Locale` is a value cycler (`Enter` cycles, `⇅` handle), plus a palette row |
+> | iced 0.14 can focus neither `button` nor `pick_list` | True, and now irrelevant: the region/cursor model never depended on widget focus |
+>
+> **So the acceptance criterion stands exactly as written.** *"L2 recorded
+> pass for every mandatory combination in decision 7"* is satisfiable, and no
+> amendment to it is needed — the bullet is no longer under decision. Nothing
+> in this RFC's requirements changes; what changed is the application.
+>
+> **All four mandatory combinations are L2 work**, including the fourth. The
+> 2026-09-16 plan put *Guided at 200% text scale* in L3 because it *"needs an
+> output-scale change, not input"*; the nested-compositor capture rig this
+> programme now runs sets output scale with one `niri msg output … scale`
+> command, exactly as it sets 1.2 today. None of the four needs a participant.
+>
+> **What this does not remove is the keyboard *session*.** The criterion
+> *"completed by a participant … on both pointer and keyboard paths"* names a
+> participant, and L2 cannot stand in for one. L2 reclaims the
+> screenshot-verification load; it does not reclaim comprehension.
+>
+> **One prerequisite remains before sessions are booked**: the four L2 runs
+> themselves, at 880×700 and at 200% scale, have never been performed — every
+> capture in this programme has been at 1280×720. Issued as dev-team task 037.
+
 - Preparation gate delivered and separately accepted.
 - L1 green on all three platforms, both toolchains.
-- L2 recorded pass for every mandatory combination in decision 7. **See the
-  defect note above — this bullet is under decision.**
+- L2 recorded pass for every mandatory combination in decision 7. *(Was under
+  decision while D-12 was open; **resolved 2026-11-04** — see the note above.
+  The criterion stands as written and all four combinations are L2 work.)*
 - Every primary scenario completed by a participant of the intended persona,
   across the declared entry states, on both pointer and keyboard paths.
 - No unresolved S1 finding.

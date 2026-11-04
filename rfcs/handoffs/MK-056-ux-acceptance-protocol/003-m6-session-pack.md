@@ -8,17 +8,24 @@
 
 This is the document you run a session from. Read §0 before booking anything.
 
-> ## ⚠ §0 is withdrawn — 2026-09-17. Do not book sessions yet.
+> ## §0 — withdrawn 2026-09-17, **restored 2026-11-04**
 >
-> §0.2 says M9's run was "entirely by injected keys" and §0.3 says `wtype` can
-> drive the app into any mode, theme and locale. **Both are false.** M9's own
-> evidence shows Welcome has no keyboard path; the owner supplied two clicks.
-> `wtype` reaches nothing past the mode picker, so the L2 plan cannot work.
+> **The withdrawal was right when it was written and its reason is now spent.**
+> It said `wtype` reaches nothing past the mode picker and that a keyboard-only
+> participant is stopped at Welcome — **D-12, S1**. MK-023 built the keyboard
+> model in ten reviewed slices and **D-12 closed 2026-11-03**: all six primary
+> scenarios are captured keyboard-only with zero pointer events, and every
+> control the audit inventory lists is reachable. §0.2 and §0.3 below are true
+> as written again, with one correction in §0.3's own table.
 >
-> Worse for sessions: a keyboard-only participant is stopped at Welcome on every
-> scenario — **D-12, S1**, in `ROADMAP.md`. Running sessions now would spend
-> participants rediscovering it. Recruitment (task 002) can continue; booking
-> waits for the D-12 decision. §1 onward stands for the pointer path.
+> **Booking is no longer blocked by a defect.** What it still waits on is the
+> L2 runs themselves — **dev-team task 037** — because every capture this
+> programme has taken was at 1280×720, and two of the four mandatory
+> combinations are specifically about the **smallest** window (880×700) and
+> one is about 200% scale. Recruitment (task 002) should run in parallel, as
+> it always could.
+>
+> §1 onward stands, for both paths now.
 
 ---
 
@@ -72,12 +79,18 @@ With `wtype`, `scripts/ux/run-configuration.sh` can drive the application into
 any mode, theme and locale, which restores to L2 everything the amendment
 migrated except 200% text scale:
 
-| Mandatory combination | With wtype |
+| Mandatory combination | Level |
 |---|---|
 | Japanese at the smallest window | **L2** — scriptable, screenshot-verifiable |
 | High-contrast + keyboard-only | **L2** — this *is* a keyboard-driven run |
 | Expert at the smallest window | **L2** — scriptable |
-| Guided at 200% text scale | **L3** — see §2.4; needs an output-scale change, not input |
+| Guided at 200% text scale | **L2** — *corrected 2026-11-04*: it does need an output-scale change rather than input, and the nested-compositor rig sets output scale with one `niri msg output … scale` command, exactly as it sets 1.2 today |
+
+> **Corrected 2026-11-04.** All four are L2. What L2 does **not** reclaim is
+> the keyboard *session*: MK-056's criterion *"completed by a participant …
+> on both pointer and keyboard paths"* names a participant, and no script
+> stands in for one. L2 takes the screenshot-verification load off the
+> sessions; it does not take comprehension off them.
 
 **What you get for it:** the acceptance criterion becomes satisfiable, and
 participants stop carrying verification load MK-056 itself flagged as "not a
