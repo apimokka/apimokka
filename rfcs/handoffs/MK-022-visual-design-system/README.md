@@ -13,6 +13,7 @@ new RFC — the decision was made in MK-022, and what is left is execution.
 |---:|---|---|
 | 036 | [`036-d21-d25-banner-contrast-and-labels.md`](./036-d21-d25-banner-contrast-and-labels.md) | **D-21**, **D-25**, **D-27**. **Round 1 complete** — `33505c7`; D-25 and D-27 closed, the banner's fill and message text fixed and verified. |
 | 036 r2 | [`036-round-2-every-colour-on-the-banner.md`](./036-round-2-every-colour-on-the-banner.md) | **D-21's remainder**: the banner's own two buttons, the rule editor's validation header, and the region cursor ring. **Complete** — `1248793`; every colour on the surface now measures 5.43 / 10.63 / 8.42 / 14.85, guarded by a census over `banner_style`'s own call sites. **D-21 closed 2026-11-04.** |
+| 038 | [`038-d29-cursor-ring-in-high-contrast.md`](./038-d29-cursor-ring-in-high-contrast.md) | **D-29** — `cursor_style` paints nothing in either high-contrast preset (border width 0, alpha 0), so the keyboard cursor is invisible application-wide there. Found by MK-056's own mandatory combination 2. **S1, blocks M6 sessions**; authorization pending. |
 
 Earlier defect fixes of the same family — **D-13**/**D-14** (task 021) and
 **D-15** (task 023) — predate this directory and were issued before durable
