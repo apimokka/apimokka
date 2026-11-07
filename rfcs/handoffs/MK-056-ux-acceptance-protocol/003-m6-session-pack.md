@@ -2,7 +2,7 @@
 
 **Issued:** 2026-09-16
 **Issued by:** programme architect
-**Governing design:** `rfcs/proposed/MK-056-ux-acceptance-protocol.md`, decisions 4–8
+**Governing design:** `rfcs/accepted/MK-056-ux-acceptance-protocol.md`, decisions 4–8
 **Companion:** `rfcs/handoffs/MK-056-ux-acceptance-protocol/002-m6-participant-recruitment.md`
 **Build at issue:** `bf16c48`
 

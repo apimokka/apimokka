@@ -122,7 +122,7 @@ run_checker_from_root() {
 }
 
 fixture="$temp_dir/valid"
-mkdir -p -- "$fixture/rfcs/proposed" "$fixture/rfcs/done" "$fixture/rfcs/archive" "$fixture/docs"
+mkdir -p -- "$fixture/rfcs/proposed" "$fixture/rfcs/accepted" "$fixture/rfcs/done" "$fixture/rfcs/archive" "$fixture/docs"
 
 cat > "$fixture/rfcs/proposed/MK-001-proposal.md" <<'EOF'
 # RFC MK-001 — Proposal
@@ -132,6 +132,16 @@ cat > "$fixture/rfcs/proposed/MK-001-proposal.md" <<'EOF'
 ## Summary
 
 An open proposal.
+EOF
+
+cat > "$fixture/rfcs/accepted/MK-008-accepted.md" <<'EOF'
+# RFC MK-008 — Accepted design
+
+**Status.** Accepted (authorized 2026-08-02)
+
+## Summary
+
+Design settled; the implementer may start.
 EOF
 
 cat > "$fixture/rfcs/done/MK-002-implemented.md" <<'EOF'
@@ -202,6 +212,12 @@ cat > "$fixture/rfcs/README.md" <<'EOF'
 | RFC | Title |
 |---|---|
 | [MK-001](./proposed/MK-001-proposal.md) | Proposal |
+
+## Accepted
+
+| RFC | Title |
+|---|---|
+| [MK-008](./accepted/MK-008-accepted.md) | Accepted design |
 
 ## Implemented
 
@@ -316,6 +332,43 @@ case_root="$temp_dir/stale-empty-proposed"
 cp -R -- "$fixture" "$case_root"
 sed -i '/## Proposed/a\No RFCs are currently proposed.' "$case_root/rfcs/README.md"
 expect_result "stale Proposed empty state" 1 "empty-state sentence is present while proposed RFCs exist" "$checker" "$case_root"
+
+case_root="$temp_dir/bare-accepted-status"
+cp -R -- "$fixture" "$case_root"
+sed -i 's/\*\*Status\.\*\* Accepted (authorized 2026-08-02)/**Status.** Accepted/' "$case_root/rfcs/accepted/MK-008-accepted.md"
+expect_result "bare Accepted status form" 0 "RFC integrity: 0 error(s)" "$checker" "$case_root"
+
+case_root="$temp_dir/accepted-status-mismatch"
+cp -R -- "$fixture" "$case_root"
+sed -i 's/\*\*Status\.\*\* Accepted (authorized 2026-08-02)/**Status.** Proposed/' "$case_root/rfcs/accepted/MK-008-accepted.md"
+expect_result "accepted folder and status mismatch" 1 "accepted RFC status must be" "$checker" "$case_root"
+
+case_root="$temp_dir/accepted-undated-marker"
+cp -R -- "$fixture" "$case_root"
+sed -i 's/Accepted (authorized 2026-08-02)/Accepted (authorized)/' "$case_root/rfcs/accepted/MK-008-accepted.md"
+expect_result "accepted marker without a date" 1 "accepted RFC status must be" "$checker" "$case_root"
+
+case_root="$temp_dir/accepted-wrong-section"
+cp -R -- "$fixture" "$case_root"
+sed -i '/\[MK-008\]/d; /\[MK-001\]/a\| [MK-008](./accepted/MK-008-accepted.md) | Accepted design |' "$case_root/rfcs/README.md"
+expect_result "accepted RFC indexed under Proposed" 1 "MK-008 is in the wrong lifecycle section" "$checker" "$case_root"
+
+case_root="$temp_dir/empty-accepted"
+cp -R -- "$fixture" "$case_root"
+rm -f -- "$case_root/rfcs/accepted/MK-008-accepted.md"
+sed -i '/\[MK-008\]/d; /## Accepted/a\No RFCs are currently accepted.' "$case_root/rfcs/README.md"
+expect_result "valid empty Accepted state" 0 "RFC integrity: 0 error(s)" "$checker" "$case_root"
+
+case_root="$temp_dir/stale-empty-accepted"
+cp -R -- "$fixture" "$case_root"
+sed -i '/## Accepted/a\No RFCs are currently accepted.' "$case_root/rfcs/README.md"
+expect_result "stale Accepted empty state" 1 "Accepted empty-state sentence is present while accepted RFCs exist" "$checker" "$case_root"
+
+case_root="$temp_dir/missing-accepted-directory"
+cp -R -- "$fixture" "$case_root"
+rm -rf -- "$case_root/rfcs/accepted"
+sed -i '/\[MK-008\]/d; /## Accepted/a\No RFCs are currently accepted.' "$case_root/rfcs/README.md"
+expect_result "missing accepted directory is operational failure" 2 "required path is missing or unreadable: rfcs/accepted" "$checker" "$case_root"
 
 case_root="$temp_dir/injection-paths"
 cp -R -- "$fixture" "$case_root"

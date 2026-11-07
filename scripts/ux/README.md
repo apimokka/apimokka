@@ -20,7 +20,7 @@ container window — never the application under test.
 nested compositor's own socket — the only path that reaches apimokka's
 native-Wayland surface at all. `xdotool` is not used anywhere in this
 directory: it is structurally unable to see a native-Wayland window
-(verified, recorded in `rfcs/proposed/MK-056-ux-acceptance-protocol.md`'s
+(verified, recorded in `rfcs/accepted/MK-056-ux-acceptance-protocol.md`'s
 own decision 3), and every one of MK-056 decision 7's four mandatory
 combinations is a keyboard-only L2 check, so there is nothing here for a
 pointer tool to do. `xdotool` remains this project's pointer-input route

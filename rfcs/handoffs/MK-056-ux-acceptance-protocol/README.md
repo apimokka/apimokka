@@ -1,7 +1,7 @@
 # Handoffs — MK-056, UX and accessibility acceptance protocol
 
 Companion execution documents for
-[MK-056](../../proposed/MK-056-ux-acceptance-protocol.md). Lifecycle state is
+[MK-056](../../accepted/MK-056-ux-acceptance-protocol.md). Lifecycle state is
 inherited from that RFC.
 
 Two of these are **project-owner facing** rather than dev-team facing: M6's L3

@@ -2,7 +2,7 @@
 
 **Issued:** 2026-09-16
 **Issued by:** programme architect
-**Governing design:** `rfcs/proposed/MK-056-ux-acceptance-protocol.md`, decision 4
+**Governing design:** `rfcs/accepted/MK-056-ux-acceptance-protocol.md`, decision 4
 **Blocks:** M6 exit, and therefore R2
 **Delivery:** project owner — this is the one item nobody else can do
 

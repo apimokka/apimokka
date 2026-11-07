@@ -39,7 +39,7 @@ fi
 [[ -n "$root" && -d "$root" && -r "$root" ]] ||
     die_operational "repository root is missing or unreadable: $root"
 
-for required in rfcs/README.md rfcs/proposed rfcs/done rfcs/archive; do
+for required in rfcs/README.md rfcs/proposed rfcs/accepted rfcs/done rfcs/archive; do
     [[ -e "$root/$required" && -r "$root/$required" ]] ||
         die_operational "required path is missing or unreadable: $required"
 done
@@ -61,7 +61,7 @@ relative_path() {
     printf '%s' "${1#"$root"/}"
 }
 
-for state in proposed done archive; do
+for state in proposed accepted done archive; do
     while IFS= read -r -d '' file; do
         rfc_files+=("$file")
         path=$(relative_path "$file")
@@ -110,6 +110,11 @@ for state in proposed done archive; do
             proposed)
                 [[ "$status" == "Proposed" ]] ||
                     add_error "ERROR $path: proposed RFC status must be 'Proposed'"
+                ;;
+            accepted)
+                if [[ ! "$status" =~ ^Accepted(\ \(authorized\ [0-9]{4}-[0-9]{2}-[0-9]{2}\))?$ ]]; then
+                    add_error "ERROR $path: accepted RFC status must be 'Accepted' with an optional '(authorized YYYY-MM-DD)' marker"
+                fi
                 ;;
             done)
                 if [[ ! "$status" =~ ^Implemented(\ \(v[0-9]+\.[0-9]+\.[0-9]+((–|-)v?[0-9]+\.[0-9]+\.[0-9]+)?\)|\ \(version\ unverified\)|\ \(Unreleased\))?$ ]]; then
@@ -164,6 +169,7 @@ index_entry_pattern='\[MK-([0-9]{3})\]\(([^)]*)\)'
 while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
         "## Proposed"*) section=proposed ;;
+        "## Accepted"*) section=accepted ;;
         "## Implemented"*) section=done ;;
         "## Archive"*) section=archive ;;
         "## "*) section= ;;
@@ -207,20 +213,32 @@ for id in "${!index_count[@]}"; do
         add_error "ERROR rfcs/README.md: index entry $id has no RFC file"
 done
 
-proposed_count=0
-for id in "${!id_state[@]}"; do
-    [[ "${id_state[$id]}" == proposed ]] && (( proposed_count += 1 ))
+declare -A empty_state_sentence=(
+    [proposed]="No RFCs are currently proposed."
+    [accepted]="No RFCs are currently accepted."
+)
+declare -A empty_state_label=(
+    [proposed]="Proposed"
+    [accepted]="Accepted"
+)
+for state in proposed accepted; do
+    state_count=0
+    for id in "${!id_state[@]}"; do
+        [[ "${id_state[$id]}" == "$state" ]] && (( state_count += 1 ))
+    done
+    sentence=${empty_state_sentence[$state]}
+    label=${empty_state_label[$state]}
+    empty_sentence_count=$(awk -v sentence="$sentence" '
+        $0 == sentence { count++ }
+        END { print count + 0 }
+    ' "$index") || die_operational "cannot inspect $label empty state"
+    if (( state_count == 0 )); then
+        [[ "$empty_sentence_count" == 1 ]] ||
+            add_error "ERROR rfcs/README.md: empty $label section must contain exactly '$sentence'"
+    elif (( empty_sentence_count != 0 )); then
+        add_error "ERROR rfcs/README.md: $label empty-state sentence is present while $state RFCs exist"
+    fi
 done
-empty_sentence_count=$(awk '
-    $0 == "No RFCs are currently proposed." { count++ }
-    END { print count + 0 }
-' "$index") || die_operational "cannot inspect Proposed empty state"
-if (( proposed_count == 0 )); then
-    [[ "$empty_sentence_count" == 1 ]] ||
-        add_error "ERROR rfcs/README.md: empty Proposed section must contain exactly 'No RFCs are currently proposed.'"
-elif (( empty_sentence_count != 0 )); then
-    add_error "ERROR rfcs/README.md: Proposed empty-state sentence is present while proposed RFCs exist"
-fi
 
 markdown_link_pattern='^(.*)(!?\[[^][]*\]\(<([^>]*)>\)|!?\[[^][]*\]\(([^[:space:]()]*)\))'
 fence_pattern='^[[:space:]]*```'
@@ -268,7 +286,7 @@ if [[ -d "$root/rfcs/handoffs" ]]; then
         fi
         [[ -n "${id_path[$handoff_id]+present}" ]] ||
             add_error "ERROR $path: handoff has no matching RFC"
-        for lifecycle in proposed done archive; do
+        for lifecycle in proposed accepted done archive; do
             [[ ! -e "$handoff/$lifecycle" ]] ||
                 add_error "ERROR $path: handoff content must not duplicate RFC lifecycle directories"
         done

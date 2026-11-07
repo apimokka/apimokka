@@ -771,3 +771,12 @@ design was agreed. That distinction is the whole reason it was returned from
 > the migration is described and still awaits authorization. Until then these two
 > RFCs sit in `proposed/`, whose policy meaning — *"the implementer should not yet
 > start work"* — is the opposite of their real state.
+>
+> **Resolved 2026-11-08.** The project owner authorized the migration on
+> 2026-11-07 and it landed as its own change, as the policy requires:
+> `rfcs/accepted/` exists, MK-056 moved into it with status
+> `Accepted (authorized 2026-08-02)`, and `scripts/check-rfcs.sh` now treats
+> `accepted/` as a required lifecycle folder with its own status form and
+> empty-state sentence — seven new self-test cases, 32 in total. This RFC itself
+> no longer needs the folder: it shipped and is in `done/`, so the note stands
+> only as the record of how long the gate enforced the wrong variant.

@@ -3,7 +3,7 @@
 **Issued:** 2026-11-04
 **Issued by:** programme architect
 **Authorized by:** project owner — pending
-**Design:** [MK-056](../../proposed/MK-056-ux-acceptance-protocol.md) decision 7,
+**Design:** [MK-056](../../accepted/MK-056-ux-acceptance-protocol.md) decision 7,
 and its **2026-11-04 resolution** of the acceptance criterion that named L2
 **Companion:** `003-m6-session-pack.md` §0 (withdrawn 2026-09-17, **restored
 2026-11-04**), `002-m6-participant-recruitment.md`

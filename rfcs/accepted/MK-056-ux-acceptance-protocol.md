@@ -1,6 +1,6 @@
 # RFC MK-056 — UX and accessibility acceptance protocol
 
-**Status.** Proposed
+**Status.** Accepted (authorized 2026-08-02)
 **Tracks.** Stabilization roadmap M6 — UX acceptance evidence.
 **Touches.** User-visible string localization, known no-op controls, a
 cross-platform CI workflow, scripted GUI verification, the acceptance protocol
@@ -749,9 +749,18 @@ Raised at design review and settled by the project owner on 2026-08-02:
 ## Status
 
 Design accepted by the project owner on 2026-08-02, including the five
-resolutions above. Under the four-folder lifecycle this RFC remains `Proposed`
-until its implementation ships, at which point it moves to `done/`; design
-acceptance is not a folder transition.
+resolutions above. **Corrected 2026-11-08:** the paragraph here previously read
+*"under the four-folder lifecycle this RFC remains `Proposed` until its
+implementation ships"* — that described a lifecycle the project had not adopted.
+`.git-exclude/rules/000-rfc-lifecycle-policy.md` adopts the **5-folder
+variant**, in which design acceptance **is** a folder transition:
+`proposed/ → accepted/` means *"review complete; implementer may start"*, which
+has been this RFC's real state since 2026-08-02. `rfcs/accepted/` did not exist
+until the migration authorized on 2026-11-07 (finding B1 of
+`.git-exclude/reviewed/2026-10-06-roles-and-rules-compliance-audit.md`), so for
+fourteen weeks this file sat in `proposed/`, whose policy meaning — *"the
+implementer should not yet start work"* — was the opposite of the truth. It
+moves to `done/` when its implementation ships, unchanged.
 
 Acceptance of this design is recorded separately from authorization to
 implement. The project owner authorized implementation on 2026-08-02, assigned to the dev

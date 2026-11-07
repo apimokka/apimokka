@@ -13,7 +13,22 @@ record. The lifecycle policy is the MK-000 entry below.
 |---|---|---|
 | [MK-024](./proposed/MK-024-responsive-behaviour.md) | Responsive and window behaviour | Returned from `done/` 2026-08-12 — never implemented; blocked on a snora design-path gap (see its 2026-08-15 correction) |
 | [MK-033](./proposed/MK-033-command-palette.md) | Command palette | Returned from `done/` 2026-08-15. Keyboard requirements built by M9/M10; **context-aware disabled commands remain unimplemented**, so it stays here |
-| [MK-056](./proposed/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 |
+
+---
+
+## Accepted (`accepted/`)
+
+Review complete; the implementer may start, and the work has not yet shipped.
+This folder is the **5-folder variant** of the
+[RFC lifecycle policy](./done/MK-000-rfc-lifecycle.md), which the project
+adopted and had never implemented — created 2026-11-08 under the migration the
+project owner authorized on 2026-11-07. Design acceptance is a folder
+transition here, so an RFC whose design the owner has signed off no longer sits
+in `proposed/` saying the opposite.
+
+| RFC | Title | Tracks |
+|---|---|---|
+| [MK-056](./accepted/MK-056-ux-acceptance-protocol.md) | UX and accessibility acceptance protocol | Stabilization roadmap M6 — design accepted and implementation authorized 2026-08-02 |
 
 ---
 
@@ -74,7 +89,7 @@ both, and that no handoff directory duplicates a lifecycle folder.
 | [MK-022-visual-design-system](./handoffs/MK-022-visual-design-system/) | Visual design system | Task 036 issued — D-21, D-25, and D-27 separably; **authorization pending** |
 | [MK-023-accessibility-keyboard](./handoffs/MK-023-accessibility-keyboard/) | Accessibility and keyboard contract | Design accepted 2026-10-31; all ten slices complete 2026-11-03 |
 | [MK-036-content-microcopy](./handoffs/MK-036-content-microcopy/) | Content and microcopy | D-17 issued |
-| [MK-056-ux-acceptance-protocol](./handoffs/MK-056-ux-acceptance-protocol/) | UX acceptance protocol | M6 recruitment and session pack, live |
+| [MK-056-ux-acceptance-protocol](./handoffs/MK-056-ux-acceptance-protocol/) | UX acceptance protocol | M6 recruitment and session pack, live; RFC in `accepted/` |
 
 Only **current, reviewed, implementation-useful** companions live here, as the
 policy requires. Handoffs for completed work are not migrated: their decisions
