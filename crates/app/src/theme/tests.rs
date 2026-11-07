@@ -462,6 +462,58 @@ fn banner_cursor_ring_meets_non_text_contrast_in_all_presets() {
     );
 }
 
+#[test]
+fn both_cursor_styles_paint_a_visible_opaque_ring_in_all_presets() {
+    // D-29: `cursor_style` borrowed `card_selected_style`'s border, whose
+    // high-contrast branch is `Border::default()` — width 0, nothing
+    // painted — so the keyboard cursor was invisible in both HC presets,
+    // application-wide. MK-023's own "every region's indicator is rendered"
+    // test asserted that in the model only; this asserts it is *visible*,
+    // in every preset, for every cursor treatment the application has.
+    // `cursor_style` is drawn on the page, `surface` or `surface_raised`;
+    // `banner_cursor_style` on the banner's own fill.
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let grounds = [
+            ("page", page_of(&t)),
+            ("surface", to_iced_color(p.tokens.palette.surface)),
+            (
+                "surface_raised",
+                to_iced_color(p.tokens.palette.surface_raised),
+            ),
+        ];
+        let banner_fill = fill(&banner_style(&t));
+        type Case<'a> = (&'a str, Border, Vec<(&'a str, Color)>);
+        let cases: [Case; 2] = [
+            ("cursor_style", cursor_style(&t).border, grounds.to_vec()),
+            (
+                "banner_cursor_style",
+                banner_cursor_style(&t).border,
+                vec![("banner fill", banner_fill)],
+            ),
+        ];
+        for (style, border, grounds) in cases {
+            if border.width < 1.0 {
+                failures.push(format!("{} {style} width {}", p.name, border.width));
+            }
+            if border.color.a < 1.0 {
+                failures.push(format!("{} {style} alpha {}", p.name, border.color.a));
+            }
+            for (ground, bg) in grounds {
+                let r = ratio(border.color, bg);
+                if r < 3.0 {
+                    failures.push(format!("{} {style} on {ground} {r:.2}:1", p.name));
+                }
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "keyboard cursor ring not visible (width/opacity/3:1 non-text): {failures:?}"
+    );
+}
+
 // ── D-15 contract tests (task 023). text_input's colour roles, pinned so a
 // later change cannot silently reintroduce an unguaranteed colour. ──────────
 

@@ -677,11 +677,21 @@ pub fn card_parent_selected_style(t: &Theme) -> container::Style {
 /// focus). Transparent otherwise, so it never competes with the wrapped
 /// widget's own fill (a tab's `seg_active`/`seg_inactive`, a card's
 /// `card_style`/`card_selected_style`).
+///
+/// D-29: the border is this function's own, not borrowed from
+/// `card_selected_style` — that style's high-contrast branch carries
+/// *selection* by tint and shadow and leaves its border at default, so
+/// borrowing it painted nothing at all in both HC presets. A cursor and a
+/// selection are different states and must not share an appearance decision.
 pub fn cursor_style(t: &Theme) -> container::Style {
     container::Style {
         background: None,
         text_color: None,
-        border: card_selected_style(t).border,
+        border: Border {
+            width: 2.0,
+            color: t.extended_palette().primary.base.color,
+            radius: radius::LG.into(),
+        },
         shadow: Shadow::default(),
         snap: true,
     }
