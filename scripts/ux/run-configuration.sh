@@ -1,26 +1,42 @@
 #!/usr/bin/env bash
-# RFC MK-056 layer L2 — run one configuration.
-#
-# Launches apimokka, resizes it to the configuration's target size, and
-# (when a key sequence is supplied and xdotool can see the window) drives
-# it through that sequence, asserting the window title changes as expected
-# after opening a workspace. Screenshots at every step. Produces a
-# machine-readable result line and leaves screenshots for human review.
+# RFC MK-056 layer L2 — run one configuration end to end: start a nested
+# niri compositor sized and scaled for the configuration, launch apimokka
+# inside it, drive it to the required audience mode / locale / theme,
+# capture the application's primary surfaces, tear down, and print the
+# measured geometry plus decision 7's recorded fields as KEY=value lines.
 #
 # Usage:
 #   bash scripts/ux/run-configuration.sh \
 #     --name <config-name> \
-#     --width <px> --height <px> \
-#     --out-dir <dir> \
-#     [--keys-file <path>]        # one xdotool key name per line, sent in order
-#     [--expect-title-contains <substring>]  # asserted after the key sequence
-#     [--input-method pointer|keyboard]      # recorded only, not enforced
+#     --width <host-logical-px> --height <host-logical-px> \
+#     [--scale <nested-output-scale, default 1.2>] \
 #
-# A key sequence is *discovered*, not guessed — see
-# scripts/ux/discover-tab-order.sh. Without --keys-file, this script still
-# performs and records the machine-assertable launch/resize checks and
-# captures a rest-state screenshot; it does not attempt to fabricate a
-# keyboard-reachability result it cannot support.
+# --width/--height size the HOST container window (passed straight to
+# ux_host_float_and_resize) — NOT the resulting nested-logical window
+# size, which also depends on --scale against this host's own baseline
+# scale (host-logical = nested-logical × nested-scale ÷ host-scale). When
+# --scale matches the host's own baseline the two are equal, which is why
+# this went unnoticed until the 200%-scale combination (--scale 2.4
+# against a 1.2 host) needed the caller to do that conversion explicitly
+# — see scripts/ux/run-mandatory-combinations.sh's own combination 3
+# comment for the worked numbers.
+#     [--mode guided|expert (default guided)] \
+#     [--locale en|ja (default en)] \
+#     [--theme light|dark|hclight|hcdark (default light)] \
+#     [--show-cursor (Tab once before each deliverable capture, so the
+#        region-cursor ring is visible in it — combination 2's own need)] \
+#     --out-dir <dir>
+#
+# Captures, under --out-dir:
+#   <name>-00-launch.png    the mode picker, rest state
+#   <name>-01-routes.png    the Routes workbench, workspace open
+#   <name>-02-settings.png  Settings
+#   <name>-03-drawer.png    the save-diff drawer (the one dialog-equivalent
+#                           surface every configuration can reach the same
+#                           way — the mock's own default workspace is
+#                           already dirty)
+# plus a RESULTS.md carrying decision 7's nine fields and the measured
+# geometry (never the geometry the commands requested).
 
 set -uo pipefail
 
@@ -34,24 +50,30 @@ repository_root=$(cd -- "$script_dir/../.." 2>/dev/null && pwd -P) || {
 }
 # shellcheck source=scripts/ux/lib.sh
 source "$script_dir/lib.sh"
+# shellcheck source=scripts/ux/app-nav.sh
+source "$script_dir/app-nav.sh"
 
 name=
 width=
 height=
+scale=1.2
+mode=guided
+locale=en
+theme=light
+show_cursor=no
 out_dir=
-keys_file=
-expect_title_contains=
-input_method=unspecified
 
 while (( $# > 0 )); do
     case "$1" in
         --name) name=$2; shift 2 ;;
         --width) width=$2; shift 2 ;;
         --height) height=$2; shift 2 ;;
+        --scale) scale=$2; shift 2 ;;
+        --mode) mode=$2; shift 2 ;;
+        --locale) locale=$2; shift 2 ;;
+        --theme) theme=$2; shift 2 ;;
+        --show-cursor) show_cursor=yes; shift ;;
         --out-dir) out_dir=$2; shift 2 ;;
-        --keys-file) keys_file=$2; shift 2 ;;
-        --expect-title-contains) expect_title_contains=$2; shift 2 ;;
-        --input-method) input_method=$2; shift 2 ;;
         *) ux_die "unknown argument: $1" ;;
     esac
 done
@@ -60,86 +82,134 @@ done
     ux_die "--name, --width, --height, and --out-dir are required"
 
 mkdir -p -- "$out_dir"
-# niri's screenshot-window --path requires an absolute path and silently
-# no-ops (exit 0, no file, no error) on a relative one -- resolve it here
-# so ux_screenshot's documented "<absolute-output-path>" contract holds
-# regardless of what the caller passed.
 out_dir=$(cd -- "$out_dir" && pwd -P) || ux_die "cannot resolve --out-dir to an absolute path"
+mkdir -p -- "$out_dir/_checkpoints"
 
 binary="$repository_root/target/debug/apimokka"
-[[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka"
+[[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka --locked"
 
-result_launch=fail
-result_resize=fail
-result_responsive=fail
-result_keyboard=not_exercised
+build_sha=$(cd -- "$repository_root" && git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+tree_dirty=$(cd -- "$repository_root" && git status --short 2>/dev/null)
+[[ -n "$tree_dirty" ]] && build_sha="${build_sha}+dirty"
 
-pid=$(ux_launch_app "$binary")
-cleanup() { ux_kill_app "$pid"; }
+nested_cfg="$out_dir/_nested-niri.kdl"
+cat >"$nested_cfg" <<EOF
+output "winit" {
+    scale $scale
+}
+
+layout {
+    gaps 0
+    default-column-width { proportion 1.0; }
+    border {
+        off
+    }
+    focus-ring {
+        off
+    }
+}
+
+animations {
+    off
+}
+
+prefer-no-csd
+spawn-at-startup "true"
+EOF
+
+nested_log="$out_dir/_nested-niri.log"
+read -r nested_pid nested_display nested_sock < <(ux_start_nested_compositor "$nested_cfg" "$nested_log")
+
+cleanup() {
+    ux_kill_app "${app_pid:-}" 2>/dev/null || true
+    ux_stop_nested_compositor "$nested_pid" 2>/dev/null || true
+}
 trap cleanup EXIT
 
-if niri_id=$(ux_find_window_id "$pid" 10); then
-    result_launch=pass
-else
-    ux_log "configuration $name: window never appeared — treating as launch failure"
+host_win_id=$(ux_host_window_id_for_pid "$nested_pid" 10) ||
+    ux_die "host niri never reported a window for nested compositor pid $nested_pid"
+ux_host_float_and_resize "$host_win_id" "$width" "$height"
+sleep 0.3
+
+app_pid=$(ux_launch_app "$binary" -u DISPLAY "WAYLAND_DISPLAY=$nested_display")
+app_win_id=$(ux_nested_window_id "$nested_sock" 10) ||
+    ux_die "nested compositor never reported the app's window within 10s"
+ux_assert_focus "$nested_sock" "$app_pid"
+
+renderer=$(ux_renderer_evidence "$app_pid")
+
+prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-00-launch.png")
+
+ux_app_select_mode "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$mode"
+ux_app_open_first_workspace "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash
+
+if [[ "$locale" != en ]]; then
+    ux_app_set_locale "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
+fi
+if [[ "$theme" != light ]]; then
+    ux_app_set_theme "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$theme" "$locale"
 fi
 
-if [[ "$result_launch" == pass ]]; then
-    ux_screenshot "$niri_id" "$out_dir/${name}-00-launch.png"
-
-    if ux_float_and_resize "$niri_id" "$width" "$height"; then
-        sleep 0.3
-        if ux_process_alive "$pid"; then
-            result_resize=pass
-            result_responsive=pass
-        else
-            ux_log "configuration $name: process died after resize"
-        fi
-    else
-        ux_log "configuration $name: resize action failed"
+maybe_show_cursor() {
+    if [[ "$show_cursor" == yes ]]; then
+        local soft=no
+        [[ "$theme" == hclight || "$theme" == hcdark ]] && soft=yes
+        ux_app_show_region_cursor "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$soft"
     fi
-    ux_screenshot "$niri_id" "$out_dir/${name}-01-resized.png"
+    return 0
+}
 
-    if [[ -n "$keys_file" ]]; then
-        if [[ ! -r "$keys_file" ]]; then
-            ux_log "configuration $name: --keys-file $keys_file not readable, skipping keyboard drive"
-        elif x11_id=$(ux_probe_xdotool "$niri_id"); then
-            step=1
-            while IFS= read -r key || [[ -n "$key" ]]; do
-                [[ -n "$key" ]] || continue
-                xdotool key --window "$x11_id" -- "$key" ||
-                    ux_die "configuration $name: xdotool key '$key' failed at step $step"
-                sleep 0.15
-                ux_process_alive "$pid" ||
-                    ux_die "configuration $name: process died during key sequence at step $step ('$key')"
-                step=$(( step + 1 ))
-            done < "$keys_file"
-            sleep 0.3
-            ux_screenshot "$niri_id" "$out_dir/${name}-02-after-keys.png"
+# Each deliverable capture below follows a navigation step that already
+# verified its own landing via a checkpoint capture (app-nav.sh's own
+# ux_capture_step calls) — there is no *new* action between "state
+# confirmed" and "screenshot it for the record", so a plain ux_capture is
+# the honest call here, not a second expect-change comparison against a
+# frame that correctly has not changed since the checkpoint right before
+# it.
+maybe_show_cursor
+prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-01-routes.png")
 
-            if [[ -n "$expect_title_contains" ]]; then
-                title=$(ux_window_title "$niri_id")
-                if [[ "$title" == *"$expect_title_contains"* ]]; then
-                    result_keyboard=pass
-                else
-                    result_keyboard=fail
-                    ux_log "configuration $name: expected title to contain '$expect_title_contains', got '${title:-<empty>}'"
-                fi
-            else
-                result_keyboard="exercised_no_assertion"
-            fi
-        else
-            ux_log "configuration $name: xdotool cannot see this window — keyboard drive not exercised"
-            result_keyboard=infeasible
-        fi
-    fi
-fi
+ux_app_open_settings "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
+maybe_show_cursor
+prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-02-settings.png")
+
+ux_app_open_routes "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
+ux_app_open_save_diff_drawer "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
+maybe_show_cursor
+prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-03-drawer.png")
+
+read -r logical_w logical_h logical_scale physical_w physical_h < <(ux_measure_nested_output "$nested_sock")
+png_physical=$(ux_png_physical_size "$out_dir/${name}-03-drawer.png")
+
+cat >"$out_dir/${name}-RESULTS.md" <<EOF
+# Configuration \`$name\` — measured
+
+| Field | Value |
+|---|---|
+| Commit SHA | \`$build_sha\` |
+| Platform | Linux, niri $(niri --version 2>&1 | head -1 | awk '{print $2}') |
+| Theme | $theme |
+| Locale | $locale |
+| Audience mode | $mode |
+| Window size (requested, host-logical container) | ${width}x${height} |
+| Window size (measured, nested-logical) | ${logical_w}x${logical_h} @ scale ${logical_scale} |
+| Window size (measured, physical) | ${physical_w}x${physical_h} |
+| PNG physical size (cross-check, drawer frame) | $png_physical |
+| Input method | keyboard (wtype on the nested compositor's socket) |
+| Renderer | $renderer |
+| Entry state | Returning (opened the mock's default workspace) |
+
+Screenshots: \`${name}-00-launch.png\`, \`${name}-01-routes.png\`,
+\`${name}-02-settings.png\`, \`${name}-03-drawer.png\`.
+EOF
+
+ux_log "configuration $name complete: $out_dir/${name}-RESULTS.md"
+cat "$out_dir/${name}-RESULTS.md" >&2
 
 printf 'CONFIG=%s\n' "$name"
-printf 'INPUT_METHOD=%s\n' "$input_method"
-printf 'WIDTHxHEIGHT=%sx%s\n' "$width" "$height"
-printf 'LAUNCH=%s\n' "$result_launch"
-printf 'RESIZE=%s\n' "$result_resize"
-printf 'RESPONSIVE=%s\n' "$result_responsive"
-printf 'KEYBOARD_REACHABILITY=%s\n' "$result_keyboard"
-printf 'SCREENSHOTS_DIR=%s\n' "$out_dir"
+printf 'BUILD_SHA=%s\n' "$build_sha"
+printf 'MEASURED_LOGICAL=%sx%s@%s\n' "$logical_w" "$logical_h" "$logical_scale"
+printf 'MEASURED_PHYSICAL=%sx%s\n' "$physical_w" "$physical_h"
+printf 'PNG_PHYSICAL=%s\n' "$png_physical"
+printf 'RENDERER=%s\n' "$renderer"
+printf 'OUT_DIR=%s\n' "$out_dir"

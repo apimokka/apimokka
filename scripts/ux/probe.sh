@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# RFC MK-056 layer L2 — capability probe.
+# RFC MK-056 layer L2 — rig smoke test.
 #
-# Answers the one question every other script in scripts/ux/ depends on:
-# can this host session actually drive the apimokka window with keyboard
-# input, or only place/resize/screenshot it? Run this first, once, before
-# anything else in this directory. It launches apimokka, locates its niri
-# window, checks whether xdotool can see it (native-Wayland surfaces are
-# not visible to X11 clients by design — a "no" here is expected
-# information, not a bug), and cleans up. No resize, no keyboard input is
-# sent to the app itself.
+# Confirms the nested-niri-plus-wtype recipe works end to end on this
+# host, before trusting it for a real run: starts a small nested
+# compositor, launches apimokka inside it, sends one Tab, captures two
+# frames and asserts they differ (proof the keystroke reached the app and
+# the screenshot discipline landed), then tears everything down.
 #
 # Usage: bash scripts/ux/probe.sh
 
@@ -24,40 +21,67 @@ repository_root=$(cd -- "$script_dir/../.." 2>/dev/null && pwd -P) || {
 }
 # shellcheck source=scripts/ux/lib.sh
 source "$script_dir/lib.sh"
+# shellcheck source=scripts/ux/app-nav.sh
+source "$script_dir/app-nav.sh"
 
 binary="$repository_root/target/debug/apimokka"
-[[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka"
+[[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka --locked"
 
-ux_log "compositor: $(niri --version 2>&1 | head -1)"
-ux_log "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-<unset>} DISPLAY=${DISPLAY:-<unset>} XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-<unset>}"
-
-pid=$(ux_launch_app "$binary")
-cleanup() { ux_kill_app "$pid"; }
+work_dir=$(mktemp -d) || ux_die "mktemp -d failed"
+cleanup() {
+    ux_kill_app "${app_pid:-}" 2>/dev/null || true
+    ux_stop_nested_compositor "${nested_pid:-}" 2>/dev/null || true
+    rm -rf -- "$work_dir"
+}
 trap cleanup EXIT
 
-niri_id=$(ux_find_window_id "$pid" 10) || ux_die "niri never reported a window for pid $pid within 10s"
-ux_log "niri window id: $niri_id"
+cfg="$work_dir/nested-niri.kdl"
+cat >"$cfg" <<'EOF'
+output "winit" {
+    scale 1.2
+}
+layout {
+    gaps 0
+    default-column-width { proportion 1.0; }
+    border {
+        off
+    }
+    focus-ring {
+        off
+    }
+}
+animations {
+    off
+}
+prefer-no-csd
+spawn-at-startup "true"
+EOF
 
-title=$(ux_window_title "$niri_id")
-ux_log "window title: ${title:-<empty>}"
-[[ "$title" == "apimokka" ]] ||
-    ux_log "WARNING: expected title 'apimokka' at first launch (no workspace open), got '${title:-<empty>}'"
+ux_log "compositor: $(niri --version 2>&1 | head -1)"
+read -r nested_pid nested_display nested_sock < <(ux_start_nested_compositor "$cfg" "$work_dir/niri.log")
 
-if x11_id=$(ux_probe_xdotool "$niri_id"); then
-    ux_log "xdotool CAN see this window (X11 id $x11_id) — likely via XWayland; keyboard-driven"
-    ux_log "assertions should work. Verify with a real key send before trusting this fully:"
-    ux_log "  xdotool key --window $x11_id Tab"
-    result=capable
-else
-    ux_log "xdotool CANNOT see this window — it is a native-Wayland surface, invisible to"
-    ux_log "X11 clients by the Wayland security model. This is expected, not a defect."
-    ux_log "Keyboard-input-synthesis tooling for native Wayland (ydotool, wtype) is not"
-    ux_log "installed on this host. Without one of those, keyboard-reachability assertions"
-    ux_log "cannot be made by this script; only launch/resize/screenshot evidence can be"
-    ux_log "produced, and the reachability requirement becomes a captured-for-human-review"
-    ux_log "artefact rather than a script-decided pass/fail."
-    result=incapable
+host_win_id=$(ux_host_window_id_for_pid "$nested_pid" 10) ||
+    ux_die "host niri never reported a window for the nested compositor"
+ux_host_float_and_resize "$host_win_id" 1280 720
+sleep 0.3
+
+app_pid=$(ux_launch_app "$binary" -u DISPLAY "WAYLAND_DISPLAY=$nested_display")
+app_win_id=$(ux_nested_window_id "$nested_sock" 10) ||
+    ux_die "nested compositor never reported the app's window within 10s"
+ux_assert_focus "$nested_sock" "$app_pid"
+ux_log "app pid=$app_pid, nested window id=$app_win_id, renderer: $(ux_renderer_evidence "$app_pid")"
+
+hash_before=$(ux_capture "$nested_sock" "$app_win_id" "$work_dir/before.png")
+ux_wtype_key "$nested_display" Tab
+sleep 0.3
+hash_after=$(ux_capture "$nested_sock" "$app_win_id" "$work_dir/after.png")
+
+if [[ "$hash_before" == "$hash_after" ]]; then
+    ux_log "RESULT: FAIL — a Tab keystroke produced no visible change; see $work_dir before cleanup runs"
+    printf 'PROBE_RESULT=fail\n'
+    exit 1
 fi
 
-printf 'PROBE_RESULT=%s\n' "$result"
-printf 'PROBE_NIRI_WINDOW_TITLE=%s\n' "${title:-}"
+ux_log "RESULT: pass — nested rig, wtype, and the capture-with-proof discipline all work on this host"
+printf 'PROBE_RESULT=pass\n'
+printf 'NESTED_GEOMETRY=%s\n' "$(ux_measure_nested_output "$nested_sock")"

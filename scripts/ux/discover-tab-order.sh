@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 # RFC MK-056 layer L2 — Tab-order discovery.
 #
-# There is no documented focus order for any screen in this app (confirmed:
-# the app implements no custom focus manager; Tab traversal is iced/winit's
-# default widget order, which is not recorded anywhere). Before a keyboard
-# sequence can be hardcoded into run-configuration.sh's assertion runs, the
-# sequence has to be discovered by watching it happen once. This script
-# sends one Tab at a time and screenshots after each, so the resulting
-# images can be read (by a human, or by the implementer inspecting them) to
-# determine which Tab index lands on which control.
+# No screen's focus order is documented anywhere in this codebase outside
+# the region/cursor model's own source (`crates/app/src/regions.rs`). For
+# a screen not already covered by scripts/ux/app-nav.sh, this sends one
+# Tab at a time from first launch and captures after each, so the
+# resulting images can be read to find which Tab index reaches a given
+# control, before hand-writing a new navigation helper from what is seen.
 #
-# This script produces evidence for a human/implementer decision — it does
-# not itself assert pass or fail. Requires the capability probe
-# (scripts/ux/probe.sh) to have reported PROBE_RESULT=capable first.
+# This script produces evidence for a human/implementer decision — it
+# does not itself assert pass or fail.
 #
 # Usage: bash scripts/ux/discover-tab-order.sh <max-tabs> <output-dir>
-#   e.g. bash scripts/ux/discover-tab-order.sh 15 .git-exclude/release-evidence/2026-08-04-mk056-l2/tab-discovery
+#   e.g. bash scripts/ux/discover-tab-order.sh 15 \
+#          .git-exclude/release-evidence/2026-11-07-tab-discovery
 
 set -uo pipefail
 
@@ -37,31 +35,58 @@ fi
 max_tabs=$1
 output_dir=$2
 mkdir -p -- "$output_dir"
-# niri's screenshot-window --path requires an absolute path and silently
-# no-ops (exit 0, no file, no error) on a relative one.
 output_dir=$(cd -- "$output_dir" && pwd -P) || ux_die "cannot resolve output-dir to an absolute path"
 
 binary="$repository_root/target/debug/apimokka"
-[[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka"
-command -v xdotool >/dev/null 2>&1 || ux_die "xdotool not found"
+[[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka --locked"
 
-pid=$(ux_launch_app "$binary")
-cleanup() { ux_kill_app "$pid"; }
+cfg="$output_dir/_nested-niri.kdl"
+cat >"$cfg" <<'EOF'
+output "winit" {
+    scale 1.2
+}
+layout {
+    gaps 0
+    default-column-width { proportion 1.0; }
+    border {
+        off
+    }
+    focus-ring {
+        off
+    }
+}
+animations {
+    off
+}
+prefer-no-csd
+spawn-at-startup "true"
+EOF
+
+read -r nested_pid nested_display nested_sock < <(ux_start_nested_compositor "$cfg" "$output_dir/_nested-niri.log")
+cleanup() {
+    ux_kill_app "${app_pid:-}" 2>/dev/null || true
+    ux_stop_nested_compositor "$nested_pid" 2>/dev/null || true
+}
 trap cleanup EXIT
 
-niri_id=$(ux_find_window_id "$pid" 10) || ux_die "niri never reported a window for pid $pid within 10s"
-x11_id=$(ux_probe_xdotool "$niri_id") ||
-    ux_die "xdotool cannot see this window — run scripts/ux/probe.sh first and confirm PROBE_RESULT=capable"
+host_win_id=$(ux_host_window_id_for_pid "$nested_pid" 10) ||
+    ux_die "host niri never reported a window for the nested compositor"
+ux_host_float_and_resize "$host_win_id" 1280 720
+sleep 0.3
 
-ux_screenshot "$niri_id" "$output_dir/00-initial.png"
+app_pid=$(ux_launch_app "$binary" -u DISPLAY "WAYLAND_DISPLAY=$nested_display")
+app_win_id=$(ux_nested_window_id "$nested_sock" 10) ||
+    ux_die "nested compositor never reported the app's window within 10s"
+ux_assert_focus "$nested_sock" "$app_pid"
+
+prev_hash=""
+ux_capture_step "$nested_sock" "$app_win_id" "$output_dir/00-initial.png" prev_hash yes
 
 for (( i = 1; i <= max_tabs; i++ )); do
-    xdotool key --window "$x11_id" Tab || ux_die "xdotool key Tab failed at step $i"
-    sleep 0.2
-    ux_process_alive "$pid" || ux_die "process died after Tab press $i"
     printf -v step '%02d' "$i"
-    ux_screenshot "$niri_id" "$output_dir/${step}-after-tab-$i.png"
+    step_fn() { ux_wtype_key "$nested_display" Tab; sleep 0.2; }
+    step_fn
+    ux_capture_step "$nested_sock" "$app_win_id" "$output_dir/${step}-after-tab-$i.png" prev_hash no step_fn
 done
 
-ux_log "done — inspect $output_dir/*.png in order to find the Tab index for each control"
-ux_log "of interest, then record it as a named constant in run-configuration.sh"
+ux_log "done — inspect $output_dir/*.png in order to find the Tab index for each control of interest"
