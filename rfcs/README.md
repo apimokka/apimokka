@@ -87,7 +87,7 @@ both, and that no handoff directory duplicates a lifecycle folder.
 | Handoffs | For | State |
 |---|---|---|
 | [MK-022-visual-design-system](./handoffs/MK-022-visual-design-system/) | Visual design system | Tasks 036, 038 and 039 complete — D-21, D-25, D-27, D-29 and D-30 all closed; no open defect in this RFC's territory |
-| [MK-028-routes-workbench](./handoffs/MK-028-routes-workbench/) | Routes workbench | Task 040 complete (D-31, D-32 closed); **task 041 issued** for D-33 (S1) — the condition rows collapse at 880×700 — authorization pending |
+| [MK-028-routes-workbench](./handoffs/MK-028-routes-workbench/) | Routes workbench | Tasks 040 and 041 complete — D-31, D-32, D-33 and D-34 closed; the editor's layout at 880×700 is settled and no open defect is above S3 |
 | [MK-023-accessibility-keyboard](./handoffs/MK-023-accessibility-keyboard/) | Accessibility and keyboard contract | Design accepted 2026-10-31; all ten slices complete 2026-11-03 |
 | [MK-036-content-microcopy](./handoffs/MK-036-content-microcopy/) | Content and microcopy | D-17 issued |
 | [MK-056-ux-acceptance-protocol](./handoffs/MK-056-ux-acceptance-protocol/) | UX acceptance protocol | M6 recruitment and session pack, live; task 037 **open for round 2** (combination 2 re-run, the 880×700 editor surface, the capture manifest); RFC in `accepted/` |

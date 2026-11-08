@@ -146,13 +146,20 @@ the thing it exists to check.
 ## 9. Round 2 — added 2026-11-08; §9.2 and §9.3 are done, §9.1 is not
 
 **Status, 2026-11-08:** `43d3cad` delivered **§9.2** (the editor and Test Rule
-at 880×700, which opened **D-31 S1** and **D-32 S2** — task 040) and **§9.3**
-(the frame manifest, plus task 039's directory cleaned); both **accepted**, see
-`.git-exclude/reviewed/2026-11-08-task037-round2-review.md`. **§9.1 remains the
-whole of this task**, and it is blocked on the host reboot, not on work.
+at 880×700, which opened **D-31 S1** and **D-32 S2** — task 040, and through
+its row walk **D-33 S1** and **D-34 S3** — task 041; all four now closed) and
+**§9.3** (the frame manifest, plus task 039's directory cleaned); both
+**accepted**, see
+`.git-exclude/reviewed/2026-11-08-task037-round2-review.md`. **Items 2 and 3
+below are therefore done.** **§9.1 — item 1, with item 1b — is the whole of
+what is left**, and **the host was rebooted on 2026-11-08, so it is no longer
+blocked.** It is the one mandatory combination that has never recorded a pass,
+and MK-056's acceptance criterion needs it before sessions are booked.
 
 Round 1 produced three passes, one fail and one combination that never
-exercised its own purpose. What is left:
+exercised its own purpose. **Round 2 (2026-11-08, `43d3cad`) delivered §9.2
+and §9.3**; §9.2's own findings became D-31/D-32 (task 040) and D-33/D-34
+(task 041), all four now closed. What is left:
 
 1. **Combination 2, re-run.** Its fail was **D-29**, closed by task 038
    (`3ac0e20`): the keyboard cursor paints a visible ring in both
@@ -164,14 +171,29 @@ exercised its own purpose. What is left:
    its nine fields and round 1 was `wgpu`; a software re-run is not
    comparable. **It is blocked until the host is rebooted** — the running
    kernel's module tree was replaced by an upgrade on 2026-11-08, which is why
-   task 039's frames are `tiny-skia`. Do not work around it, and do not alter
-   the host.
-2. **The rule editor at 880×700**, in combinations 1 and 4. Round 1 captured
+   task 039's frames are `tiny-skia`. **Cleared 2026-11-08:** the host now
+   runs `7.3.3-1-cachyos` with its module tree present, the probe rig passes,
+   and task 041's nine runs were all `wgpu`. Nothing blocks this item.
+1b. **A scroll step for the rig, added 2026-11-08 by task 041's review.** At
+   880×700 the editor's Headers and Body cards sit below the fold and the rig
+   cannot reach them, so task 041's condition evidence had to be taken at
+   880×1150. Nothing is unreachable in the *application* — `App::scroll_snap_
+   target`'s `Region::Editor` arm snaps the WHEN/RESPOND scrollable to the
+   cursor — so use the application's own mechanism: move the region cursor
+   into the WHEN column and let `snap_to` scroll, then capture. That makes a
+   claim at the mandated 880×700 showable rather than arguable, and it is the
+   same keyboard path a participant has.
+
+2. ~~**The rule editor at 880×700**, in combinations 1 and 4.~~ **Done** by
+   round 2 and extended by tasks 040 and 041, whose captures cover both
+   locales at 880×700, 880×1150 and 1280×800. Round 1 captured
    Routes in its empty state in both narrow runs, so the editor — WHEN and
    RESPOND side by side, decision 7's *"Expert shows every control at once,
    and this is where that density fails"* — has never been rendered below
    1280. This needs no GPU and can be done first.
-3. **Evidence-directory integrity, from task 039's review §4.** That capture
+3. ~~**Evidence-directory integrity, from task 039's review §4.**~~ **Done**
+   — `scripts/ux/manifest.sh` and its self-test, the latter now inside
+   `scripts/check-release-gates.sh` (task 040). That capture
    left twelve undocumented files in its directory, nine of them duplicates of
    three images and four naming a theme their pixels contradict. Two things,
    both in `scripts/ux/`:
@@ -189,9 +211,10 @@ exercised its own purpose. What is left:
    rename the twelve undocumented files so the directory and its `RESULTS.md`
    agree.
 
-Acceptance for round 2: §7's criteria again, plus combination 2 passing on its
-own terms, the editor surface captured at 880×700 in both narrow runs, and the
-manifest failing a deliberately duplicated frame in a self-test.
+Acceptance for what remains: §7's criteria again, plus **combination 2 passing
+on its own terms** on `wgpu`, with the cursor, the selected state and an
+unselected row in frame, and item 1b's scroll step used wherever a surface sits
+below the fold at the mandated size.
 
 ## 10. Required review-request content
 
