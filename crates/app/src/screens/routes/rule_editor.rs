@@ -586,63 +586,80 @@ fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
     card(app.t(Key::MethodCardTitle), method_group(app, method))
 }
 
+/// D-33: one header condition as two lines, at every width — line 1
+/// `[name][op]`, line 2 `[value (Fill)][✕]`. The single row it replaces put
+/// two fixed 110 px inputs, the value `Fill` and the remove button on one line;
+/// at 880x700 the card's inner width (~273 logical px) left the value 0 px, so
+/// the rule matched on `"application/json"` while the editor showed nothing.
+/// `Wrapping` cannot serve (it lays children out under loose limits, so a
+/// `Fill` child takes a whole line), and two explicit lines keep the value
+/// `Fill`, the shape identical at every width, and the cursor order
+/// (name, op, value, remove) exactly as `regions.rs` declares it.
+fn header_condition<'a>(
+    app: &'a App,
+    i: usize,
+    h: &'a apimokka_model::HeaderConditionPayload,
+) -> Element<'a, Message> {
+    let show_val = !h.op.value_irrelevant();
+    let name_op = row![
+        click_focus(
+            EditorField::HeaderName(i),
+            text_input(app.t(Key::HeaderColumnName), &h.name)
+                .id(editor_text_field_id(EditorField::HeaderName(i)).unwrap())
+                .on_input(move |v| Message::HeaderSetName { index: i, value: v })
+                .style(theme::text_input_style)
+                .size(size::CAPTION)
+                .padding(Padding::from([space::S2, space::S2]))
+                .width(Length::Fixed(110.0)),
+        ),
+        cursor_wrap(
+            app,
+            EditorField::HeaderOp(i),
+            pick_list(HeaderOp::all().to_vec(), Some(h.op), move |op| {
+                Message::HeaderSetOp { index: i, op }
+            })
+            .text_size(size::CAPTION)
+            .padding(Padding::from([space::S2, space::S2]))
+            .width(Length::Fixed(110.0))
+            .handle(theme::cycler_handle())
+            .into(),
+        ),
+    ]
+    .spacing(space::S1)
+    .align_y(Alignment::Center);
+    let val_el: Element<Message> = if show_val {
+        click_focus(
+            EditorField::HeaderValue(i),
+            text_input(app.t(Key::HeaderColumnValue), &h.value)
+                .id(editor_text_field_id(EditorField::HeaderValue(i)).unwrap())
+                .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
+                .style(theme::text_input_style)
+                .size(size::CAPTION)
+                .padding(Padding::from([space::S2, space::S2]))
+                .width(Length::Fill),
+        )
+    } else {
+        Space::new().width(Length::Fill).into()
+    };
+    let value_remove = row![
+        val_el,
+        cursor_wrap(
+            app,
+            EditorField::HeaderRemove(i),
+            widgets::icon_btn("✕", Message::HeaderRemove(i)),
+        ),
+    ]
+    .spacing(space::S1)
+    .align_y(Alignment::Center);
+    column![name_op, value_remove].spacing(space::S1).into()
+}
+
 fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
     let mut rows: Vec<Element<Message>> = p
         .headers
         .iter()
         .enumerate()
-        .map(|(i, h)| {
-            let show_val = !h.op.value_irrelevant();
-            row![
-                click_focus(
-                    EditorField::HeaderName(i),
-                    text_input(app.t(Key::HeaderColumnName), &h.name)
-                        .id(editor_text_field_id(EditorField::HeaderName(i)).unwrap())
-                        .on_input(move |v| Message::HeaderSetName { index: i, value: v })
-                        .style(theme::text_input_style)
-                        .size(size::CAPTION)
-                        .padding(Padding::from([space::S2, space::S2]))
-                        .width(Length::Fixed(110.0)),
-                ),
-                cursor_wrap(
-                    app,
-                    EditorField::HeaderOp(i),
-                    pick_list(HeaderOp::all().to_vec(), Some(h.op), move |op| {
-                        Message::HeaderSetOp { index: i, op }
-                    })
-                    .text_size(size::CAPTION)
-                    .padding(Padding::from([space::S2, space::S2]))
-                    .width(Length::Fixed(110.0))
-                    .handle(theme::cycler_handle())
-                    .into(),
-                ),
-                {
-                    let val_el: Element<Message> = if show_val {
-                        click_focus(
-                            EditorField::HeaderValue(i),
-                            text_input(app.t(Key::HeaderColumnValue), &h.value)
-                                .id(editor_text_field_id(EditorField::HeaderValue(i)).unwrap())
-                                .on_input(move |v| Message::HeaderSetValue { index: i, value: v })
-                                .style(theme::text_input_style)
-                                .size(size::CAPTION)
-                                .padding(Padding::from([space::S2, space::S2]))
-                                .width(Length::Fill),
-                        )
-                    } else {
-                        Space::new().width(Length::Fill).into()
-                    };
-                    val_el
-                },
-                cursor_wrap(
-                    app,
-                    EditorField::HeaderRemove(i),
-                    widgets::icon_btn("✕", Message::HeaderRemove(i)),
-                ),
-            ]
-            .spacing(space::S1)
-            .align_y(Alignment::Center)
-            .into()
-        })
+        .map(|(i, h)| header_condition(app, i, h))
         .collect();
 
     rows.push(cursor_wrap(
@@ -662,84 +679,94 @@ fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element
     )
 }
 
+/// D-33: one body condition as two lines — line 1 `[path (Fill)][…][op]`,
+/// line 2 `[value (Fill)][✕]` — for the same reason as `header_condition`
+/// (path and value each collapsed to ~30 px at 880x700). The jsonpath
+/// warning stays beneath both lines.
+fn body_condition<'a>(
+    app: &'a App,
+    i: usize,
+    b: &'a apimokka_model::BodyConditionPayload,
+) -> Element<'a, Message> {
+    let show_val = b.op != BodyOp::Exists && b.op != BodyOp::Absent;
+    let jsonpath_warn: Element<Message> = if b.path.starts_with("$.") {
+        text(app.t(Key::BodyJsonpathWarn))
+            .size(size::BODY_SMALL)
+            .line_height(theme::line_height::body_small())
+            .color(Color::from_rgb(0.85, 0.45, 0.0))
+            .into()
+    } else {
+        Space::new().height(0.0).into()
+    };
+    let path_line = row![
+        click_focus(
+            EditorField::BodyPath(i),
+            text_input("user.id", &b.path)
+                .id(editor_text_field_id(EditorField::BodyPath(i)).unwrap())
+                .on_input(move |v| Message::BodySetPath { index: i, value: v })
+                .style(theme::text_input_style)
+                .size(size::CAPTION)
+                .padding(Padding::from([space::S2, space::S2]))
+                .width(Length::Fill),
+        ),
+        cursor_wrap(
+            app,
+            EditorField::BodyPathAssistant(i),
+            button(text("…").size(size::LABEL))
+                .on_press(Message::PathAssistantOpen(i))
+                .padding(Padding::from([space::S2, space::S2]))
+                .into(),
+        ),
+        cursor_wrap(
+            app,
+            EditorField::BodyOp(i),
+            pick_list(BodyOp::all().to_vec(), Some(b.op), move |op| {
+                Message::BodySetOp { index: i, op }
+            })
+            .text_size(size::CAPTION)
+            .padding(Padding::from([space::S2, space::S2]))
+            .width(Length::Fixed(120.0))
+            .handle(theme::cycler_handle())
+            .into(),
+        ),
+    ]
+    .spacing(space::S1)
+    .align_y(Alignment::Center);
+    let bval: Element<Message> = if show_val {
+        click_focus(
+            EditorField::BodyValue(i),
+            text_input(app.t(Key::BodyValuePlaceholder), &b.value)
+                .id(editor_text_field_id(EditorField::BodyValue(i)).unwrap())
+                .on_input(move |v| Message::BodySetValue { index: i, value: v })
+                .style(theme::text_input_style)
+                .size(size::CAPTION)
+                .padding(Padding::from([space::S2, space::S2]))
+                .width(Length::Fill),
+        )
+    } else {
+        Space::new().width(Length::Fill).into()
+    };
+    let value_line = row![
+        bval,
+        cursor_wrap(
+            app,
+            EditorField::BodyRemove(i),
+            widgets::icon_btn("✕", Message::BodyRemove(i)),
+        ),
+    ]
+    .spacing(space::S1)
+    .align_y(Alignment::Center);
+    column![path_line, value_line, jsonpath_warn]
+        .spacing(space::S1)
+        .into()
+}
+
 fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
     let mut rows: Vec<Element<Message>> = p
         .body
         .iter()
         .enumerate()
-        .map(|(i, b)| {
-            let show_val = b.op != BodyOp::Exists && b.op != BodyOp::Absent;
-            let jsonpath_warn: Element<Message> = if b.path.starts_with("$.") {
-                text(app.t(Key::BodyJsonpathWarn))
-                    .size(size::BODY_SMALL)
-                    .line_height(theme::line_height::body_small())
-                    .color(Color::from_rgb(0.85, 0.45, 0.0))
-                    .into()
-            } else {
-                Space::new().height(0.0).into()
-            };
-            column![
-                row![
-                    click_focus(
-                        EditorField::BodyPath(i),
-                        text_input("user.id", &b.path)
-                            .id(editor_text_field_id(EditorField::BodyPath(i)).unwrap())
-                            .on_input(move |v| Message::BodySetPath { index: i, value: v })
-                            .style(theme::text_input_style)
-                            .size(size::CAPTION)
-                            .padding(Padding::from([space::S2, space::S2]))
-                            .width(Length::Fill),
-                    ),
-                    cursor_wrap(
-                        app,
-                        EditorField::BodyPathAssistant(i),
-                        button(text("…").size(size::LABEL))
-                            .on_press(Message::PathAssistantOpen(i))
-                            .padding(Padding::from([space::S2, space::S2]))
-                            .into(),
-                    ),
-                    cursor_wrap(
-                        app,
-                        EditorField::BodyOp(i),
-                        pick_list(BodyOp::all().to_vec(), Some(b.op), move |op| {
-                            Message::BodySetOp { index: i, op }
-                        })
-                        .text_size(size::CAPTION)
-                        .padding(Padding::from([space::S2, space::S2]))
-                        .width(Length::Fixed(120.0))
-                        .handle(theme::cycler_handle())
-                        .into(),
-                    ),
-                    {
-                        let bval: Element<Message> = if show_val {
-                            click_focus(
-                                EditorField::BodyValue(i),
-                                text_input(app.t(Key::BodyValuePlaceholder), &b.value)
-                                    .id(editor_text_field_id(EditorField::BodyValue(i)).unwrap())
-                                    .on_input(move |v| Message::BodySetValue { index: i, value: v })
-                                    .style(theme::text_input_style)
-                                    .size(size::CAPTION)
-                                    .padding(Padding::from([space::S2, space::S2]))
-                                    .width(Length::Fill),
-                            )
-                        } else {
-                            Space::new().width(Length::Fill).into()
-                        };
-                        bval
-                    },
-                    cursor_wrap(
-                        app,
-                        EditorField::BodyRemove(i),
-                        widgets::icon_btn("✕", Message::BodyRemove(i)),
-                    ),
-                ]
-                .spacing(space::S1)
-                .align_y(Alignment::Center),
-                jsonpath_warn,
-            ]
-            .spacing(space::S1)
-            .into()
-        })
+        .map(|(i, b)| body_condition(app, i, b))
         .collect();
 
     if p.body.is_empty() {
@@ -897,7 +924,7 @@ fn respond_card<'a>(
 fn mode_tab(label: &str, active: bool, mode: RespondMode) -> Element<'_, Message> {
     button(text(label).size(size::LABEL))
         .on_press(Message::RespondSetMode(mode))
-        .padding(Padding::from([space::S2, space::S4]))
+        .padding(Padding::from([space::S2, space::S3]))
         .style(if active {
             theme::seg_active
         } else {
@@ -933,6 +960,62 @@ mod tests {
         for is_inline in [true, false] {
             let group = respond_mode_group(&app, is_inline);
             assert_eq!(group.as_widget().children().len(), 2, "inline={is_inline}");
+        }
+    }
+
+    // D-33 guard: a header condition is two lines of [name, op] and
+    // [value-or-spacer, remove] — four controls; a body condition is
+    // [path, assistant, op], [value-or-spacer, remove] and the warning slot —
+    // five controls. Both `show_val` states are built, because the
+    // `value_irrelevant()` operators replace the value input with a `Space`
+    // and that path must keep the same shape (and so the same cursor order).
+    fn line_sizes(el: &Element<'_, Message>) -> Vec<usize> {
+        el.as_widget()
+            .children()
+            .iter()
+            .map(|line| line.children.len())
+            .collect()
+    }
+
+    #[test]
+    fn header_condition_is_two_lines_of_four_controls_in_both_value_states() {
+        use apimokka_model::HeaderConditionPayload;
+        let app = App::new().0;
+        for op in [HeaderOp::Contains, HeaderOp::Exists, HeaderOp::Absent] {
+            let h = HeaderConditionPayload {
+                name: "content-type".into(),
+                op,
+                value: "application/json".into(),
+            };
+            let el = header_condition(&app, 0, &h);
+            assert_eq!(line_sizes(&el), vec![2, 2], "{op:?}");
+        }
+    }
+
+    #[test]
+    fn body_condition_is_two_lines_of_five_controls_in_both_value_states() {
+        use apimokka_model::BodyConditionPayload;
+        let app = App::new().0;
+        for (op, path) in [
+            (BodyOp::Equal, "action"),
+            (BodyOp::Exists, "action"),
+            (BodyOp::Absent, "$.action"),
+        ] {
+            let b = BodyConditionPayload {
+                path: path.into(),
+                op,
+                value: "create".into(),
+            };
+            let el = body_condition(&app, 0, &b);
+            // path line (3), value line (2), and the jsonpath warning only
+            // when the path starts with "$." (iced drops the empty spacer).
+            let sizes = line_sizes(&el);
+            assert_eq!(&sizes[..2], &[3, 2], "{op:?} {path}");
+            assert_eq!(
+                sizes.len(),
+                2 + usize::from(path.starts_with("$.")),
+                "{op:?} {path}"
+            );
         }
     }
 }

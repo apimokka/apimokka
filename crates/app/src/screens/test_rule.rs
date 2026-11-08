@@ -150,7 +150,14 @@ pub fn view(app: &App) -> Element<'_, Message> {
             widgets::divider(),
             widgets::field(
                 app.t(Key::TestRuleMethod),
-                row(method_btns).spacing(space::S1).into()
+                // Preventive (task 041): five fixed-width choices, as the
+                // editor's Method group (D-31). Fits at 880x700 today only
+                // because the dialog is wide; wrapping removes the edge.
+                row(method_btns)
+                    .spacing(space::S1)
+                    .wrap()
+                    .vertical_spacing(space::S1)
+                    .into()
             ),
             widgets::field(
                 app.t(Key::TestRulePath),
