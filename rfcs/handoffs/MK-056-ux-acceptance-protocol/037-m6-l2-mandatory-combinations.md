@@ -2,7 +2,8 @@
 
 **Issued:** 2026-11-04
 **Issued by:** programme architect
-**Authorized by:** project owner — pending
+**Authorized by:** project owner; round 1 ran 2026-11-07 (`1634aed`) and was
+reviewed — **the task stays open for §10**
 **Design:** [MK-056](../../accepted/MK-056-ux-acceptance-protocol.md) decision 7,
 and its **2026-11-04 resolution** of the acceptance criterion that named L2
 **Companion:** `003-m6-session-pack.md` §0 (withdrawn 2026-09-17, **restored
@@ -142,7 +143,51 @@ the thing it exists to check.
 - **The nested rig drops keys** roughly one in forty. The hash check catches
   it; retry the key rather than reinterpreting the frame.
 
-## 9. Required review-request content
+## 9. Round 2 — added 2026-11-08, and the task stays open for it
+
+Round 1 produced three passes, one fail and one combination that never
+exercised its own purpose. What is left:
+
+1. **Combination 2, re-run.** Its fail was **D-29**, closed by task 038
+   (`3ac0e20`): the keyboard cursor paints a visible ring in both
+   high-contrast presets now, and **D-30**, closed by task 039 (`7f26ba1`),
+   gave selection its own width-based cue. Re-run the combination and record
+   what decision 7 asked for — focus indication against high-contrast borders
+   — with the cursor, the selected state, and an unselected row in frame.
+   **This run must use `wgpu`**, because decision 7 records the renderer among
+   its nine fields and round 1 was `wgpu`; a software re-run is not
+   comparable. **It is blocked until the host is rebooted** — the running
+   kernel's module tree was replaced by an upgrade on 2026-11-08, which is why
+   task 039's frames are `tiny-skia`. Do not work around it, and do not alter
+   the host.
+2. **The rule editor at 880×700**, in combinations 1 and 4. Round 1 captured
+   Routes in its empty state in both narrow runs, so the editor — WHEN and
+   RESPOND side by side, decision 7's *"Expert shows every control at once,
+   and this is where that density fails"* — has never been rendered below
+   1280. This needs no GPU and can be done first.
+3. **Evidence-directory integrity, from task 039's review §4.** That capture
+   left twelve undocumented files in its directory, nine of them duplicates of
+   three images and four naming a theme their pixels contradict. Two things,
+   both in `scripts/ux/`:
+   - **a per-run manifest** recording every kept frame's name, MD5 and
+     measured ground pixel;
+   - **the run fails** if two kept frames share an MD5, or if a frame's ground
+     pixel does not match the theme the run requested.
+
+   This is the third capture-integrity trap in three tasks — the asynchronous
+   screenshot write, geometry taken from the request rather than measured, and
+   now stale files surviving in the output. Each time the rig proved a file
+   existed and never that it was *this* run's frame of *this* state. The
+   manifest is what closes the class, not the instance.
+   **Also clean `2026-11-08-task039-d30-selection-capture/`**: delete or
+   rename the twelve undocumented files so the directory and its `RESULTS.md`
+   agree.
+
+Acceptance for round 2: §7's criteria again, plus combination 2 passing on its
+own terms, the editor surface captured at 880×700 in both narrow runs, and the
+manifest failing a deliberately duplicated frame in a self-test.
+
+## 10. Required review-request content
 
 Per workflow §9.2: summary; the four runs with their recorded configurations;
 what `scripts/ux/` now does and what was deleted; every finding with its
