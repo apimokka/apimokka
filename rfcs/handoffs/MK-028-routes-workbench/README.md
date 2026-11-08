@@ -11,4 +11,5 @@ mandatory 880×700 combinations, which had never been run until task 037.
 
 | Task | Handoff | Covers |
 |---:|---|---|
-| 040 | [`040-d31-d32-editor-groups-overflow.md`](./040-d31-d32-editor-groups-overflow.md) | **D-31 (S1)** — the Method group clips PATCH and DELETE at 880×700, unreachable by pointer; **D-32 (S2)** — the RESPOND mode group collapses, worst in Japanese. Same mechanism: a `row` of fixed-width items with no wrap. Authorization pending. |
+| 040 | [`040-d31-d32-editor-groups-overflow.md`](./040-d31-d32-editor-groups-overflow.md) | **D-31 (S1)**, **D-32 (S2)** — the Method and RESPOND mode groups clipped at 880×700. **Complete** — `c046485`, accepted 2026-11-08: both groups wrap, all six methods and both modes drawn in each locale, the old layout's clipping width measured at **~1120 logical px**, and the manifest self-test wired into the release gate. **D-31 and D-32 closed.** |
+| 041 | [`041-d33-condition-rows-collapse.md`](./041-d33-condition-rows-collapse.md) | **D-33 (S1)** — the header and body condition rows collapse at 880×700; the header value field resolves to zero width and `application/json` is never drawn. Found by task 040's row walk. Option (a) decided: two lines per condition at every width. Carries `test_rule.rs`'s preventive `.wrap()`, a bounded row audit, and **D-34 (S3)** if it measures clean. Authorization pending. |
