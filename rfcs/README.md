@@ -86,7 +86,7 @@ both, and that no handoff directory duplicates a lifecycle folder.
 
 | Handoffs | For | State |
 |---|---|---|
-| [MK-022-visual-design-system](./handoffs/MK-022-visual-design-system/) | Visual design system | Tasks 036 and 038 complete (D-21, D-25, D-27, D-29 closed); **task 039 issued** for D-30, authorization pending |
+| [MK-022-visual-design-system](./handoffs/MK-022-visual-design-system/) | Visual design system | Tasks 036 and 038 complete (D-21, D-25, D-27, D-29 closed); **task 039 authorized** 2026-11-08 for D-30 |
 | [MK-023-accessibility-keyboard](./handoffs/MK-023-accessibility-keyboard/) | Accessibility and keyboard contract | Design accepted 2026-10-31; all ten slices complete 2026-11-03 |
 | [MK-036-content-microcopy](./handoffs/MK-036-content-microcopy/) | Content and microcopy | D-17 issued |
 | [MK-056-ux-acceptance-protocol](./handoffs/MK-056-ux-acceptance-protocol/) | UX acceptance protocol | M6 recruitment and session pack, live; RFC in `accepted/` |

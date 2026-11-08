@@ -148,6 +148,9 @@ Per workflow §9.2: summary; the four runs with their recorded configurations;
 what `scripts/ux/` now does and what was deleted; every finding with its
 measurement; gate status; review focus.
 
-Commit, and **do not push without authorization**. Check
+Commit. **The push rule was reconciled on 2026-11-08** (ROADMAP,
+*Release and delivery policy*): you may push **work you authored that has been
+reviewed and approved** — so commit, request the review, and push once it is
+accepted; an unreviewed or rejected change does not reach the remote. Check
 `git log origin/mockup-v0-01..HEAD` first and say what a push would carry.
 Commit messages: digest plus optional body within 400 characters.

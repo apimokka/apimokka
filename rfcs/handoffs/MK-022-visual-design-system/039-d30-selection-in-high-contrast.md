@@ -2,7 +2,7 @@
 
 **Issued:** 2026-11-08
 **Issued by:** programme architect
-**Authorized by:** project owner — pending
+**Authorized by:** project owner, 2026-11-08
 **Design:** [MK-022](../../done/MK-022-visual-design-system.md) § colour roles;
 [MK-028](../../done/MK-028-routes-workbench.md) § the non-colour rule
 **Found by:** the task 038 review, by its own measurement — the dev team
@@ -159,6 +159,9 @@ Per workflow §9.2: summary; the option taken and why, with its measurement
 against all four presets; the before/after for both selected styles; the two
 guards and what makes each fail; the frames; gate status; review focus.
 
-Commit, and **do not push without authorization**. Check
+Commit. **The push rule was reconciled on 2026-11-08** (ROADMAP,
+*Release and delivery policy*): you may push **work you authored that has been
+reviewed and approved** — so commit, request the review, and push once it is
+accepted; an unreviewed or rejected change does not reach the remote. Check
 `git log origin/mockup-v0-01..HEAD` first and say what a push would carry.
 Commit messages: digest plus optional body within 400 characters.

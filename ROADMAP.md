@@ -644,13 +644,43 @@ integration into the production GUI project, not publication. Accordingly:
   `Implemented (Unreleased)`;
 - integration-ready labeling is reserved for R2 GO and refers to specification
   readiness, not to a released artifact;
-- do not create commits, tags, archives, or pushes without explicit
-  project-owner authorization for that task.
+- tags, archives, version bumps, and registry publication are created only on
+  explicit project-owner authorization for that task;
+- commits and pushes follow the rule reconciled below, not this clause's
+  earlier blanket form.
 
 If the project owner later wants a distributable snapshot for archival or
 handoff, it follows the project rule — files at archive root, version suffix in
 the archive name, and no `.git`, `.git-exclude`, or `target` content — and is
 requested explicitly rather than produced on a cadence.
+
+**Amended 2026-11-08 — the push rule, reconciled, and audit finding B3 is
+closed.** This policy read *"do not create commits, tags, archives, or pushes
+without explicit project-owner authorization for that task"*, which was
+**stricter than the rule that authorizes both models** (*"Both the
+High-Capability Model and the Mid-Capability Model are authorized to commit and
+push"*) and stricter than the owner's own practice. The architect propagated the
+stricter text into every dev-team handoff, which is why it was recorded as
+**finding B3** of `.git-exclude/reviewed/2026-10-06-roles-and-rules-compliance-audit.md`
+as *"a contradiction that should not stand"*, with the correction left as a
+proposal because §13 of the workflow document requires a project-specific
+override to be documented and approved rather than assumed.
+
+**The project owner settled it on 2026-11-08:** *"You may commit and push…
+Besides, the dev team may commit and push only what they make and get as
+approved."* So:
+
+- **the architect may commit and push** without asking for each task;
+- **the dev team may commit and push only work they authored and that has been
+  reviewed and approved** — an unreviewed or rejected change does not reach the
+  remote, which is what the branch-sharing risk in *Risks and controls* is
+  about;
+- **tags, version bumps, archives, and registry publication still require
+  explicit authorization for that task.** Nothing above touches them, and C6 is
+  where they live.
+
+Dev-team handoffs issued after this date carry the reconciled rule, not the
+blanket one.
 
 **Amended 2026-11-08.** Publication — tag, crates.io, AUR — is **authorized as
 cycle C6**, which runs after R2 GO and after production integration. Every
