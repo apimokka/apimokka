@@ -120,6 +120,14 @@ untouched. **Treat that as a claim to test, not a fact to assume.**
 > from. Scheduled as **cycle C7 / RFC MK-062**, after C4 and before R2.
 > Assessment: `.git-exclude/reviewed/2026-11-09-snora-0-57-0-assessment.md`.
 >
+> **Standing practice from here, set with C7's conditional authorization on
+> 2026-11-09:** every snora notice that arrives gets **one paragraph here**,
+> assessing it against the surface list above, written on receipt rather than
+> at adoption time. It is cheap — this one took a single pass — and it is what
+> keeps the distance known instead of discovered. A notice that contains a
+> decision goes to the project owner; one that does not, like 0.57.0's, stops
+> here.
+>
 > **The quoted claim was withdrawn by snora on 2026-10-20.** Their docs had said
 > that without the `design` feature, rendered output *"is unchanged from v0.25 —
 > a guarantee, not an aspiration"*; they now state it has not held since at least
