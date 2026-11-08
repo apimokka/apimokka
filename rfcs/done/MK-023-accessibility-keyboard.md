@@ -82,6 +82,17 @@
 >
 > This is the fourth inherited snora constraint found not to bind us, and the
 > second of that kind I propagated after having already been caught by it.
+>
+> **Current as of snora 0.57.0, 2026-11-09.** snora restored the claim for
+> **their own controls** from 0.55, once an application routes Tab through
+> `snora::keyboard::traverse`; 0.54 is where they withdrew it. **Neither
+> binds this RFC.** The premise here is about **iced**, which still gives
+> `Focusable` to `text_input` and `text_editor` alone — snora's notice
+> confirms they are *"still on iced 0.14"* — and we draw **no snora
+> controls**: we run `design`-only and style iced widgets with snora's
+> tokens. The region/cursor model remains the mechanism. Whether snora's
+> shape should replace ours is a question for **MK-062** (cycle C7), after
+> M6, and it is a design review rather than a bump.
 
 >
 > **This is the third RFC found in `done/` whose central mechanism was never

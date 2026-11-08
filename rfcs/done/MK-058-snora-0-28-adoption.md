@@ -102,6 +102,24 @@ snora = { version = "0.28", features = ["widgets", "design"] }
 snora guarantees rendered output is unchanged with existing call sites
 untouched. **Treat that as a claim to test, not a fact to assume.**
 
+> **Current as of snora 0.57.0 (2026-11-08), assessed 2026-11-09.** snora's
+> general notice to app teams puts the release at **0.57.0**, fifteen minors
+> above our pin, still on iced 0.14. **Nothing in it forces a change on us:**
+> 0.57's two breaking removals are toast APIs (`toast::sweep_expired`,
+> `ToastLifetime::DEFAULT`) and both live deprecations (the toast-hover trio,
+> `keyboard::dismiss_on_escape`) are outside the surface this RFC pinned —
+> `design::render`, `AppLayout`/`Dialog`/`Sheet`, `design::theme`, `Tokens`
+> and two style helpers. `snora-control` became `snora-interaction`; we name
+> neither. **Two items do matter when we move**: 0.54's **two AAA presets**,
+> which bear on the readability question MK-059 left to M6's evidence, and
+> 0.55–0.57's overlay/keyboard semantics, which this programme built for
+> itself in `App::topmost_overlay()` and MK-023 — so the adoption is a design
+> review, not a bump. **The pin holds through M6 deliberately**, because a
+> snora release changes rendered appearance by snora's own account (the
+> withdrawal below) and M6's evidence must describe the build it was taken
+> from. Scheduled as **cycle C7 / RFC MK-062**, after C4 and before R2.
+> Assessment: `.git-exclude/reviewed/2026-11-09-snora-0-57-0-assessment.md`.
+>
 > **The quoted claim was withdrawn by snora on 2026-10-20.** Their docs had said
 > that without the `design` feature, rendered output *"is unchanged from v0.25 —
 > a guarantee, not an aspiration"*; they now state it has not held since at least
