@@ -143,7 +143,13 @@ the thing it exists to check.
 - **The nested rig drops keys** roughly one in forty. The hash check catches
   it; retry the key rather than reinterpreting the frame.
 
-## 9. Round 2 — added 2026-11-08, and the task stays open for it
+## 9. Round 2 — added 2026-11-08; §9.2 and §9.3 are done, §9.1 is not
+
+**Status, 2026-11-08:** `43d3cad` delivered **§9.2** (the editor and Test Rule
+at 880×700, which opened **D-31 S1** and **D-32 S2** — task 040) and **§9.3**
+(the frame manifest, plus task 039's directory cleaned); both **accepted**, see
+`.git-exclude/reviewed/2026-11-08-task037-round2-review.md`. **§9.1 remains the
+whole of this task**, and it is blocked on the host reboot, not on work.
 
 Round 1 produced three passes, one fail and one combination that never
 exercised its own purpose. What is left:
