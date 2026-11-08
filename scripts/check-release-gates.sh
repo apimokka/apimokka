@@ -86,6 +86,7 @@ run_gate bash scripts/check-rfcs-self-test.sh || exit $?
 run_gate bash scripts/check-rfcs.sh || exit $?
 run_gate bash scripts/check-source-size-self-test.sh || exit $?
 run_gate bash scripts/check-source-size.sh || exit $?
+run_gate bash scripts/ux/manifest-selftest.sh || exit $?
 run_gate git diff --check || exit $?
 
 printf 'Release gates: all checks passed\n'

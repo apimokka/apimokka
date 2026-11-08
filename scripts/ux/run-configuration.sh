@@ -29,6 +29,8 @@
 #        tiny-skia, slows every key and capture to match it, and exists
 #        only for when wgpu cannot run — the measured renderer is recorded
 #        in RESULTS.md and must match this request, else the run fails)] \
+#     [--rule N (0-based rule to open in the editor, default 0; 2 is the
+#        rule with headers and body conditions)] \
 #     --out-dir <dir>
 #
 # Captures, under --out-dir:
@@ -72,6 +74,7 @@ locale=en
 theme=light
 show_cursor=no
 renderer=wgpu
+rule=0
 out_dir=
 
 while (( $# > 0 )); do
@@ -85,6 +88,7 @@ while (( $# > 0 )); do
         --theme) theme=$2; shift 2 ;;
         --show-cursor) show_cursor=yes; shift ;;
         --renderer) renderer=$2; shift 2 ;;
+        --rule) rule=$2; shift 2 ;;
         --out-dir) out_dir=$2; shift 2 ;;
         *) ux_die "unknown argument: $1" ;;
     esac
@@ -202,7 +206,7 @@ prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-01-routes.
 # --show-cursor's own Tab above already left the cursor on the top bar.
 editor_tabs=5
 [[ "$show_cursor" == yes ]] && editor_tabs=4
-ux_app_select_first_rule "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$editor_tabs"
+ux_app_select_first_rule "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$editor_tabs" "$rule"
 prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-04-editor.png")
 
 ux_app_open_test_rule "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"

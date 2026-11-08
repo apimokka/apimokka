@@ -537,7 +537,12 @@ fn url_path_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Elemen
     )
 }
 
-fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
+/// D-31: the six method choices (Any + the five HTTP methods) as one group.
+/// A plain `row` clipped it at 880x700 — the card is 308 logical px there —
+/// silently dropping PATCH and DELETE, so the group wraps onto a second line
+/// instead: every choice stays drawn, reachable and in cursor order at any
+/// width, with no breakpoint.
+fn method_group<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
     let methods = crate::regions::editor_method_group("Any");
     let btns: Vec<Element<Message>> = methods
         .iter()
@@ -570,10 +575,15 @@ fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
         })
         .collect();
 
-    card(
-        app.t(Key::MethodCardTitle),
-        row(btns).spacing(space::S1).into(),
-    )
+    row(btns)
+        .spacing(space::S1)
+        .wrap()
+        .vertical_spacing(space::S1)
+        .into()
+}
+
+fn method_card<'a>(app: &'a App, method: &'a str) -> Element<'a, Message> {
+    card(app.t(Key::MethodCardTitle), method_group(app, method))
 }
 
 fn headers_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a, Message> {
@@ -758,13 +768,12 @@ fn body_card<'a>(app: &'a App, p: &'a apimokka_model::RulePayload) -> Element<'a
     )
 }
 
-fn respond_card<'a>(
-    app: &'a App,
-    p: &'a apimokka_model::RulePayload,
-    response_delay: Option<&'a str>,
-) -> Element<'a, Message> {
-    let is_inline = p.respond.mode == RespondMode::InlineText;
-    let mode_btns: Element<Message> = row![
+/// D-32: the RESPOND mode group (Inline text / Serve file). A plain `row`
+/// let the second tab collapse to a ~29 logical-px column in Japanese at
+/// 880x700; wrapping keeps each tab at its natural width and moves the second
+/// to a new line when the first leaves no room.
+fn respond_mode_group<'a>(app: &'a App, is_inline: bool) -> Element<'a, Message> {
+    row![
         cursor_wrap_group(
             app,
             EditorField::RespondMode,
@@ -787,7 +796,18 @@ fn respond_card<'a>(
         ),
     ]
     .spacing(space::S1)
-    .into();
+    .wrap()
+    .vertical_spacing(space::S1)
+    .into()
+}
+
+fn respond_card<'a>(
+    app: &'a App,
+    p: &'a apimokka_model::RulePayload,
+    response_delay: Option<&'a str>,
+) -> Element<'a, Message> {
+    let is_inline = p.respond.mode == RespondMode::InlineText;
+    let mode_btns = respond_mode_group(app, is_inline);
 
     let respond_body_id = editor_text_field_id(EditorField::RespondBody).unwrap();
     let body_el: Element<Message> = if is_inline {
@@ -837,7 +857,6 @@ fn respond_card<'a>(
                             .width(Length::Fixed(110.0)),
                     ),
                 ),
-                Space::new().width(space::S3),
                 widgets::field(
                     app.t(Key::RespondDelayLabel),
                     row![
@@ -858,7 +877,13 @@ fn respond_card<'a>(
                     .into(),
                 ),
             ]
-            .align_y(Alignment::End),
+            // D-31/D-32's sibling in this card: Status (110) + Delay (70 + unit)
+            // are all fixed-width, so they wrap like the groups above instead
+            // of squeezing Delay to ~36 px and clipping its "ms" at 880x700.
+            .spacing(space::S3)
+            .align_y(Alignment::End)
+            .wrap()
+            .vertical_spacing(space::S3),
             text(app.t(Key::RespondMutexHint))
                 .size(size::BODY_SMALL)
                 .line_height(theme::line_height::body_small())
@@ -879,4 +904,35 @@ fn mode_tab(label: &str, active: bool, mode: RespondMode) -> Element<'_, Message
             theme::seg_inactive
         })
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // D-31/D-32 guard. There is no layout engine in the suite, so "all six
+    // are drawn at 880 logical px" is a capture (task 040 §5); what this
+    // pins is the structure a future edit could quietly break: the Method
+    // group is built from `editor_method_group`'s full six and the RESPOND
+    // mode group from both modes, each as a wrapping group.
+    #[test]
+    fn method_group_builds_all_six_choices() {
+        let app = App::new().0;
+        let group = method_group(&app, "");
+        assert_eq!(
+            group.as_widget().children().len(),
+            crate::regions::editor_method_group("Any").len(),
+            "one child per editor_method_group entry"
+        );
+        assert_eq!(group.as_widget().children().len(), 6);
+    }
+
+    #[test]
+    fn respond_mode_group_builds_both_modes() {
+        let app = App::new().0;
+        for is_inline in [true, false] {
+            let group = respond_mode_group(&app, is_inline);
+            assert_eq!(group.as_widget().children().len(), 2, "inline={is_inline}");
+        }
+    }
 }

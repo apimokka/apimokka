@@ -282,7 +282,8 @@ ux_app_show_region_cursor() {
     fi
 }
 
-# ux_app_select_first_rule <display> <sock> <winid> <out-dir> <prev-hash-var> [tabs=5]
+# ux_app_select_first_rule <display> <sock> <winid> <out-dir> <prev-hash-var> [tabs=5] [rule=0]
+#   rule: 0-based index of the rule within the first rule set (one extra Down each)
 #
 # Opens the rule editor: from a freshly opened workspace (nothing on the
 # workspace screen has taken a Tab yet — `Region::order_for` then starts at
@@ -293,14 +294,14 @@ ux_app_show_region_cursor() {
 # an unchanged frame stops the run instead (call it first, before anything
 # else has moved the region cursor, and read the frame it leaves).
 ux_app_select_first_rule() {
-    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 tabs=${6:-5}
+    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 tabs=${6:-5} rule=${7:-0}
     local ckpt; ckpt="$(_ux_nav_checkpoint_dir "$out_dir")/rule-selected.png"
     local i k
     for (( i = 0; i < tabs; i++ )); do
         ux_wtype_key "$display" Tab
         ux_pause 0.4
     done
-    for k in Right Down Return; do
+    for k in Right Down $(for (( i = 0; i < rule; i++ )); do printf 'Down '; done) Return; do
         ux_wtype_key "$display" "$k"
         ux_pause 0.4
     done
