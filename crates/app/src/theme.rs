@@ -319,6 +319,21 @@ pub fn card_style(t: &Theme) -> container::Style {
     }
 }
 
+/// D-30: the high-contrast selected-card border — the token colour
+/// `card_style` already uses at 1.5 px, at twice the width. Selection is
+/// carried by *width* (MK-028's non-colour rule), not colour, so the colour
+/// channel stays free: the keyboard cursor (`cursor_style`) owns primary, and
+/// a selected-and-cursored row must read as three distinct states —
+/// unselected (1.5 px), selected (3 px token), selected + cursor (3 px token
+/// inside a 2 px primary ring). The tint is kept as a secondary cue.
+fn hc_selected_border(t: &Theme) -> Border {
+    Border {
+        radius: radius::LG.into(),
+        width: 3.0,
+        color: border_token(t),
+    }
+}
+
 /// Selected variant of card_style — primary-coloured border + stronger shadow.
 /// The left accent strip is drawn by the caller (a 3px-wide container).
 ///
@@ -326,7 +341,8 @@ pub fn card_style(t: &Theme) -> container::Style {
 /// 4.15:1 (Dark) under muted text, a fork from the token, so Light and Dark
 /// take the `surface` fill instead. Selection is carried by a 2 px primary
 /// border — twice the 1 px card border, so it is distinct by width as well as
-/// colour (MK-028 non-colour rule). High-contrast keeps its tint unchanged.
+/// colour (MK-028 non-colour rule). High-contrast keeps its tint and, since D-30,
+/// adds a 3 px token-colour border (`hc_selected_border`).
 pub fn card_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let p = ep.primary.base.color;
@@ -344,10 +360,7 @@ pub fn card_selected_style(t: &Theme) -> container::Style {
                 a: alpha,
             })),
             text_color: Some(ep.background.base.text),
-            border: Border {
-                radius: radius::LG.into(),
-                ..Default::default()
-            },
+            border: hc_selected_border(t),
             shadow: Shadow {
                 color: Color::from_rgba(p.r, p.g, p.b, 0.22),
                 offset: Vector::new(0.0, 2.0),
@@ -628,7 +641,7 @@ pub fn naked(theme: &Theme, _status: iced::widget::button::Status) -> iced::widg
 /// elevated cards; muted 4.93 / 4.53:1), and the 2 px token border. The card's
 /// shadow is also applied, so the selected row reads as raised, not sunk. A
 /// selected parent therefore differs from an unselected card by fill, width and
-/// shadow parity, not width alone. High-contrast tint is unchanged.
+/// shadow parity, not width alone. High-contrast keeps its tint and takes the D-30 3 px token border (`hc_selected_border`).
 pub fn card_parent_selected_style(t: &Theme) -> container::Style {
     let ep = t.extended_palette();
     let base = ep.background.strong.color;
@@ -646,7 +659,7 @@ pub fn card_parent_selected_style(t: &Theme) -> container::Style {
                 a: alpha,
             })),
             text_color: Some(ep.background.base.text),
-            border: surface_border(t, 0.0, radius::LG.into()),
+            border: hc_selected_border(t),
             shadow: Shadow::default(),
             snap: true,
         };

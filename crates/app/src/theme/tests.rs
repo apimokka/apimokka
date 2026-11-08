@@ -250,7 +250,10 @@ fn muted_surfaces_stay_pairwise_distinct() {
 #[test]
 fn high_contrast_presets_keep_their_iced_slots_and_borders() {
     // §8.3: the high-contrast presets already pass and are border-defined.
-    // Their appearance must not move.
+    // Their appearance must not move — except the two selected styles, whose
+    // border was 0.0 px (selection drawn by a 1.35-1.60:1 wash alone) until
+    // D-30 gave them a 3 px token border; the rule that keeps them
+    // distinguishable lives in `selected_cards_are_distinguishable_...`.
     for p in presets().into_iter().filter(|p| p.high_contrast) {
         let t = snora_theme(&p.tokens);
         let ep = t.extended_palette();
@@ -271,13 +274,13 @@ fn high_contrast_presets_keep_their_iced_slots_and_borders() {
         assert_eq!(card_style(&t).border.width, 1.5, "{} card border", p.name);
         assert_eq!(
             card_selected_style(&t).border.width,
-            0.0,
+            3.0,
             "{} selected card border",
             p.name
         );
         assert_eq!(
             card_parent_selected_style(&t).border.width,
-            0.0,
+            3.0,
             "{} parent border",
             p.name
         );
@@ -470,7 +473,8 @@ fn both_cursor_styles_paint_a_visible_opaque_ring_in_all_presets() {
     // application-wide. MK-023's own "every region's indicator is rendered"
     // test asserted that in the model only; this asserts it is *visible*,
     // in every preset, for every cursor treatment the application has.
-    // `cursor_style` is drawn on the page, `surface` or `surface_raised`;
+    // `cursor_style` is drawn on the page, `surface`, `surface_raised` or
+    // `chip_style`'s fill;
     // `banner_cursor_style` on the banner's own fill.
     let mut failures = Vec::new();
     for p in presets() {
@@ -482,6 +486,8 @@ fn both_cursor_styles_paint_a_visible_opaque_ring_in_all_presets() {
                 "surface_raised",
                 to_iced_color(p.tokens.palette.surface_raised),
             ),
+            // The undo / notice banners (`shell/view.rs`) draw it on this.
+            ("chip", fill(&chip_style(&t))),
         ];
         let banner_fill = fill(&banner_style(&t));
         type Case<'a> = (&'a str, Border, Vec<(&'a str, Color)>);
@@ -511,6 +517,53 @@ fn both_cursor_styles_paint_a_visible_opaque_ring_in_all_presets() {
     assert!(
         failures.is_empty(),
         "keyboard cursor ring not visible (width/opacity/3:1 non-text): {failures:?}"
+    );
+}
+
+#[test]
+fn selected_cards_are_distinguishable_from_unselected_in_all_presets() {
+    // D-30: in both HC presets the selected card carried its state by a
+    // 1.35-1.60:1 fill wash and *lost* its border (1.5 -> 0.0 px) — below
+    // WCAG 1.4.11's 3:1 for identifying a component's state, and the
+    // inverse of emphasis. MK-028's non-colour rule, encoded: against the
+    // unselected `card_style` a selected card must differ by EITHER fill
+    // (>= 3:1) OR by a border at least 1 px wider whose colour clears 3:1
+    // against the selected card's own fill. Light/Dark pass by the border;
+    // this is what HC failed. A translucent selected fill is composited over
+    // the ground it is drawn on — the sidebar's `panel_style` (where the
+    // selected rows live) and the page (dialogs, mode picker) — and the
+    // rule must hold on both.
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let unselected = card_style(&t);
+        let unselected_fill = fill(&unselected);
+        for (ground_name, ground) in [
+            ("page", page_of(&t)),
+            ("panel", over(fill(&panel_style(&t)), page_of(&t))),
+        ] {
+            for (name, style) in [
+                ("card_selected_style", card_selected_style(&t)),
+                ("card_parent_selected_style", card_parent_selected_style(&t)),
+            ] {
+                let selected_fill = over(fill(&style), ground);
+                let fill_ratio = ratio(selected_fill, unselected_fill);
+                let wider = style.border.width - unselected.border.width;
+                let border_ratio = ratio(style.border.color, selected_fill);
+                let by_fill = fill_ratio >= 3.0;
+                let by_border = wider >= 1.0 && border_ratio >= 3.0;
+                if !(by_fill || by_border) {
+                    failures.push(format!(
+                        "{} {name} on {ground_name}: fill {fill_ratio:.2}:1, border {wider:+}px at {border_ratio:.2}:1",
+                        p.name
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "selected card not distinguishable from unselected (fill >=3:1 or border >=+1px at >=3:1): {failures:#?}"
     );
 }
 
