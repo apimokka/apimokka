@@ -143,7 +143,14 @@ the thing it exists to check.
 - **The nested rig drops keys** roughly one in forty. The hash check catches
   it; retry the key rather than reinterpreting the frame.
 
-## 9. Round 2 — added 2026-11-08; §9.2 and §9.3 are done, §9.1 is not
+## 9. Round 2 — added 2026-11-08; **complete 2026-11-08**
+
+**TASK COMPLETE, 2026-11-08.** §9.1 landed as `7439269` and was accepted: combination 2
+records a pass on `wgpu`, so **all four of decision 7's mandatory combinations now
+have a recorded L2 pass** and MK-056's L2 acceptance criterion is met. The one
+finding, **D-36 (S2)** — text-field focus is colour-only in all four presets — is
+**task 042** and did not hold the pass. Review:
+`.git-exclude/reviewed/2026-11-08-task037-s9-1-review.md`.
 
 **Status, 2026-11-08:** `43d3cad` delivered **§9.2** (the editor and Test Rule
 at 880×700, which opened **D-31 S1** and **D-32 S2** — task 040, and through
