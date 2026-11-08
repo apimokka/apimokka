@@ -4,6 +4,10 @@
   frame-probe.py size   FILE          -> "W H"
   frame-probe.py pixel  FILE X Y      -> "R G B"
   frame-probe.py ground FILE          -> "R G B" at the top bar's own fill
+  frame-probe.py count  FILE R G B [TOL] -> number of pixels within TOL (default 6)
+                                         per channel of R,G,B — e.g. how many
+                                         pixels of a preset's primary colour
+                                         (the keyboard ring) a frame carries
 
 The "ground" point is inside the top bar (`panel_style`), between its status
 chips and its buttons, at 62% of the width and 4.5% of the height — present
@@ -71,6 +75,20 @@ def main():
     elif cmd == "ground":
         w, h, _, _ = load(path)
         print(*pixel(path, int(w * 0.62), int(h * 0.045)))
+    elif cmd == "count":
+        r, g, b = (int(v) for v in sys.argv[3:6])
+        tol = int(sys.argv[6]) if len(sys.argv) > 6 else 6
+        _, _, bpp, rows = load(path)
+        n = 0
+        for line in rows:
+            for x in range(0, len(line), bpp):
+                if (
+                    abs(line[x] - r) <= tol
+                    and abs(line[x + 1] - g) <= tol
+                    and abs(line[x + 2] - b) <= tol
+                ):
+                    n += 1
+        print(n)
     else:
         sys.exit(__doc__)
 

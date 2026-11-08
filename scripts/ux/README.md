@@ -144,13 +144,19 @@ themselves evidence.
   `XDG_STATE_HOME` or any other environment-derived directory — every
   launch starts from the same hardcoded mock state regardless of the
   host's own configuration, so there is nothing to isolate.
-- **`--show-cursor` under a High Contrast theme may capture no visible
-  ring at all.** `theme::card_selected_style`'s own `is_high_contrast`
-  branch (`crates/app/src/theme.rs`) sets only a low-alpha (10-18%)
-  background wash and no border, unlike the solid 2px coloured border the
-  non-HC branch draws — found live running task 037's combination 2.
-  `ux_app_show_region_cursor`'s `soft=yes` mode (used automatically by
-  `run-configuration.sh` for `hclight`/`hcdark`) still sends the Tab and
-  still captures the frame, but logs a NOTE instead of retrying the
-  capture to death — the identical frame is the finding, not a dropped
-  key. See the function's own comment in `app-nav.sh`.
+- **`--show-cursor` is strict under every theme since D-29 was fixed.** It
+  used to capture no visible change under High Contrast
+  (`theme::card_selected_style`'s HC branch drew no border), so
+  `ux_app_show_region_cursor` had a `soft=yes` mode that logged the identical
+  frame as a finding. The fix (task 038) made a Tab change the frame in every
+  preset, so `run-configuration.sh` now uses the strict check — a regression
+  fails the run. `soft=yes` remains for a regression hunt only.
+- **Stability re-poll.** `ux_capture_step` no longer replays a key the first
+  time a frame looks unchanged: it waits `UX_STABLE_WAIT` (default 1 s,
+  scaled by `UX_PAUSE_SCALE`) and compares again, so a *late* key is told from
+  a *lost* one (a replayed Return once ran a freshly opened Test Rule dialog).
+- **Below-the-fold surfaces: use the application's own scroll.**
+  `--walk-conditions` (Expert, `--rule 2`) Tabs the region cursor through the
+  rule editor (`ux_app_tab_times`); `App::scroll_snap_target` scrolls the WHEN
+  column to the cursor, so the header and body value fields can be captured at
+  the mandated 880x700 — the same keyboard path a participant has.

@@ -31,6 +31,7 @@
 #        in RESULTS.md and must match this request, else the run fails)] \
 #     [--rule N (0-based rule to open in the editor, default 0; 2 is the
 #        rule with headers and body conditions)] \
+#     [--walk-conditions (Expert, needs --rule 2: Tab the region cursor to the\n#        header value and a body value so the application's own scroll-snap\n#        brings them into view at any window height; 07/08 frames)] \
 #     --out-dir <dir>
 #
 # Captures, under --out-dir:
@@ -75,6 +76,7 @@ theme=light
 show_cursor=no
 renderer=wgpu
 rule=0
+walk_conditions=no
 out_dir=
 
 while (( $# > 0 )); do
@@ -89,6 +91,7 @@ while (( $# > 0 )); do
         --show-cursor) show_cursor=yes; shift ;;
         --renderer) renderer=$2; shift 2 ;;
         --rule) rule=$2; shift 2 ;;
+        --walk-conditions) walk_conditions=yes; shift ;;
         --out-dir) out_dir=$2; shift 2 ;;
         *) ux_die "unknown argument: $1" ;;
     esac
@@ -182,9 +185,10 @@ fi
 
 maybe_show_cursor() {
     if [[ "$show_cursor" == yes ]]; then
-        local soft=no
-        [[ "$theme" == hclight || "$theme" == hcdark ]] && soft=yes
-        ux_app_show_region_cursor "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$soft"
+        # D-29 is fixed: a Tab under an HC theme must now change the frame,
+        # so the strict (retry, then fail) check applies to every theme —
+        # `soft` stays available in app-nav.sh for a regression hunt only.
+        ux_app_show_region_cursor "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash no
     fi
     return 0
 }
@@ -208,6 +212,35 @@ editor_tabs=5
 [[ "$show_cursor" == yes ]] && editor_tabs=4
 ux_app_select_first_rule "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$editor_tabs" "$rule"
 prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-04-editor.png")
+extra_frames=()
+
+# Combination 2's own question — focus indication against high-contrast
+# borders — needs the cursor, the selected state and an unselected row in ONE
+# frame. 04 shows selected + cursored (Return leaves the cursor on the row it
+# selected); Up moves the cursor to the neighbouring rule, so 06 shows
+# selected (not cursored), cursored (not selected) and a further unselected
+# row together. Down puts the cursor back so the Tab counts below stay valid.
+if [[ "$show_cursor" == yes ]]; then
+    ux_app_key "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash Up "cursor-up"
+    prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-06-cursor-on-unselected.png")
+    extra_frames+=("$out_dir/${name}-06-cursor-on-unselected.png")
+    ux_app_key "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash Down "cursor-down"
+fi
+
+# Conditions below the fold: walk the region cursor into the WHEN column and
+# let the application's own scroll-snap bring the field into view (task 037
+# §9.1 item 1b) — the rig has no scroll of its own and needs none. Expert,
+# rule 3: 11 Tabs from the sidebar reach the header VALUE (TestRule, Duplicate,
+# MoveUp, MoveDown, Delete, UrlPath, UrlPathOp, Method, HeaderName, HeaderOp,
+# HeaderValue), 6 more reach the first body VALUE (HeaderRemove, AddHeader,
+# BodyPath, BodyPathAssistant, BodyOp, BodyValue).
+if [[ "$walk_conditions" == yes ]]; then
+    ux_app_tab_times "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash 11 "to-header-value"
+    prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-07-header-value.png")
+    ux_app_tab_times "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash 6 "to-body-value"
+    prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-08-body-value.png")
+    extra_frames+=("$out_dir/${name}-07-header-value.png" "$out_dir/${name}-08-body-value.png")
+fi
 
 ux_app_open_test_rule "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
 # A dialog raised over a palette that has just closed takes the software
@@ -236,7 +269,8 @@ bash "$script_dir/manifest.sh" --theme "$theme" --renderer "$renderer" \
     "$out_dir/${name}-02-settings.png" \
     "$out_dir/${name}-03-drawer.png@overlay" \
     "$out_dir/${name}-04-editor.png" \
-    "$out_dir/${name}-05-testrule.png@overlay" ||
+    "$out_dir/${name}-05-testrule.png@overlay" \
+    "${extra_frames[@]}" ||
     ux_die "frame manifest failed for $name — evidence in $out_dir is not trustworthy"
 
 read -r logical_w logical_h logical_scale physical_w physical_h < <(ux_measure_nested_output "$nested_sock")

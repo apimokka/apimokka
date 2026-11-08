@@ -331,3 +331,36 @@ ux_app_close_overlay() {
     do_close
     ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes do_close
 }
+
+# ux_app_tab_times <display> <sock> <winid> <out-dir> <prev-hash-var> <n> [label]
+#
+# n single Tabs, each verified by its own checkpoint (a dropped Tab is
+# idempotent to replay, and ux_capture_step's re-poll tells a late key from a
+# lost one). Used to walk the region cursor to a field below the fold: the
+# application's own `App::scroll_snap_target` scrolls the rule editor's WHEN or
+# RESPOND column to the cursor, so this is the same keyboard path a participant
+# has, not a rig-side scroll. Editor focus order is regions.rs `editor_fields`
+# (after the sidebar: TestRule, Duplicate, MoveUp, MoveDown, Delete, UrlPath,
+# UrlPathOp, Method, then HeaderName/Op/Value/Remove per header, AddHeader, then
+# BodyPath/Assistant/Op/Value/Remove per body condition, AddBody — Expert).
+ux_app_tab_times() {
+    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 n=$6 label=${7:-tab}
+    local dir; dir="$(_ux_nav_checkpoint_dir "$out_dir")"
+    local do_tab i
+    do_tab() { ux_wtype_key "$display" Tab; ux_pause 0.3; }
+    for (( i = 1; i <= n; i++ )); do
+        do_tab
+        ux_capture_step "$sock" "$winid" "$dir/$label-$i.png" "$prev_hash_var" yes do_tab
+    done
+}
+
+# ux_app_key <display> <sock> <winid> <out-dir> <prev-hash-var> <key> [label]
+# One verified key (the frame must change).
+ux_app_key() {
+    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 key=$6 label=${7:-key}
+    local dir; dir="$(_ux_nav_checkpoint_dir "$out_dir")"
+    local do_key
+    do_key() { ux_wtype_key "$display" "$key"; ux_pause 0.3; }
+    do_key
+    ux_capture_step "$sock" "$winid" "$dir/$label.png" "$prev_hash_var" yes do_key
+}

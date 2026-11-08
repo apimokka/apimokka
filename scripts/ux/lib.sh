@@ -304,7 +304,20 @@ ux_capture_step() {
         if (( attempt >= 3 )); then
             ux_die "capture $target identical to the previous frame after 3 attempts — stopping rather than repeating a 4th time (GUI evidence rules' repeat limit); treat as a dropped key, not a rendered state"
         fi
-        ux_log "capture $target identical to the previous frame (attempt $attempt) — treating as a dropped key, retrying the drive step"
+        # A late key and a lost key look identical in a single comparison, and
+        # replaying a key that was merely late doubles it (task 037 round 2: a
+        # Return replayed into a fresh dialog ran the test). So before calling
+        # a key dropped, wait a longer interval and compare again: if the
+        # frame moved on its own in the meantime the key was only late.
+        ux_pause "${UX_STABLE_WAIT:-1.0}"
+        local settled
+        settled=$(ux_capture "$sock" "$win_id" "$target")
+        if [[ "$settled" != "$_ux_prev_hash" ]]; then
+            ux_log "capture $target changed after a ${UX_STABLE_WAIT:-1.0}s re-poll — the key was late, not lost; not replaying it"
+            _ux_prev_hash=$settled
+            return 0
+        fi
+        ux_log "capture $target identical to the previous frame, and still so after a ${UX_STABLE_WAIT:-1.0}s re-poll (attempt $attempt) — treating as a dropped key, retrying the drive step"
         if (( $# > 0 )); then
             "$@"
         fi
