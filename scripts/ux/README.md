@@ -65,6 +65,15 @@ application in task 036.
   combination 3's temporary host-output-mode switch (see the script's own
   header for why 200% scale needs it, and that the switch is restored and
   the restore verified, not merely assumed).
+- **`manifest.sh`** (+ `manifest-selftest.sh`, `frame-probe.py`) — frame
+  integrity, run by `run-configuration.sh` after every capture set: writes
+  each kept frame's name, MD5 and measured ground pixel, and **fails the run**
+  if two kept frames are byte-identical or a frame's ground contradicts the
+  requested theme. Closes the class of trap where the rig proved a file
+  existed but never that it was this run's frame of this state (async
+  screenshot write, geometry taken from the request, stale files in the
+  output directory). `manifest-selftest.sh` needs no display and checks that
+  a duplicated frame, a wrong-theme frame and a missing frame each fail.
 - **`probe.sh`** — a rig smoke test: start a small nested compositor,
   launch the app, send one Tab, assert the two captures around it differ.
   Run this once on a new host before trusting a real run.
@@ -101,6 +110,14 @@ step landed go to `_checkpoints/` under the same `--out-dir` and are not
 themselves evidence.
 
 ## Known limitations, stated rather than hidden
+
+- **`--renderer software`** (iced's `tiny-skia`) exists only for when wgpu
+  cannot run on the host. It slows every key and capture to match
+  (`UX_PAUSE_SCALE`, `UX_CAPTURE_SETTLE`), is recorded and checked against the
+  measured renderer, and is **not comparable evidence** against wgpu frames:
+  it leaves stale-damage ghosts and progressively darkens panels, and under
+  its lag a replayed retry can land on top of a key that merely arrived late
+  (a Return replayed into a freshly opened dialog ran the test). Prefer wgpu.
 
 - **The application is externally unobservable except for its window
   title.** There is no signal beyond `App::title()` that a script — or

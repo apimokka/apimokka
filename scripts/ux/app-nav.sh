@@ -41,13 +41,13 @@ ux_app_select_mode() {
     local do_select
     do_select() {
         ux_wtype_key "$display" Tab
-        sleep 0.2
+        ux_pause 0.2
         if [[ "$mode" == expert ]]; then
             ux_wtype_key "$display" Down
-            sleep 0.2
+            ux_pause 0.2
         fi
         ux_wtype_key "$display" Return
-        sleep 0.4
+        ux_pause 0.4
     }
     do_select
     ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes do_select
@@ -69,17 +69,17 @@ ux_app_open_first_workspace() {
     local do_open
     do_open() {
         ux_wtype_key "$display" Tab
-        sleep 0.3
+        ux_pause 0.3
         ux_wtype_key "$display" Return
-        sleep 0.4
+        ux_pause 0.4
         ux_wtype_key "$display" Tab
-        sleep 0.3
+        ux_pause 0.3
         ux_wtype_key "$display" Tab
-        sleep 0.3
+        ux_pause 0.3
         ux_wtype_key "$display" Tab
-        sleep 0.3
+        ux_pause 0.3
         ux_wtype_key "$display" Return
-        sleep 0.5
+        ux_pause 0.5
     }
     do_open
     ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes do_open
@@ -106,25 +106,35 @@ ux_app_open_first_workspace() {
 ux_app_palette_run() {
     local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5
     local search=$6 expect_change=${7:-yes} skip_escape=${8:-no}
-    local ckpt; ckpt="$(_ux_nav_checkpoint_dir "$out_dir")/palette-$(printf '%s' "$search" | tr -c 'a-zA-Z0-9' '-').png"
+    local dir; dir="$(_ux_nav_checkpoint_dir "$out_dir")"
+    local tag; tag="$(printf '%s' "$search" | tr -c 'a-zA-Z0-9' '-')"
 
-    local do_run
-    do_run() {
-        ux_wtype_ctrl_key "$display" k
-        sleep 0.3
-        ux_wtype_text "$display" "$search"
-        sleep 0.3
-        ux_wtype_key "$display" Down
-        sleep 0.2
-        ux_wtype_key "$display" Return
-        sleep 0.4
-        if [[ "$skip_escape" != yes ]]; then
-            ux_wtype_key "$display" Escape
-            sleep 0.3
-        fi
-    }
-    do_run
-    ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" "$expect_change" do_run
+    # Each step is verified on its own and retried on its own. Replaying the
+    # whole sequence on a stalled frame is not safe: Ctrl+K toggles the
+    # palette, so a replay after a dropped Return would CLOSE it (found
+    # live, task 037 round 2: a Test Rule run captured the palette still
+    # open because Return was dropped — the old end-of-sequence check saw a
+    # changed frame and passed). Every step here ends in a frame that must
+    # differ from the one before it, and its retry is idempotent.
+    local do_open do_down do_return do_escape
+    do_open() { ux_wtype_ctrl_key "$display" k; ux_pause 0.3; }
+    do_down() { ux_wtype_key "$display" Down; ux_pause 0.3; }
+    do_return() { ux_wtype_key "$display" Return; ux_pause 0.5; }
+    do_escape() { ux_wtype_key "$display" Escape; ux_pause 0.3; }
+
+    do_open
+    ux_capture_step "$sock" "$winid" "$dir/palette-$tag-1-open.png" "$prev_hash_var" yes do_open
+    ux_wtype_text "$display" "$search"
+    ux_pause 0.3
+    ux_capture_step "$sock" "$winid" "$dir/palette-$tag-2-typed.png" "$prev_hash_var" yes
+    do_down
+    ux_capture_step "$sock" "$winid" "$dir/palette-$tag-3-selected.png" "$prev_hash_var" yes do_down
+    do_return
+    ux_capture_step "$sock" "$winid" "$dir/palette-$tag-4-ran.png" "$prev_hash_var" "$expect_change" do_return
+    if [[ "$skip_escape" != yes ]]; then
+        do_escape
+        ux_capture_step "$sock" "$winid" "$dir/palette-$tag-5-closed.png" "$prev_hash_var" yes do_escape
+    fi
     ux_log "palette command run: $search"
 }
 
@@ -150,6 +160,7 @@ _ux_palette_search() {
                 routes) echo "ルートへ" ;;
                 save_diff) echo "保存差分" ;;
                 toggle_theme) echo "テーマ" ;;
+                test_rule) echo "ルールをテスト" ;;
                 *) ux_die "_ux_palette_search: no ja text known for '$cmd'" ;;
             esac ;;
         en)
@@ -158,6 +169,7 @@ _ux_palette_search() {
                 routes) echo "go to routes" ;;
                 save_diff) echo "save diff" ;;
                 toggle_theme) echo "toggle theme" ;;
+                test_rule) echo "test current rule" ;;
                 *) ux_die "_ux_palette_search: no en text known for '$cmd'" ;;
             esac ;;
         *) ux_die "_ux_palette_search: unknown locale '$locale'" ;;
@@ -256,7 +268,7 @@ ux_app_show_region_cursor() {
     local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 soft=${6:-no}
     local ckpt; ckpt="$(_ux_nav_checkpoint_dir "$out_dir")/cursor-shown.png"
     local do_tab
-    do_tab() { ux_wtype_key "$display" Tab; sleep 0.3; }
+    do_tab() { ux_wtype_key "$display" Tab; ux_pause 0.3; }
     if [[ "$soft" == yes ]]; then
         do_tab
         local new_hash; new_hash=$(ux_capture "$sock" "$winid" "$ckpt")
@@ -268,4 +280,53 @@ ux_app_show_region_cursor() {
         do_tab
         ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes do_tab
     fi
+}
+
+# ux_app_select_first_rule <display> <sock> <winid> <out-dir> <prev-hash-var> [tabs=5]
+#
+# Opens the rule editor: from a freshly opened workspace (nothing on the
+# workspace screen has taken a Tab yet — `Region::order_for` then starts at
+# the top bar), five Tabs reach the sidebar, Right expands and selects the
+# first rule set, Down moves the cursor to its first rule, Return selects it
+# and the centre panel becomes the editor (WHEN and RESPOND side by side).
+# Not retried: a dropped key mid-sequence would be doubled by a replay, so
+# an unchanged frame stops the run instead (call it first, before anything
+# else has moved the region cursor, and read the frame it leaves).
+ux_app_select_first_rule() {
+    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 tabs=${6:-5}
+    local ckpt; ckpt="$(_ux_nav_checkpoint_dir "$out_dir")/rule-selected.png"
+    local i k
+    for (( i = 0; i < tabs; i++ )); do
+        ux_wtype_key "$display" Tab
+        ux_pause 0.4
+    done
+    for k in Right Down Return; do
+        ux_wtype_key "$display" "$k"
+        ux_pause 0.4
+    done
+    ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes
+    ux_log "first rule selected, editor open"
+}
+
+# ux_app_open_test_rule <display> <sock> <winid> <out-dir> <prev-hash-var> [locale=en]
+#
+# The Test Rule dialog, via its palette row (needs a rule selected).
+# `TestRuleOpen` closes the palette itself and raises the dialog, so the
+# generic trailing Escape would dismiss it again (same trap as the drawer).
+ux_app_open_test_rule() {
+    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 locale=${6:-en}
+    local search; search=$(_ux_palette_search test_rule "$locale")
+    ux_app_palette_run "$display" "$sock" "$winid" "$out_dir" "$prev_hash_var" "$search" yes yes
+}
+
+# ux_app_close_overlay <display> <sock> <winid> <out-dir> <prev-hash-var>
+#
+# One Escape: dismisses the topmost overlay (Test Rule, drawer, ...).
+ux_app_close_overlay() {
+    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5
+    local ckpt; ckpt="$(_ux_nav_checkpoint_dir "$out_dir")/overlay-closed.png"
+    local do_close
+    do_close() { ux_wtype_key "$display" Escape; ux_pause 0.4; }
+    do_close
+    ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes do_close
 }

@@ -35,11 +35,22 @@ ux_die() {
     exit 1
 }
 
-for _ux_required in niri jq wtype file sha256sum; do
+for _ux_required in niri jq wtype file sha256sum python3 md5sum; do
     command -v "$_ux_required" >/dev/null 2>&1 ||
         ux_die "required utility not found: $_ux_required"
 done
 unset _ux_required
+
+# ux_pause <seconds>
+#
+# Every settle delay in this directory goes through here so a slow renderer
+# can be given proportionally more time without editing each call site:
+# UX_PAUSE_SCALE multiplies the delay (default 1). The software renderer
+# (run-configuration.sh --renderer software) sets it, because a repaint that
+# takes seconds makes a key sent 0.3 s after the last one race the redraw.
+ux_pause() {
+    sleep "$(awk -v d="$1" -v k="${UX_PAUSE_SCALE:-1}" 'BEGIN { print d * k }')"
+}
 
 # ── Process lifecycle ──────────────────────────────────────────────────────
 
@@ -240,6 +251,11 @@ ux_capture() {
     local sock=$1 win_id=$2 target=$3
     mkdir -p -- "$(dirname -- "$target")"
     rm -f "$target"
+    # UX_CAPTURE_SETTLE: seconds for the application to finish repainting
+    # before the screenshot is requested. 0 on wgpu; the software renderer
+    # lags the input by whole frames and a capture taken early shows the
+    # previous state (found live, task 039).
+    [[ "${UX_CAPTURE_SETTLE:-0}" != 0 ]] && sleep "$UX_CAPTURE_SETTLE"
     NIRI_SOCKET="$sock" niri msg action screenshot-window --id "$win_id" \
         --path "$target" --write-to-disk true --show-pointer false >/dev/null ||
         ux_die "screenshot-window failed for window $win_id"

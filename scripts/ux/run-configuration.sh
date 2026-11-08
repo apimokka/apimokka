@@ -25,18 +25,28 @@
 #     [--theme light|dark|hclight|hcdark (default light)] \
 #     [--show-cursor (Tab once before each deliverable capture, so the
 #        region-cursor ring is visible in it — combination 2's own need)] \
+#     [--renderer wgpu|software (default wgpu; software forces iced's
+#        tiny-skia, slows every key and capture to match it, and exists
+#        only for when wgpu cannot run — the measured renderer is recorded
+#        in RESULTS.md and must match this request, else the run fails)] \
 #     --out-dir <dir>
 #
 # Captures, under --out-dir:
 #   <name>-00-launch.png    the mode picker, rest state
 #   <name>-01-routes.png    the Routes workbench, workspace open
 #   <name>-02-settings.png  Settings
+#   <name>-04-editor.png    the rule editor (WHEN and RESPOND side by side),
+#                           first rule of the first rule set selected
+#   <name>-05-testrule.png  the Test Rule dialog over the editor
 #   <name>-03-drawer.png    the save-diff drawer (the one dialog-equivalent
 #                           surface every configuration can reach the same
 #                           way — the mock's own default workspace is
 #                           already dirty)
 # plus a RESULTS.md carrying decision 7's nine fields and the measured
-# geometry (never the geometry the commands requested).
+# geometry (never the geometry the commands requested), and a
+# <name>-MANIFEST.md (manifest.sh): every kept frame's MD5 and ground pixel.
+# The run FAILS if two kept frames are byte-identical or a frame's ground
+# contradicts the requested theme.
 
 set -uo pipefail
 
@@ -61,6 +71,7 @@ mode=guided
 locale=en
 theme=light
 show_cursor=no
+renderer=wgpu
 out_dir=
 
 while (( $# > 0 )); do
@@ -73,6 +84,7 @@ while (( $# > 0 )); do
         --locale) locale=$2; shift 2 ;;
         --theme) theme=$2; shift 2 ;;
         --show-cursor) show_cursor=yes; shift ;;
+        --renderer) renderer=$2; shift 2 ;;
         --out-dir) out_dir=$2; shift 2 ;;
         *) ux_die "unknown argument: $1" ;;
     esac
@@ -84,6 +96,16 @@ done
 mkdir -p -- "$out_dir"
 out_dir=$(cd -- "$out_dir" && pwd -P) || ux_die "cannot resolve --out-dir to an absolute path"
 mkdir -p -- "$out_dir/_checkpoints"
+
+app_env=()
+case "$renderer" in
+    wgpu) ;;
+    software)
+        app_env=(ICED_BACKEND=tiny-skia)
+        export UX_PAUSE_SCALE=3 UX_CAPTURE_SETTLE=2.5
+        ;;
+    *) ux_die "--renderer must be wgpu or software, got: $renderer" ;;
+esac
 
 binary="$repository_root/target/debug/apimokka"
 [[ -x "$binary" ]] || ux_die "binary not found — build it first: cargo build -p apimokka --locked"
@@ -131,12 +153,16 @@ host_win_id=$(ux_host_window_id_for_pid "$nested_pid" 10) ||
 ux_host_float_and_resize "$host_win_id" "$width" "$height"
 sleep 0.3
 
-app_pid=$(ux_launch_app "$binary" -u DISPLAY "WAYLAND_DISPLAY=$nested_display")
+app_pid=$(ux_launch_app "$binary" -u DISPLAY "WAYLAND_DISPLAY=$nested_display" "${app_env[@]}")
 app_win_id=$(ux_nested_window_id "$nested_sock" 10) ||
     ux_die "nested compositor never reported the app's window within 10s"
 ux_assert_focus "$nested_sock" "$app_pid"
 
-renderer=$(ux_renderer_evidence "$app_pid")
+renderer_measured=$(ux_renderer_evidence "$app_pid")
+case "$renderer:$renderer_measured" in
+    wgpu:wgpu*|software:tiny-skia*) ;;
+    *) ux_die "requested renderer '$renderer' but measured '$renderer_measured' — evidence would not be comparable" ;;
+esac
 
 prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-00-launch.png")
 
@@ -169,6 +195,25 @@ maybe_show_cursor() {
 maybe_show_cursor
 prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-01-routes.png")
 
+# The rule editor — the application's densest surface, which round 1 never
+# rendered below 1280 (Routes was captured in its empty state). It must be
+# opened before anything else moves the region cursor on the workspace
+# screen: five Tabs from a fresh workspace reach the sidebar, or four when
+# --show-cursor's own Tab above already left the cursor on the top bar.
+editor_tabs=5
+[[ "$show_cursor" == yes ]] && editor_tabs=4
+ux_app_select_first_rule "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$editor_tabs"
+prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-04-editor.png")
+
+ux_app_open_test_rule "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
+# A dialog raised over a palette that has just closed takes the software
+# renderer several repaints to settle (stale-damage ghosts of the palette
+# otherwise survive in the frame); wait it out rather than capture the
+# transition. A no-op on wgpu (UX_PAUSE_SCALE is 1: a 1.5 s wait).
+ux_pause 1.5
+prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-05-testrule.png")
+ux_app_close_overlay "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash
+
 ux_app_open_settings "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
 maybe_show_cursor
 prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-02-settings.png")
@@ -177,6 +222,18 @@ ux_app_open_routes "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" pre
 ux_app_open_save_diff_drawer "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash "$locale"
 maybe_show_cursor
 prev_hash=$(ux_capture "$nested_sock" "$app_win_id" "$out_dir/${name}-03-drawer.png")
+
+# Frame integrity: names, MD5s and measured ground, failing the run on a
+# duplicated frame or a theme contradicted by its own pixels.
+bash "$script_dir/manifest.sh" --theme "$theme" --renderer "$renderer" \
+    --out "$out_dir/${name}-MANIFEST.md" \
+    "$out_dir/${name}-00-launch.png@overlay" \
+    "$out_dir/${name}-01-routes.png" \
+    "$out_dir/${name}-02-settings.png" \
+    "$out_dir/${name}-03-drawer.png@overlay" \
+    "$out_dir/${name}-04-editor.png" \
+    "$out_dir/${name}-05-testrule.png@overlay" ||
+    ux_die "frame manifest failed for $name — evidence in $out_dir is not trustworthy"
 
 read -r logical_w logical_h logical_scale physical_w physical_h < <(ux_measure_nested_output "$nested_sock")
 png_physical=$(ux_png_physical_size "$out_dir/${name}-03-drawer.png")
@@ -196,11 +253,14 @@ cat >"$out_dir/${name}-RESULTS.md" <<EOF
 | Window size (measured, physical) | ${physical_w}x${physical_h} |
 | PNG physical size (cross-check, drawer frame) | $png_physical |
 | Input method | keyboard (wtype on the nested compositor's socket) |
-| Renderer | $renderer |
+| Renderer (requested / measured) | $renderer / $renderer_measured |
 | Entry state | Returning (opened the mock's default workspace) |
 
 Screenshots: \`${name}-00-launch.png\`, \`${name}-01-routes.png\`,
-\`${name}-02-settings.png\`, \`${name}-03-drawer.png\`.
+\`${name}-02-settings.png\`, \`${name}-03-drawer.png\`,
+\`${name}-04-editor.png\` (rule editor, first rule selected),
+\`${name}-05-testrule.png\` (Test Rule dialog). Frame integrity:
+\`${name}-MANIFEST.md\`.
 EOF
 
 ux_log "configuration $name complete: $out_dir/${name}-RESULTS.md"
@@ -211,5 +271,5 @@ printf 'BUILD_SHA=%s\n' "$build_sha"
 printf 'MEASURED_LOGICAL=%sx%s@%s\n' "$logical_w" "$logical_h" "$logical_scale"
 printf 'MEASURED_PHYSICAL=%sx%s\n' "$physical_w" "$physical_h"
 printf 'PNG_PHYSICAL=%s\n' "$png_physical"
-printf 'RENDERER=%s\n' "$renderer"
+printf 'RENDERER=%s\n' "$renderer_measured"
 printf 'OUT_DIR=%s\n' "$out_dir"
