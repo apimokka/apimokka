@@ -246,40 +246,20 @@ ux_app_open_save_diff_drawer() {
     ux_app_palette_run "$display" "$sock" "$winid" "$out_dir" "$prev_hash_var" "$search" yes yes
 }
 
-# ux_app_show_region_cursor <display> <sock> <winid> <out-dir> <prev-hash-var> [soft=no]
+# ux_app_show_region_cursor <display> <sock> <winid> <out-dir> <prev-hash-var>
 #
 # One Tab from wherever focus currently is, so the next capture shows a
 # visible region-cursor ring — combination 2's own requirement ("the
 # keyboard cursor visible on at least one control per screen it covers").
-#
-# soft=yes: found live this session — `theme::card_selected_style`'s own
-# high-contrast branch (crates/app/src/theme.rs) sets only a low-alpha
-# (10-18%) background wash and omits the solid 2px border the non-HC
-# branch draws, so under an HC theme a Tab can genuinely move focus
-# without producing any visible frame difference at all (confirmed by
-# reading the focus ring move cleanly under Dark, then vanish on the next
-# toggle into HC Light, with no script change between the two). That is
-# the finding itself, not a dropped key — `expect_change=yes`'s retry-
-# then-die would misreport a real rendering gap as rig flakiness. Callers
-# for an HC theme should pass soft=yes: the Tab is still sent once, the
-# frame is captured either way, and a same-hash result is logged as a
-# finding rather than retried to death.
+# Strict in every theme: a Tab that leaves the frame unchanged is retried and
+# then stops the run.
 ux_app_show_region_cursor() {
-    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5 soft=${6:-no}
+    local display=$1 sock=$2 winid=$3 out_dir=$4 prev_hash_var=$5
     local ckpt; ckpt="$(_ux_nav_checkpoint_dir "$out_dir")/cursor-shown.png"
     local do_tab
     do_tab() { ux_wtype_key "$display" Tab; ux_pause 0.3; }
-    if [[ "$soft" == yes ]]; then
-        do_tab
-        local new_hash; new_hash=$(ux_capture "$sock" "$winid" "$ckpt")
-        if [[ "$new_hash" == "${!prev_hash_var}" ]]; then
-            ux_log "NOTE: region-cursor capture identical to the previous frame after Tab under an HC theme — not treated as a dropped key (see theme::card_selected_style's HC branch, scripts/ux/app-nav.sh's own comment on this function)"
-        fi
-        printf -v "$prev_hash_var" '%s' "$new_hash"
-    else
-        do_tab
-        ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes do_tab
-    fi
+    do_tab
+    ux_capture_step "$sock" "$winid" "$ckpt" "$prev_hash_var" yes do_tab
 }
 
 # ux_app_select_first_rule <display> <sock> <winid> <out-dir> <prev-hash-var> [tabs=5] [rule=0]

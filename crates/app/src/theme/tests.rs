@@ -663,6 +663,40 @@ fn text_input_focus_ring_stays_above_non_text_contrast() {
 }
 
 #[test]
+fn focused_text_input_is_distinguishable_from_resting_in_all_presets() {
+    // D-36. Two guards exist on purpose: `text_input_focus_ring_stays_above_
+    // non_text_contrast` measures the focus ring against the PAGE, and it holds
+    // in every preset — but a ring can clear the page and still vanish against
+    // the border beside it, which is what the eye compares. Text inputs take
+    // no region cursor, so their focus indication is this border alone. Rule
+    // (MK-028's non-colour rule, the shape of D-30's guard): against the
+    // resting (Active) border, focus must differ by EITHER a colour clearing
+    // 3:1 OR a border at least 1 px wider. Before the fix focus was a hue
+    // change only — 3.74 / 2.63 / 1.40 / 1.19:1 with width +0.0 — and passed
+    // the colour clause in Light alone.
+    let mut failures = Vec::new();
+    for p in presets() {
+        let t = snora_theme(&p.tokens);
+        let resting = text_input_style(&t, Status::Active).border;
+        let focused = text_input_style(&t, Status::Focused { is_hovered: false }).border;
+        let by_colour = ratio(focused.color, resting.color) >= 3.0;
+        let by_width = focused.width - resting.width >= 1.0;
+        if !(by_colour || by_width) {
+            failures.push(format!(
+                "{}: colour {:.2}:1, width {:+}px",
+                p.name,
+                ratio(focused.color, resting.color),
+                focused.width - resting.width
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "focused text input not distinguishable from resting (colour >=3:1 or +1px): {failures:#?}"
+    );
+}
+
+#[test]
 fn text_input_style_starts_from_iced_default() {
     // Task 023 §4.1 / acceptance criterion 2: every untouched role (icon,
     // selection, hover/focus border, active/hovered/focused background) must
@@ -690,12 +724,25 @@ fn text_input_style_starts_from_iced_default() {
                 p.name
             );
         }
-        // Hover and Focus borders are untouched (not in the failing set).
+        // The Hover border is untouched (not in the failing set).
         let hover_base = text_input::default(&t, Status::Hovered).border;
         let hover_ours = text_input_style(&t, Status::Hovered).border;
         assert_eq!(hover_ours, hover_base, "{} hover border", p.name);
+        // The focus border keeps iced's colour and radius; since D-36 it is
+        // 2 px wide (the width cue) — see
+        // `focused_text_input_is_distinguishable_from_resting_in_all_presets`.
         let focus_base = text_input::default(&t, Status::Focused { is_hovered: false }).border;
         let focus_ours = text_input_style(&t, Status::Focused { is_hovered: false }).border;
-        assert_eq!(focus_ours, focus_base, "{} focus border", p.name);
+        assert_eq!(
+            focus_ours.color, focus_base.color,
+            "{} focus colour",
+            p.name
+        );
+        assert_eq!(
+            focus_ours.radius, focus_base.radius,
+            "{} focus radius",
+            p.name
+        );
+        assert_eq!(focus_ours.width, 2.0, "{} focus width", p.name);
     }
 }

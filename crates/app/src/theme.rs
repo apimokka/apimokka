@@ -762,10 +762,11 @@ pub fn cycler_handle() -> iced::widget::pick_list::Handle<iced::Font> {
 /// only 2.51 / 2.95 against it in Light / Dark — short of the 3:1 floor.
 /// Disabled's border takes `text_secondary` instead, the same token already
 /// carrying that status's text, which clears 3:1 against `weak` everywhere
-/// (6.53 / 7.10 / 12.91 / 16.50). Hover's border (`background.base.text`) and
-/// the focus ring (`primary.strong`) are untouched: neither is in the failing
-/// set, and the focus ring is pinned by a test instead so a future change
-/// cannot quietly take a passing role away.
+/// (6.53 / 7.10 / 12.91 / 16.50). Hover's border (`background.base.text`) is
+/// untouched. The focus ring keeps its colour (`primary.strong`, ≥3:1 against
+/// the page and pinned by a test) but, since D-36, is 2 px against the resting
+/// 1 px: against the resting border beside it the colour alone cleared 3:1 in
+/// Light only (3.74 / 2.63 / 1.40 / 1.19), so width now carries the state.
 pub fn text_input_style(
     theme: &Theme,
     status: iced::widget::text_input::Status,
@@ -783,6 +784,15 @@ pub fn text_input_style(
         }
         Status::Focused { .. } => {
             style.placeholder = muted(theme);
+            // D-36: focus was iced's hue change at the resting 1 px width and
+            // nothing else — 3.74 / 2.63 / 1.40 / 1.19:1 against the resting
+            // border in Light / Dark / HC Light / HC Dark, clearing 3:1 in one
+            // preset. Text inputs take no region cursor, so this border is the
+            // whole indication. Width carries the state (MK-028's non-colour
+            // rule, as D-30 did for selection) and the stock colour stays, so
+            // no new colour is measured and `primary` is left to the region
+            // cursor.
+            style.border.width = 2.0;
         }
         Status::Disabled => {
             // `border_token` only clears 3:1 against this status's `weak`

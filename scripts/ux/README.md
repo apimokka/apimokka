@@ -144,13 +144,10 @@ themselves evidence.
   `XDG_STATE_HOME` or any other environment-derived directory — every
   launch starts from the same hardcoded mock state regardless of the
   host's own configuration, so there is nothing to isolate.
-- **`--show-cursor` is strict under every theme since D-29 was fixed.** It
-  used to capture no visible change under High Contrast
-  (`theme::card_selected_style`'s HC branch drew no border), so
-  `ux_app_show_region_cursor` had a `soft=yes` mode that logged the identical
-  frame as a finding. The fix (task 038) made a Tab change the frame in every
-  preset, so `run-configuration.sh` now uses the strict check — a regression
-  fails the run. `soft=yes` remains for a regression hunt only.
+- **`--show-cursor` is strict under every theme.** A Tab that leaves the
+  frame unchanged is retried and then stops the run. (Under High Contrast the
+  ring was once invisible — D-29, closed by task 038 — and the helper carried
+  a `soft` mode for it; that branch was removed with D-36.)
 - **Stability re-poll.** `ux_capture_step` no longer replays a key the first
   time a frame looks unchanged: it waits `UX_STABLE_WAIT` (default 1 s,
   scaled by `UX_PAUSE_SCALE`) and compares again, so a *late* key is told from

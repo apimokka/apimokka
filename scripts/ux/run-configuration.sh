@@ -185,10 +185,7 @@ fi
 
 maybe_show_cursor() {
     if [[ "$show_cursor" == yes ]]; then
-        # D-29 is fixed: a Tab under an HC theme must now change the frame,
-        # so the strict (retry, then fail) check applies to every theme —
-        # `soft` stays available in app-nav.sh for a regression hunt only.
-        ux_app_show_region_cursor "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash no
+        ux_app_show_region_cursor "$nested_display" "$nested_sock" "$app_win_id" "$out_dir" prev_hash
     fi
     return 0
 }
