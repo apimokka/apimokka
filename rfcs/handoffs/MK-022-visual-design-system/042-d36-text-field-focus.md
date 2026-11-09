@@ -2,7 +2,7 @@
 
 **Issued:** 2026-11-08
 **Issued by:** programme architect
-**Authorized by:** project owner — pending
+**Authorized by:** project owner, 2026-11-09
 **Design:** [MK-022](../../done/MK-022-visual-design-system.md) § colour roles;
 [MK-028](../../done/MK-028-routes-workbench.md) § the non-colour rule;
 [MK-023](../../done/MK-023-accessibility-keyboard.md) § visible focus

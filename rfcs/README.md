@@ -86,7 +86,7 @@ both, and that no handoff directory duplicates a lifecycle folder.
 
 | Handoffs | For | State |
 |---|---|---|
-| [MK-022-visual-design-system](./handoffs/MK-022-visual-design-system/) | Visual design system | Tasks 036, 038, 039 complete (D-21, D-25, D-27, D-29, D-30 closed); **task 042 issued** for D-36 (S2) — text-field focus is colour-only in every preset |
+| [MK-022-visual-design-system](./handoffs/MK-022-visual-design-system/) | Visual design system | Tasks 036, 038, 039 complete (D-21, D-25, D-27, D-29, D-30 closed); **task 042 authorized** 2026-11-09 for D-36 (S2) — text-field focus is colour-only in every preset |
 | [MK-028-routes-workbench](./handoffs/MK-028-routes-workbench/) | Routes workbench | Tasks 040 and 041 complete — D-31, D-32, D-33 and D-34 closed; the editor's layout at 880×700 is settled and no open defect is above S3 |
 | [MK-023-accessibility-keyboard](./handoffs/MK-023-accessibility-keyboard/) | Accessibility and keyboard contract | Design accepted 2026-10-31; all ten slices complete 2026-11-03 |
 | [MK-036-content-microcopy](./handoffs/MK-036-content-microcopy/) | Content and microcopy | D-17 issued |
