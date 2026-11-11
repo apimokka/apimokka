@@ -18,24 +18,47 @@ say, and what to book.
 
 ---
 
-## ⚠ Updated 2026-10-06 — recruit now; sessions come after cycle C2
+## ⚠ Updated 2026-11-11 — nothing precedes the sessions any more
 
-Three defects precede the sessions: **D-12** (S1, keyboard path), **D-13** (S2,
-panel contrast) and **D-14** (S3). They are cycles C1 and C2 in `ROADMAP.md`
-§ *Remaining sequence, priority, and delivery cycles*.
+**This section used to say three defects came first.** They are long closed, and
+so is everything that followed them. As of 2026-11-11:
 
-**Recruiting is unaffected and should proceed** — it has no prerequisite.
-**Starting a session is what waits**, and for an ordering reason rather than a
-timing one: C1 and C2 change what a participant sees, and first-boot naivety is
-one-shot, so a session run before them could not be re-run with the same person.
+- **cycles C1 and C2 are closed** (D-12, D-13, D-14 among them);
+- **L2 is complete** — all four of decision 7's mandatory combinations have a
+  recorded pass (dev-team task 037, four rounds, finished 2026-11-08);
+- **the six defects that L2 preparation found are all closed** — D-29, D-30,
+  D-31, D-32, D-33 and D-36, four of them S1, the last accepted 2026-11-09;
+- **the open register is D-24 (S2), D-28 (S3) and D-35 (S3)**, every one of
+  them explicitly deferred to after M6 under decision 8.
 
-## Before you contact anyone — one decision is open
+**So there is no engineering prerequisite left.** Recruiting was always
+unblocked; now the sessions are too. The only thing between this repository and
+a first session is the two people.
 
-**Read `rfcs/handoffs/MK-056-ux-acceptance-protocol/003-m6-session-pack.md` §0 first.** It raises a
-contradiction in MK-056's own acceptance criteria that changes **how many
-sessions you need to book** — either three sessions of ~75 minutes, or two.
-Recruiting is unaffected either way (the same two people), but the time you ask
-them for is not, and asking for more later is worse than asking once.
+## Before you contact anyone — the open decision is now settled
+
+**§0 of the session pack asked whether to reclaim L2 and run two sessions
+instead of three. Events settled it: L2 was reclaimed and all four combinations
+pass**, so participants carry **no screenshot-verification load** — the
+sessions measure comprehension and nothing else.
+
+**What L2 did not reclaim is the keyboard session.** MK-056's criterion names a
+participant: *"every primary scenario completed by a participant … on both
+pointer and keyboard paths"*, and no script stands in for one.
+
+**Recommended shape — two people, three sittings, asked for once:**
+
+| Sitting | Who | Length | What it covers |
+|---|---|---:|---|
+| S1 | Persona A (newcomer) | ~75 min | Guided, pointer, EN, large window — first boot |
+| S2 | Persona B (expert) | ~75 min | Expert, pointer, JA, smallest window — first boot |
+| S3 | **Persona B again**, after a break or on another day | ~40 min | keyboard-only, high contrast — the path L2 cannot cover |
+
+S3 does not need first-boot naivety (it is spent by then), which is why it can
+reuse a participant rather than cost a third recruit. Persona B is the
+suggestion, not a rule — give it to whichever of the two is more comfortable
+driving by keyboard. **Ask for both slots in the first invitation**: asking for
+more later is worse than asking once.
 
 ---
 
@@ -146,7 +169,7 @@ to replace.
 | Platform | **Linux only** | MK-056 rejected human sessions on all three platforms: L1 and L2 supply platform evidence, leaving sessions to measure comprehension, which does not vary materially by platform. Do not recruit for Windows or macOS. |
 | Location | In person, or screen-share with audio | You must see hesitation and hear think-aloud. Text chat is not sufficient. |
 | Duration | ~75 min per session, plus 15 min setup | Six primary scenarios with think-aloud. Pending §0. |
-| Build | Record the **commit SHA** at session start | MK-056 decision 7: "A finding without its configuration is not reproducible and is not evidence." Current head is `bf16c48`. |
+| Build | Record the **commit SHA** at session start | MK-056 decision 7: "A finding without its configuration is not reproducible and is not evidence." Head is `0570b18` as of 2026-11-11; **I freeze and confirm the identity once you give me a date**, so do not copy this one into a session log. |
 | Recording | Optional, and ask | Notes are sufficient — the facilitator log is the evidence artifact, not a video. |
 | Compensation | Your call | Not a protocol matter, but 75 minutes of an expert's time is a real ask. |
 
@@ -176,7 +199,8 @@ Nothing formal. Tell me when you have:
 1. **who** (persona A / persona B — names are not needed in the record);
 2. **when**, so I can confirm the build is frozen and the session pack matches
    the tree they will see;
-3. whether §0's decision changed the session count.
+3. **the shape you booked** — whether S3 rides with one of the two sittings
+   above or became a third booking.
 
 I will then confirm the environment, freeze the build identity, and walk the
 pack with you before the first session. **You facilitate; I do not attend** —
