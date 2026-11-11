@@ -266,6 +266,40 @@ The layered model itself stands. Separating machine-checkable facts from human
 judgement was correct; this host simply has a smaller machine-checkable set than
 the design assumed.
 
+> ### Amendment, 2026-11-11 — the model gains a headless level
+>
+> **The project owner updated `.git-exclude/rules/project-instructions-gui-common.md`
+> on 2026-11-11** with *Test Optimization Rules*: check each property at the
+> cheapest level that can prove it, and cover every combination there — logic
+> and state, then **headless UI** (the framework's own harness, for interaction
+> and layout properties, across every text size, language, theme and window
+> size, on every CI run), then the real rendered UI for what needs human eyes.
+>
+> **This design had two levels where the rules name three.** L1 is CI, L2 is
+> scripted real-window capture, L3 is human sessions; nothing sat between the
+> unit suite and a window on a screen. The model therefore reads, from here:
+>
+> | Level | What it is |
+> |---|---|
+> | **L1** | CI — build, tests, gates, three platforms, two toolchains |
+> | **L2a** | **Headless UI (new)** — `iced_test`'s simulator: interaction and layout properties across size × theme × locale, on every CI run |
+> | **L2b** | Scripted real-window capture — `scripts/ux/`, the nested-compositor rig |
+> | **L3** | Human sessions — comprehension, which only people can supply |
+>
+> **No acceptance criterion changes.** L2a *absorbs* load from L2b rather than
+> adding a requirement: the four mandatory combinations keep their recorded L2
+> passes, and *"L2 recorded pass"* is satisfied by either half of L2. What
+> changes is where a layout question is answered first — and the audit behind
+> this amendment shows why: **D-31 and D-33, two S1 defects that cost a capture
+> run and a task each, are both unit-testable at L2a** (`click("DELETE")` at
+> 880×700 returns `TargetNotVisible`; a collapsed value field has bounds with
+> no width).
+>
+> **Issued as dev-team task 043**, spike first — the harness may not model
+> clipping, and layout may not be deterministic across platforms, so the task
+> is allowed to come back "no". Audit:
+> `.git-exclude/reviewed/2026-11-11-gui-rules-update-compliance-audit.md`.
+
 ### 4. L3 — human sessions
 
 #### Personas
