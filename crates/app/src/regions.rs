@@ -788,20 +788,20 @@ pub fn editor_fields(app: &App) -> Vec<EditorField> {
 
     let show_when_more = !app.shows_scaffolding() || app.rule_when_more;
     if show_when_more {
-        for i in 0..p.headers.len() {
+        for (i, header) in p.headers.iter().enumerate() {
             fields.push(EditorField::HeaderName(i));
             fields.push(EditorField::HeaderOp(i));
-            if !p.headers[i].op.value_irrelevant() {
+            if !header.op.value_irrelevant() {
                 fields.push(EditorField::HeaderValue(i));
             }
             fields.push(EditorField::HeaderRemove(i));
         }
         fields.push(EditorField::AddHeader);
-        for i in 0..p.body.len() {
+        for (i, condition) in p.body.iter().enumerate() {
             fields.push(EditorField::BodyPath(i));
             fields.push(EditorField::BodyPathAssistant(i));
             fields.push(EditorField::BodyOp(i));
-            if p.body[i].op != BodyOp::Exists && p.body[i].op != BodyOp::Absent {
+            if condition.op != BodyOp::Exists && condition.op != BodyOp::Absent {
                 fields.push(EditorField::BodyValue(i));
             }
             fields.push(EditorField::BodyRemove(i));
