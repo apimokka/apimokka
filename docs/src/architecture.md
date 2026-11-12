@@ -11,7 +11,7 @@ crates/app (apimokka)
   ├── crates/model (apimokka-model)
   ├── crates/i18n (apimokka-i18n)
   ├── iced 0.14
-  └── snora 0.28
+  └── snora 0.42 (design only: default-features = false, features = ["design"])
 
 crates/model
   ├── http 1.4
@@ -22,9 +22,12 @@ crates/i18n
   └── no external dependencies
 ```
 
-The root manifest requests snora 0.28 from crates.io; the lockfile currently
-resolves the snora family to 0.28.0. No `vendor/` tree is part of the current
-workspace.
+The root manifest requests snora 0.42 from crates.io with
+`default-features = false, features = ["design"]`; the lockfile resolves the
+snora family to 0.42.0. **The pin is deliberate and held through M6** — a
+snora release changes rendered appearance by snora's own account, and M6's
+evidence must describe the build it was taken from; the upgrade is cycle C7
+(see `ROADMAP.md`). No `vendor/` tree is part of the current workspace.
 
 ## Application structure
 

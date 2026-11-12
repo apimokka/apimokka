@@ -366,7 +366,7 @@ Current glyph vocabulary (preserve or replace consistently):
 - Light and Dark mode both ship in v1
 - Status colours (severity, outcome) must work on both backgrounds
 
-### Technology limits — iced 0.14 + snora 0.8
+### Technology limits — iced 0.14 + snora 0.42
 
 The renderer is **iced 0.14**. A designer should know what it can and
 cannot do natively:
