@@ -100,6 +100,33 @@ an overflow assertion would pass **spuriously**.
    normally; **the matrix's own first CI run is the six-leg answer**, reporting
    any platform difference as a failure.
 
+## 2c. Steps 2 and 3 landed, 2026-11-18 — accepted
+
+`1e70575` (matrix) and `6e32171` (rig), accepted. **320 cells across 15
+surfaces × 2 sizes × 4 themes × 2 locales × audience mode, green at HEAD in
+3.1 s on every `cargo test`.** Red against history — 300 violations at
+`59036cb`, 116 at `4240803` — and the architect's own re-run of that red found
+a **fourth defect instance nobody had listed**: the Delay unit `"ms"` was
+zero-width at 880×700 before task 040 wrapped the Status/Delay row, on a
+surface two capture rounds had already inspected.
+
+The Japanese precondition refuses a font-less runner loudly
+(42.6 px vs the 55 px floor) instead of letting its cells pass spuriously —
+verified independently under `bwrap`. `.cargo/config.toml`'s `[env]` forces the
+software backend everywhere (3.1 s against ~40 s). The rig's five gaps are
+closed with `rig-selftest.sh` (19 checks, no display) **inside the release
+gate**, and its XDG work added a per-run source check that turns this
+programme's standing claim — *the mockup reads nothing* — into a gate.
+
+**Decisions recorded with the acceptance** (review §4): rule 3's reading
+stands, with its one residual written in the module doc rather than fixed;
+`fonts-noto-cjk` stays in `ci.yml`; the slow font-less path is accepted as a
+failure path; and **this level stays layout-only** — no interaction flows
+until M6 says what to add.
+
+**One line still open:** the six-leg CI result, which this acceptance
+triggers. Green closes the task; a disagreeing leg is its last finding.
+
 ## 3. Step 2 — the matrix, if the spike holds
 
 Layout invariants, asserted headlessly across **size × theme × locale**:
