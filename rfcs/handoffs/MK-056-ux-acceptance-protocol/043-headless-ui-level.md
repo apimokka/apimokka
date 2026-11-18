@@ -62,6 +62,44 @@ would survive a headless `click("DELETE")` at 880×700.
 mechanical; if they are not, the design decision returns to me rather than
 being absorbed into an implementation.
 
+## 2b. Step 1's result, 2026-11-18 — the spike holds
+
+`31ee235`, accepted. The harness sees **both** defects: on the pre-fix
+`rule_editor.rs`, PATCH and DELETE report **width 0.0 and `visible_bounds`
+`None`** and the header value **width 0**; at HEAD both pass, the value at
+**232 px** against task 041's measured ~230. Layout is independent of
+renderer (wgpu headless = forced tiny-skia), of toolchain (1.99 = 1.91), and —
+for **English** — of the runner's fonts, because `iced_test` substitutes
+bundled **Fira Sans** for `Font::DEFAULT` (verified under `bwrap` with every
+font directory hidden). Cost: 19 dev-only crates, no GPU crate, 0.07 s per
+simulation forced to software.
+
+**Japanese is not font-independent, and it fails in the dangerous direction:**
+with no CJK font present, 「メソッド」 measures **42.6 px** instead of 64.0, so
+an overflow assertion would pass **spuriously**.
+
+**Three decisions, from the review (`.git-exclude/reviewed/2026-11-18-task043-step1-spike-review.md` §3):**
+
+1. **Japanese runs everywhere, with a precondition.** Each Japanese cell first
+   asserts 「メソッド」 **≥ 55 px**, failing loudly with *"no CJK font on this
+   runner"* otherwise. CJK glyphs are full-width, so any real CJK font lands
+   near 64; the Latin fallback measured 42.6, and 55 sits in the gap. A pinned
+   font fixture stays the fallback if this proves flaky.
+2. **Assert structure and thresholds, never exact pixels** — the simulator
+   draws Fira Sans where the real window draws the system sans.
+3. **Force the software backend in `.cargo/config.toml`'s `[env]`**, not in
+   `ci.yml`, so local runs, the gate and all six legs are identically
+   deterministic. (`ci.yml` is the fallback if the variable is read before
+   cargo's `[env]` applies.)
+4. **`visible_bounds` above the fold; layout `bounds()` plus containment in the
+   scrollable's `content_bounds` below it** — and where a cell can put the
+   control above the fold by choosing a taller window, prefer that, because
+   `visible_bounds` is the assertion that caught D-31. State per cell which
+   was used.
+5. **No throwaway branch for the six legs.** This commit lands on the branch
+   normally; **the matrix's own first CI run is the six-leg answer**, reporting
+   any platform difference as a failure.
+
 ## 3. Step 2 — the matrix, if the spike holds
 
 Layout invariants, asserted headlessly across **size × theme × locale**:
