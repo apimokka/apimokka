@@ -1,0 +1,6 @@
+[env]
+# Task 043: the headless-UI level (iced_test) probes for a wgpu adapter first.
+# Force the software renderer so `cargo test` is identical on a laptop, in the
+# release gate and on all six CI legs, and ~7x faster (0.07 s vs 0.5 s per
+# simulation). Layout is renderer-independent (measured), so nothing is lost.
+ICED_TEST_BACKEND = "tiny-skia"

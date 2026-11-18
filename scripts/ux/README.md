@@ -39,6 +39,15 @@ Three capture attempts were lost to the unguarded version of this in task
 035; the same discipline correctly told an input stall from a frozen
 application in task 036.
 
+## Where this sits: L2a (headless) before L2b (these scripts)
+
+Layout properties — nothing clipped, every choice drawn, no label wrapping —
+are asserted **headlessly** by `crates/app/src/app/headless_matrix.rs` on every
+`cargo test`, across size × theme × locale × audience mode (task 043). Use these
+scripts only for what needs human eyes or the real compositor, and when a
+capture shows a problem the matrix missed, add the check to the matrix first.
+The matrix forces the software renderer via `.cargo/config.toml` (`[env]`).
+
 ## Layout
 
 - **`lib.sh`** — generic rig primitives: nested-compositor lifecycle,

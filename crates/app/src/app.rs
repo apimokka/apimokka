@@ -4549,8 +4549,8 @@ mod tests_mk023_slice2;
 mod tests_mk023_slice9;
 
 #[cfg(test)]
-#[path = "app/headless_spike.rs"]
-mod tests_headless_spike;
+#[path = "app/headless_matrix.rs"]
+mod tests_headless;
 
 // ── App view / subscription (not in the impl block above) ─────────────────────
 

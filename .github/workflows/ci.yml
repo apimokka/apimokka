@@ -27,6 +27,15 @@ jobs:
         with:
           key: ${{ matrix.rust }}
 
+      - name: A CJK font for the headless layout matrix (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # The matrix's Japanese cells need a CJK font on the runner; the
+          # test fails loudly without one rather than pass on narrower labels.
+          if ! fc-list :lang=ja | grep -q .; then
+            sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+          fi
+
       - name: cargo build --workspace --locked
         run: cargo build --workspace --locked
 
