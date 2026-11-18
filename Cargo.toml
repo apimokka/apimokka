@@ -25,6 +25,7 @@ http                        = "1.4"
 # GUI stack
 iced                        = { version = "0.14", features = ["tokio", "advanced"] }
 snora                       = { version = "0.42", default-features = false, features = ["design"] }
+iced_test                   = "0.14"   # dev only: the headless UI level (task 043)
 
 # Utility
 serde_json                  = "1"

@@ -4548,6 +4548,10 @@ mod tests_mk023_slice2;
 #[path = "app/control_census.rs"]
 mod tests_mk023_slice9;
 
+#[cfg(test)]
+#[path = "app/headless_spike.rs"]
+mod tests_headless_spike;
+
 // ── App view / subscription (not in the impl block above) ─────────────────────
 
 impl App {

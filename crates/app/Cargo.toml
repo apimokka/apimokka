@@ -26,4 +26,5 @@ http                        = { workspace = true }
 serde_json                  = { workspace = true }
 
 [dev-dependencies]
+iced_test                   = { workspace = true }
 apimokka-model              = { workspace = true, features = ["contract-test-support"] }
