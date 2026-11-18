@@ -124,8 +124,13 @@ stands, with its one residual written in the module doc rather than fixed;
 failure path; and **this level stays layout-only** — no interaction flows
 until M6 says what to add.
 
-**One line still open:** the six-leg CI result, which this acceptance
-triggers. Green closes the task; a disagreeing leg is its last finding.
+**The six legs answered, 2026-11-18: all green — TASK COMPLETE.** CI run
+`44287222309` ran the matrix on Linux, macOS and Windows under both
+toolchains: `japanese_needs_a_cjk_font ... ok`, `layout_matrix_size_theme_
+locale_mode ... ok`, **470 passed** on every leg (Windows 4.89 s). So macOS
+and Windows carry CJK fonts with different metrics from Linux's Noto, and
+**the thresholds absorbed the difference exactly as designed** — the question
+the spike left open is answered with data rather than assumption.
 
 ## 3. Step 2 — the matrix, if the spike holds
 
