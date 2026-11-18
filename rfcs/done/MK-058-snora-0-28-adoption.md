@@ -120,6 +120,38 @@ untouched. **Treat that as a claim to test, not a fact to assume.**
 > from. Scheduled as **cycle C7 / RFC MK-062**, after C4 and before R2.
 > Assessment: `.git-exclude/reviewed/2026-11-09-snora-0-57-0-assessment.md`.
 >
+> **0.65.0, 2026-11-18 — the second paragraph under the standing practice, and
+> the first that touches a claim of ours.** Eight minors in ten days
+> (0.57 → 0.65); we are now **twenty-three behind**. Assessed against the
+> surface list above:
+>
+> - **nothing forces a change.** The right-hand-sheet width bug (0.4–0.61,
+>   fixed 0.62) is `SheetEdge::End`; our drawer is `SheetEdge::Bottom` with
+>   `SheetSize::Ratio(0.32)`, which the correction does not touch. The
+>   typography correction binds an application that **redefined** `title`; we
+>   redefine nothing — `theme::line_height` *reads* `text::title_line_height`.
+>   0.62's chord change and 0.65's new controls are on the widgets path we do
+>   not use;
+> - **one item is about us, and it is a claim rather than code.** snora
+>   reports that its preset contrast claims held for less than they said up to
+>   0.62, and hold as stated only **from 0.63**. We run 0.42. Our own
+>   guarantee never rested on theirs — MK-022's measure-on-our-surface rule —
+>   but the **README repeated the vendor's phrasing**, and MK-050's rationale
+>   paragraph still called the tokens "contrast-tested". Both corrected
+>   2026-11-18;
+> - **snora independently confirms MK-023's premise**, and widens it: *"iced
+>   0.14's own form controls cannot be reached by the keyboard … only
+>   `text_input` is reachable"*, naming `checkbox`, `toggler`, `radio`,
+>   `pick_list`, `combo_box` and `slider`. Our region/cursor model is the
+>   answer to exactly that, and `pick_list` is one of the widgets it wraps;
+> - **four concrete inputs for C7's survey**, which is why the survey is worth
+>   more now than it was on 2026-11-09: **0.62 and 0.63 move pixels** (the
+>   contrast repairs are colour changes to the presets we render), **0.63**
+>   changes `row_dir`'s return type, **0.64** removes the deprecated F6 types
+>   and makes `direction` a required argument on eight widget functions, and
+>   **0.65** adds keyboard-reachable form controls — a design question against
+>   our own model, not a bump.
+>
 > **Standing practice from here, set with C7's conditional authorization on
 > 2026-11-09:** every snora notice that arrives gets **one paragraph here**,
 > assessing it against the surface list above, written on receipt rather than

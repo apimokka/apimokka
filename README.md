@@ -65,7 +65,7 @@ to reach the full Routes workbench.
   ⌘⇧Z on macOS) applies compensating port transactions and rebinds recreated
   node identities.
 - **MK-038 fallback file lifecycle** — two-buffer (saved baseline + draft), explicit Save, confirmed Revert, live JSON validity badge
-- **Snora Design tokens** — built on snora 0.42's design system: WCAG-AA contrast-tested color presets with four themes (Light, Dark, **High Contrast Light, High Contrast Dark**). High-contrast modes add visible card/panel borders for low-vision users. Selectable in Settings → Appearance.
+- **Snora Design tokens** — built on snora 0.42's design system, with four themes (Light, Dark, **High Contrast Light, High Contrast Dark**), selectable in Settings → Appearance. High-contrast modes add visible card/panel borders for low-vision users. **Contrast is measured here, not inherited**: this crate's own contract tests assert every pairing it draws in all four presets — AA 4.5:1 for text, 3:1 for the non-text cues that carry state (focus, selection, the keyboard cursor) — on the surface each one is actually drawn on. That rule predates, and survived, snora's own 2026-11-18 correction that its preset-level contrast claims had held for less than they said up to 0.62.
 - **Non-colour status matrix** — every status indicator carries both a glyph and a text label
 - **i18n from day one** — English and Japanese translations compiled into the binary; locale switch in Settings
 - **snora AppLayout shell** — header / left sidebar / screen body / bottom drawer; command palette (all 17 commands wired)

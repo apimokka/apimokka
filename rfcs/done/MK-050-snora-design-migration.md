@@ -29,6 +29,24 @@ greys and no contrast verification. Adopting Snora Design gives us
 contrast-tested tokens and, critically, **two high-contrast presets** that we
 can expose as an accessibility option.
 
+> **Note, 2026-11-18 — "contrast-tested" held for less than it said, and it
+> never carried our guarantee.** snora's release news of that date reports two
+> audits of its own book against its tests and drawn pixels: **up to 0.61** its
+> preset claims were under at several declared pairs and states, **0.62**
+> closed one set and left non-text elements under (a progress track at 1.00:1,
+> a toast edge, a scrollbar thumb, `card::raised`'s border at 2.75:1), and
+> **from 0.63 the claims hold as stated on the design path**. We run **0.42**,
+> so the sentence above describes a claim that was overstated for our pin.
+>
+> **Nothing in this project rested on it.** MK-022's rule — *measure the
+> pairing on our surface; never inherit a token's own claim* — is why: every
+> colour this application draws is asserted by our own contract tests in all
+> four presets, on the ground it is drawn on, and that is what D-13, D-21,
+> D-30 and D-36 each fixed and pinned. The README's inherited phrasing was
+> corrected the same day. **What this RFC's adoption decision bought remains
+> true**: a token set with four presets and two high-contrast ones, which we
+> then measured ourselves.
+
 ## Decision
 
 Adopt snora 0.25 with the `design` feature. Store a `snora::design::Tokens`
