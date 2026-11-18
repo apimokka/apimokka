@@ -48,6 +48,27 @@ scripts only for what needs human eyes or the real compositor, and when a
 capture shows a problem the matrix missed, add the check to the matrix first.
 The matrix forces the software renderer via `.cargo/config.toml` (`[env]`).
 
+## Safety properties built into the rig (task 043 step 3)
+
+- **The focus check is inside the key wrappers.** `ux_wtype_key`/`_text`/
+  `_ctrl_key`/`_shift_key` call `ux_assert_focus` immediately before sending,
+  against the instance registered with `ux_bind_instance <sock> <pid>`; with no
+  instance bound they refuse to type.
+- **Every directory the application could read is isolated.** The app is
+  launched with throwaway `XDG_CONFIG/STATE/CACHE/DATA_HOME`; every run asserts
+  from source that no production code touches files or the environment and
+  logs what the isolated directories ended up holding (third-party caches only
+  — Mesa, NVIDIA, RADV — kept out of the real home as a side benefit).
+- **The nested window is chosen by pid**, never "the first window".
+- **The backend is a recorded, measured field** (`Backend` in `RESULTS.md`):
+  native Wayland iff the nested window carries the application's own pid.
+- **The repeat limit is a ledger outside the evidence directories**
+  (`.git-exclude/release-evidence/.capture-runs`): the second run of the same
+  `<out-dir>|<name>` prints a notice (say so in the review request); the third
+  is refused until `UX_RERUN_APPROVED='<who/why>'` records the architect's OK.
+- `rig-selftest.sh` (no display needed, in the release gate) proves each of
+  these refuses what it should.
+
 ## Layout
 
 - **`lib.sh`** — generic rig primitives: nested-compositor lifecycle,

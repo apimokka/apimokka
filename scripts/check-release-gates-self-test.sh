@@ -154,6 +154,8 @@ write_expected() {
     [[ "$stop_after" == source_size ]] && return
     record "$destination" bash scripts/ux/manifest-selftest.sh
     [[ "$stop_after" == manifest_self_test ]] && return
+    record "$destination" bash scripts/ux/rig-selftest.sh
+    [[ "$stop_after" == rig_self_test ]] && return
     record "$destination" git diff --check
 }
 

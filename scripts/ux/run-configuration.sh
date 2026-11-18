@@ -104,6 +104,10 @@ mkdir -p -- "$out_dir"
 out_dir=$(cd -- "$out_dir" && pwd -P) || ux_die "cannot resolve --out-dir to an absolute path"
 mkdir -p -- "$out_dir/_checkpoints"
 
+# The repeat limit (GUI rules): a ledger OUTSIDE the evidence directory, so
+# deleting a directory to re-run does not reset the count.
+ux_note_capture_set "$repository_root/.git-exclude/release-evidence/.capture-runs" "$out_dir|$name"
+
 app_env=()
 case "$renderer" in
     wgpu) ;;
@@ -160,10 +164,14 @@ host_win_id=$(ux_host_window_id_for_pid "$nested_pid" 10) ||
 ux_host_float_and_resize "$host_win_id" "$width" "$height"
 sleep 0.3
 
-app_pid=$(ux_launch_app "$binary" -u DISPLAY "WAYLAND_DISPLAY=$nested_display" "${app_env[@]}")
-app_win_id=$(ux_nested_window_id "$nested_sock" 10) ||
-    ux_die "nested compositor never reported the app's window within 10s"
+mapfile -t xdg_env < <(ux_isolation_env "$out_dir/_scratch")
+app_pid=$(ux_launch_app "$binary" -u DISPLAY "WAYLAND_DISPLAY=$nested_display" "${xdg_env[@]}" "${app_env[@]}")
+app_win_id=$(ux_nested_window_id "$nested_sock" 10 "$app_pid") ||
+    ux_die "nested compositor never reported a window for application pid $app_pid within 10s"
+ux_bind_instance "$nested_sock" "$app_pid"
 ux_assert_focus "$nested_sock" "$app_pid"
+backend_measured=$(ux_backend_evidence "$nested_sock" "$app_pid")
+[[ "$backend_measured" == Wayland* ]] || ux_die "$backend_measured"
 
 renderer_measured=$(ux_renderer_evidence "$app_pid")
 case "$renderer:$renderer_measured" in
@@ -289,6 +297,7 @@ cat >"$out_dir/${name}-RESULTS.md" <<EOF
 | PNG physical size (cross-check, drawer frame) | $png_physical |
 | Input method | keyboard (wtype on the nested compositor's socket) |
 | Renderer (requested / measured) | $renderer / $renderer_measured |
+| Backend (measured) | $backend_measured |
 | Entry state | Returning (opened the mock's default workspace) |
 
 Screenshots: \`${name}-00-launch.png\`, \`${name}-01-routes.png\`,
@@ -298,6 +307,9 @@ Screenshots: \`${name}-00-launch.png\`, \`${name}-01-routes.png\`,
 \`${name}-MANIFEST.md\`.
 EOF
 
+ux_assert_app_reads_no_files "$repository_root"
+ux_assert_isolation "$out_dir/_scratch"
+rm -r -- "${out_dir:?}/_scratch"
 ux_log "configuration $name complete: $out_dir/${name}-RESULTS.md"
 cat "$out_dir/${name}-RESULTS.md" >&2
 
